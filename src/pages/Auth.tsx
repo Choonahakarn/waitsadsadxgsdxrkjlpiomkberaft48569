@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Palette, ShoppingBag, Mail, Lock, User } from 'lucide-react';
+import { Palette, ShoppingBag, Mail, Lock, User, Check } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().trim().email({ message: 'กรุณากรอกอีเมลที่ถูกต้อง' }),
@@ -21,7 +21,7 @@ const signupSchema = z.object({
   email: z.string().trim().email({ message: 'กรุณากรอกอีเมลที่ถูกต้อง' }),
   password: z.string().min(6, { message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }),
   fullName: z.string().trim().min(2, { message: 'กรุณากรอกชื่อ' }),
-  role: z.enum(['artist', 'buyer']),
+  roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: 'กรุณาเลือกอย่างน้อย 1 บทบาท' }),
 });
 
 type AppRole = 'artist' | 'buyer';
@@ -37,7 +37,7 @@ const Auth = () => {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupFullName, setSignupFullName] = useState('');
-  const [signupRole, setSignupRole] = useState<AppRole>('buyer');
+  const [signupRoles, setSignupRoles] = useState<AppRole[]>(['buyer']);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -45,6 +45,18 @@ const Auth = () => {
       navigate('/');
     }
   }, [user, loading, navigate]);
+
+  const toggleRole = (role: AppRole) => {
+    setSignupRoles(prev => {
+      if (prev.includes(role)) {
+        // Don't allow removing if it's the only role
+        if (prev.length === 1) return prev;
+        return prev.filter(r => r !== role);
+      } else {
+        return [...prev, role];
+      }
+    });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +103,7 @@ const Auth = () => {
       email: signupEmail,
       password: signupPassword,
       fullName: signupFullName,
-      role: signupRole,
+      roles: signupRoles,
     });
     
     if (!result.success) {
@@ -106,7 +118,7 @@ const Auth = () => {
     }
     
     setIsSubmitting(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupFullName, signupRole);
+    const { error } = await signUp(signupEmail, signupPassword, signupFullName, signupRoles);
     setIsSubmitting(false);
     
     if (error) {
@@ -267,45 +279,52 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <Label>คุณต้องการเข้าร่วมในฐานะ</Label>
-                    <RadioGroup
-                      value={signupRole}
-                      onValueChange={(value) => setSignupRole(value as AppRole)}
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <div>
-                        <RadioGroupItem
-                          value="artist"
-                          id="role-artist"
-                          className="peer sr-only"
-                        />
-                        <Label
-                          htmlFor="role-artist"
-                          className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
+                    <Label>คุณต้องการเข้าร่วมในฐานะ (เลือกได้หลายบทบาท)</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div
+                        onClick={() => toggleRole('artist')}
+                        className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                          signupRoles.includes('artist')
+                            ? 'border-primary bg-primary/5'
+                            : 'border-muted hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        {signupRoles.includes('artist') && (
+                          <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                        <div className="flex flex-col items-center">
                           <Palette className="mb-3 h-6 w-6" />
                           <span className="font-medium">ศิลปิน</span>
                           <span className="text-xs text-muted-foreground">ขายงานศิลปะ</span>
-                        </Label>
+                        </div>
                       </div>
-                      <div>
-                        <RadioGroupItem
-                          value="buyer"
-                          id="role-buyer"
-                          className="peer sr-only"
-                        />
-                        <Label
-                          htmlFor="role-buyer"
-                          className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
+                      <div
+                        onClick={() => toggleRole('buyer')}
+                        className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                          signupRoles.includes('buyer')
+                            ? 'border-primary bg-primary/5'
+                            : 'border-muted hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        {signupRoles.includes('buyer') && (
+                          <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                        <div className="flex flex-col items-center">
                           <ShoppingBag className="mb-3 h-6 w-6" />
                           <span className="font-medium">ผู้ซื้อ</span>
                           <span className="text-xs text-muted-foreground">ซื้องานศิลปะ</span>
-                        </Label>
+                        </div>
                       </div>
-                    </RadioGroup>
-                    {errors.signup_role && (
-                      <p className="text-sm text-destructive">{errors.signup_role}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      💡 คุณสามารถเป็นทั้งศิลปินและผู้ซื้อได้ในเวลาเดียวกัน
+                    </p>
+                    {errors.signup_roles && (
+                      <p className="text-sm text-destructive">{errors.signup_roles}</p>
                     )}
                   </div>
 

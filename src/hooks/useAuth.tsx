@@ -9,9 +9,11 @@ interface AuthContextType {
   session: Session | null;
   roles: AppRole[];
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, roles: AppRole[]) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  addRole: (role: AppRole) => Promise<{ error: Error | null }>;
+  refreshRoles: () => Promise<void>;
   isAdmin: boolean;
   isArtist: boolean;
   isBuyer: boolean;
@@ -29,6 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.rpc('get_user_roles', { _user_id: userId });
     if (!error && data) {
       setRoles(data as AppRole[]);
+    }
+  };
+
+  const refreshRoles = async () => {
+    if (user) {
+      await fetchUserRoles(user.id);
     }
   };
 
@@ -67,20 +75,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, role: AppRole) => {
+  const signUp = async (email: string, password: string, fullName: string, selectedRoles: AppRole[]) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    // Use the first role for the trigger, we'll add additional roles after
+    const primaryRole = selectedRoles[0] || 'buyer';
+    
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-          role: role,
+          role: primaryRole,
         },
       },
     });
+
+    // If signup successful and user has multiple roles, add the additional roles
+    if (!error && data.user && selectedRoles.length > 1) {
+      for (let i = 1; i < selectedRoles.length; i++) {
+        await supabase.from('user_roles').insert({
+          user_id: data.user.id,
+          role: selectedRoles[i],
+        });
+        
+        // If adding artist role, create artist profile
+        if (selectedRoles[i] === 'artist') {
+          await supabase.from('artist_profiles').insert({
+            user_id: data.user.id,
+            artist_name: fullName || 'Artist',
+          });
+        }
+      }
+    }
     
     return { error: error as Error | null };
   };
@@ -99,6 +128,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([]);
   };
 
+  const addRole = async (role: AppRole) => {
+    if (!user) {
+      return { error: new Error('User not logged in') };
+    }
+
+    // Check if role already exists
+    if (roles.includes(role)) {
+      return { error: new Error('Role already assigned') };
+    }
+
+    const { error } = await supabase.from('user_roles').insert({
+      user_id: user.id,
+      role: role,
+    });
+
+    if (error) {
+      return { error: error as Error };
+    }
+
+    // If adding artist role, create artist profile
+    if (role === 'artist') {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      await supabase.from('artist_profiles').insert({
+        user_id: user.id,
+        artist_name: profile?.full_name || 'Artist',
+      });
+    }
+
+    // Refresh roles
+    await fetchUserRoles(user.id);
+
+    return { error: null };
+  };
+
   const value = {
     user,
     session,
@@ -107,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signIn,
     signOut,
+    addRole,
+    refreshRoles,
     isAdmin: roles.includes('admin'),
     isArtist: roles.includes('artist'),
     isBuyer: roles.includes('buyer'),
