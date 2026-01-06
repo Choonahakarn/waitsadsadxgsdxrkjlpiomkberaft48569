@@ -26,7 +26,8 @@
     "artworks": "ผลงาน",
     "artwork": "ผลงาน",
     "translating": "กำลังแปล...",
-    "translateTo": "แปลเป็น {{lang}}"
+    "translateTo": "แปลเป็น {{lang}}",
+    "community": "คอมมูนิตี้"
   },
   "roles": {
     "admin": "ผู้ดูแล",

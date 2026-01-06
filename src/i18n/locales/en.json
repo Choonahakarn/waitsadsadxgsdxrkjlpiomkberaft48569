@@ -26,7 +26,8 @@
     "artworks": "artworks",
     "artwork": "artwork",
     "translating": "Translating...",
-    "translateTo": "Translate to {{lang}}"
+    "translateTo": "Translate to {{lang}}",
+    "community": "Community"
   },
   "roles": {
     "admin": "Admin",

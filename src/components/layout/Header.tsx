@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ export function Header() {
   const navLinks = [
     { href: "/", label: t('common.home') },
     { href: "/marketplace", label: t('common.marketplace') },
+    { href: "/community", label: t('common.community', 'คอมมูนิตี้') },
     { href: "/artists", label: t('common.artists') },
     { href: "/verification", label: t('common.verification') },
     { href: "/policy", label: t('common.policy') },
