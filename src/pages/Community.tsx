@@ -168,6 +168,7 @@ export default function Community() {
     try {
       const offset = reset ? 0 : posts.length;
       
+      // Fetch original posts
       let query = supabase
         .from('community_posts')
         .select('*')
@@ -179,10 +180,17 @@ export default function Community() {
       }
 
       const { data: postsData, error } = await query;
-
       if (error) throw error;
 
-      const postsWithDetails = await Promise.all(
+      // Fetch shared posts (reposts)
+      const { data: sharedPostsData } = await supabase
+        .from('shared_posts')
+        .select('*, community_posts(*)')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+
+      // Process original posts
+      const originalPostsWithDetails = await Promise.all(
         (postsData || []).map(async (post) => {
           const { data: profile } = await supabase
             .from('profiles')
@@ -230,18 +238,107 @@ export default function Community() {
             is_following: followingUsers.has(post.user_id),
             followers_count: followersCount || 0,
             comments_count: commentsCount || 0,
-            shares_count: sharesCount || 0
+            shares_count: sharesCount || 0,
+            is_repost: false,
+            repost_created_at: undefined as string | undefined
+          } as CommunityPost;
+        })
+      );
+
+      // Process shared posts (reposts)
+      const repostsWithDetails = await Promise.all(
+        (sharedPostsData || []).map(async (share) => {
+          const originalPost = share.community_posts as any;
+          if (!originalPost) return null;
+
+          // Get reposter's profile
+          const { data: reposterProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', share.user_id)
+            .maybeSingle();
+
+          const { data: reposterArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', share.user_id)
+            .maybeSingle();
+
+          // Get original poster's profile
+          const { data: originalProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', originalPost.user_id)
+            .maybeSingle();
+
+          const { data: originalArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', originalPost.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', originalPost.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          const { count: commentsCount } = await supabase
+            .from('community_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
+          const { count: sharesCount } = await supabase
+            .from('shared_posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
+          return {
+            ...originalPost,
+            id: `repost-${share.id}`, // Unique key for repost
+            original_post_id: originalPost.id,
+            user_profile: originalProfile,
+            artist_profile: originalArtist,
+            is_liked: isLiked,
+            is_following: followingUsers.has(originalPost.user_id),
+            followers_count: 0,
+            comments_count: commentsCount || 0,
+            shares_count: sharesCount || 0,
+            is_repost: true,
+            repost_user_id: share.user_id,
+            repost_caption: share.caption,
+            repost_created_at: share.created_at,
+            repost_user_profile: reposterProfile,
+            repost_artist_profile: reposterArtist
           };
         })
       );
 
+      // Filter out null reposts and combine with original posts
+      const validReposts = repostsWithDetails.filter(r => r !== null) as CommunityPost[];
+      
+      // Merge and sort by created_at (use repost_created_at for reposts)
+      const allPosts: CommunityPost[] = [...originalPostsWithDetails, ...validReposts].sort((a, b) => {
+        const dateA = a.is_repost && a.repost_created_at ? new Date(a.repost_created_at) : new Date(a.created_at);
+        const dateB = b.is_repost && b.repost_created_at ? new Date(b.repost_created_at) : new Date(b.created_at);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      // Limit to ITEMS_PER_PAGE
+      const limitedPosts = allPosts.slice(0, ITEMS_PER_PAGE);
+
       if (reset) {
-        setPosts(postsWithDetails);
+        setPosts(limitedPosts);
       } else {
-        setPosts(prev => [...prev, ...postsWithDetails]);
+        setPosts(prev => [...prev, ...limitedPosts]);
       }
       
-      setHasMore((postsData?.length || 0) === ITEMS_PER_PAGE);
+      setHasMore(limitedPosts.length === ITEMS_PER_PAGE);
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
@@ -838,6 +935,31 @@ export default function Community() {
                     transition={{ delay: index * 0.05 }}
                     className="bg-card border border-border rounded-xl overflow-hidden"
                   >
+                    {/* Repost Header */}
+                    {post.is_repost && (
+                      <div className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50">
+                        <Repeat2 className="h-4 w-4" />
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
+                          <AvatarFallback className="text-[10px]">
+                            {(post.repost_artist_profile?.artist_name || post.repost_user_profile?.full_name || "U")[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-foreground">
+                          {post.repost_artist_profile?.artist_name || post.repost_user_profile?.full_name || "ผู้ใช้"}
+                        </span>
+                        <span>รีโพสต์</span>
+                        <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
+                      </div>
+                    )}
+
+                    {/* Repost Caption */}
+                    {post.is_repost && post.repost_caption && (
+                      <div className="px-4 py-2 bg-muted/30">
+                        <p className="text-sm">{post.repost_caption}</p>
+                      </div>
+                    )}
+
                     {/* Post Header */}
                     <div className="flex items-center justify-between p-4">
                       <div className="flex items-center gap-3">
