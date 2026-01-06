@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -151,6 +151,12 @@ export function Header() {
                 )}
                 {isArtist && (
                   <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/sell" className="cursor-pointer">
+                        <Image className="mr-2 h-4 w-4" />
+                        ผลงานของฉัน
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/artist/my-profile" className="cursor-pointer">
                         <Palette className="mr-2 h-4 w-4" />
