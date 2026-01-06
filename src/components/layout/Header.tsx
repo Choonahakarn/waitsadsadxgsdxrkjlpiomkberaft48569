@@ -25,9 +25,12 @@ const navLinks = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { user, signOut, isAdmin, isArtist, isBuyer, addRole, loading } = useAuth();
+  const auth = useAuth();
   const { toast } = useToast();
   const [isAddingRole, setIsAddingRole] = useState(false);
+  
+  // Destructure after getting the auth context to handle edge cases
+  const { user, signOut, isAdmin, isArtist, isBuyer, addRole, loading } = auth;
 
   const handleSignOut = async () => {
     await signOut();
