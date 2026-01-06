@@ -17,6 +17,8 @@ export type Database = {
       artist_profiles: {
         Row: {
           artist_name: string
+          avatar_url: string | null
+          bio: string | null
           created_at: string
           id: string
           identity_verified: boolean | null
@@ -33,6 +35,8 @@ export type Database = {
         }
         Insert: {
           artist_name: string
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           id?: string
           identity_verified?: boolean | null
@@ -49,6 +53,8 @@ export type Database = {
         }
         Update: {
           artist_name?: string
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           id?: string
           identity_verified?: boolean | null
@@ -64,6 +70,71 @@ export type Database = {
           years_experience?: number | null
         }
         Relationships: []
+      }
+      artworks: {
+        Row: {
+          artist_id: string
+          category: string | null
+          created_at: string
+          description: string | null
+          dimensions: string | null
+          id: string
+          image_url: string
+          is_sold: boolean | null
+          is_verified: boolean | null
+          medium: string | null
+          price: number
+          title: string
+          tools_used: string[] | null
+          type: string | null
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          artist_id: string
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          dimensions?: string | null
+          id?: string
+          image_url: string
+          is_sold?: boolean | null
+          is_verified?: boolean | null
+          medium?: string | null
+          price: number
+          title: string
+          tools_used?: string[] | null
+          type?: string | null
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          artist_id?: string
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          dimensions?: string | null
+          id?: string
+          image_url?: string
+          is_sold?: boolean | null
+          is_verified?: boolean | null
+          medium?: string | null
+          price?: number
+          title?: string
+          tools_used?: string[] | null
+          type?: string | null
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artworks_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artist_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -118,6 +189,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      verification_submissions: {
+        Row: {
+          admin_notes: string | null
+          artist_id: string
+          created_at: string
+          description: string | null
+          document_type: string
+          document_url: string
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          artist_id: string
+          created_at?: string
+          description?: string | null
+          document_type: string
+          document_url: string
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          artist_id?: string
+          created_at?: string
+          description?: string | null
+          document_type?: string
+          document_url?: string
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_submissions_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artist_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
