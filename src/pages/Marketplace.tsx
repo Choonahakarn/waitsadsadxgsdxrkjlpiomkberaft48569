@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Search, SlidersHorizontal, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { artworks, Artwork } from "@/data/mockData";
@@ -11,6 +12,7 @@ type CategoryFilter = "all" | "traditional" | "digital";
 type TypeFilter = "all" | "original" | "commission";
 
 export default function Marketplace() {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -39,10 +41,10 @@ export default function Marketplace() {
             className="text-center"
           >
             <h1 className="font-serif text-4xl font-bold text-foreground md:text-5xl">
-              Artist Marketplace
+              {t('marketplace.title')}
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Discover and collect authentic human-made artworks
+              {t('marketplace.subtitle')}
             </p>
           </motion.div>
         </div>
@@ -57,7 +59,7 @@ export default function Marketplace() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search artworks or artists..."
+                placeholder={t('marketplace.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -68,7 +70,7 @@ export default function Marketplace() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Filters:</span>
+                <span className="text-sm text-muted-foreground">{t('marketplace.filters')}:</span>
               </div>
 
               {/* Category filters */}
@@ -76,19 +78,19 @@ export default function Marketplace() {
                 onClick={() => setCategoryFilter("all")}
                 className={`filter-chip ${categoryFilter === "all" ? "active" : ""}`}
               >
-                All
+                {t('marketplace.all')}
               </button>
               <button
                 onClick={() => setCategoryFilter("traditional")}
                 className={`filter-chip ${categoryFilter === "traditional" ? "active" : ""}`}
               >
-                Traditional
+                {t('marketplace.traditional')}
               </button>
               <button
                 onClick={() => setCategoryFilter("digital")}
                 className={`filter-chip ${categoryFilter === "digital" ? "active" : ""}`}
               >
-                Digital
+                {t('marketplace.digital')}
               </button>
 
               <div className="h-6 w-px bg-border" />
@@ -98,19 +100,19 @@ export default function Marketplace() {
                 onClick={() => setTypeFilter("all")}
                 className={`filter-chip ${typeFilter === "all" ? "active" : ""}`}
               >
-                All Types
+                {t('marketplace.allTypes')}
               </button>
               <button
                 onClick={() => setTypeFilter("original")}
                 className={`filter-chip ${typeFilter === "original" ? "active" : ""}`}
               >
-                Original
+                {t('marketplace.original')}
               </button>
               <button
                 onClick={() => setTypeFilter("commission")}
                 className={`filter-chip ${typeFilter === "commission" ? "active" : ""}`}
               >
-                Commission
+                {t('marketplace.commission')}
               </button>
 
               <div className="h-6 w-px bg-border" />
@@ -123,7 +125,7 @@ export default function Marketplace() {
                 />
                 <span className="flex items-center gap-1.5 text-sm font-medium">
                   <Check className="h-3.5 w-3.5 text-primary" />
-                  Verified Only
+                  {t('marketplace.verifiedOnly')}
                 </span>
               </label>
             </div>
@@ -136,11 +138,11 @@ export default function Marketplace() {
         <div className="container mx-auto px-4 lg:px-8">
           <div className="mb-8 flex items-center justify-between">
             <p className="text-muted-foreground">
-              Showing{" "}
+              {t('common.showing')}{" "}
               <span className="font-medium text-foreground">
                 {filteredArtworks.length}
               </span>{" "}
-              artwork{filteredArtworks.length !== 1 ? "s" : ""}
+              {filteredArtworks.length !== 1 ? t('common.artworks') : t('common.artwork')}
             </p>
           </div>
 
@@ -167,7 +169,7 @@ export default function Marketplace() {
           ) : (
             <div className="py-20 text-center">
               <p className="text-lg text-muted-foreground">
-                No artworks found matching your criteria.
+                {t('marketplace.noResults')}
               </p>
               <button
                 onClick={() => {
@@ -177,7 +179,7 @@ export default function Marketplace() {
                 }}
                 className="mt-4 text-primary hover:underline"
               >
-                Clear filters
+                {t('common.clearFilters')}
               </button>
             </div>
           )}

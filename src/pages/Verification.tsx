@@ -1,27 +1,38 @@
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
-import { Check, Upload, Video, FileImage, Shield, AlertTriangle } from "lucide-react";
+import { Check, Upload, Video, FileImage, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const requirements = [
-  {
-    icon: FileImage,
-    title: "Sketches & Work-in-Progress",
-    description: "Upload preliminary sketches, rough drafts, or work-in-progress images that show the evolution of your artwork.",
-  },
-  {
-    icon: Video,
-    title: "Timelapse or Screen Recording",
-    description: "For digital artists: Provide screen recordings or timelapse videos of your creation process.",
-  },
-  {
-    icon: Upload,
-    title: "Process Documentation",
-    description: "Document your creative process with photos showing your workspace, materials, and tools in use.",
-  },
-];
-
 export default function Verification() {
+  const { t } = useTranslation();
+
+  const requirements = [
+    {
+      icon: FileImage,
+      titleKey: "verification.reqSketchTitle",
+      descKey: "verification.reqSketchDesc",
+    },
+    {
+      icon: Video,
+      titleKey: "verification.reqTimelapseTitle",
+      descKey: "verification.reqTimelapseDesc",
+    },
+    {
+      icon: Upload,
+      titleKey: "verification.reqProcessTitle",
+      descKey: "verification.reqProcessDesc",
+    },
+  ];
+
+  const benefits = [
+    "verification.benefit1",
+    "verification.benefit2",
+    "verification.benefit3",
+    "verification.benefit4",
+    "verification.benefit5",
+  ];
+
   return (
     <Layout>
       {/* Header */}
@@ -36,10 +47,10 @@ export default function Verification() {
               <Shield className="h-8 w-8 text-primary" />
             </div>
             <h1 className="font-serif text-4xl font-bold text-foreground md:text-5xl">
-              Artist Verification
+              {t('verification.title')}
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Our process-based verification ensures every artwork on SoulHuman is genuinely created by human hands.
+              {t('verification.subtitle')}
             </p>
           </motion.div>
         </div>
@@ -55,21 +66,21 @@ export default function Verification() {
               viewport={{ once: true }}
             >
               <h2 className="font-serif text-2xl font-bold text-foreground md:text-3xl">
-                Why We Verify
+                {t('verification.whyVerify')}
               </h2>
               <p className="mt-4 text-muted-foreground">
-                In an era where AI can generate convincing images in seconds, we believe it's crucial to protect and celebrate authentic human creativity. Our verification process is designed to be thorough yet artist-friendly.
+                {t('verification.whyVerifyDesc')}
               </p>
             </motion.div>
 
             {/* Requirements */}
             <div className="mt-12 space-y-6">
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Verification Requirements
+                {t('verification.requirements')}
               </h3>
               {requirements.map((req, index) => (
                 <motion.div
-                  key={req.title}
+                  key={req.titleKey}
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
@@ -80,8 +91,8 @@ export default function Verification() {
                     <req.icon className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-foreground">{req.title}</h4>
-                    <p className="mt-1 text-muted-foreground">{req.description}</p>
+                    <h4 className="font-semibold text-foreground">{t(req.titleKey)}</h4>
+                    <p className="mt-1 text-muted-foreground">{t(req.descKey)}</p>
                   </div>
                 </motion.div>
               ))}
@@ -95,13 +106,13 @@ export default function Verification() {
               className="mt-12 rounded-2xl border border-primary/20 bg-primary/5 p-8"
             >
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Artist Pledge
+                {t('verification.artistPledge')}
               </h3>
               <p className="mt-4 text-muted-foreground">
-                All artists must agree to the following statement:
+                {t('verification.pledgeIntro')}
               </p>
               <blockquote className="mt-4 border-l-4 border-primary pl-4 italic text-foreground">
-                "I confirm that this artwork is created entirely by me, a human, without the use of AI generation, AI-assisted image creation, or any generative models. I understand that violations will result in permanent removal from the platform."
+                {t('verification.pledgeText')}
               </blockquote>
             </motion.div>
 
@@ -113,19 +124,13 @@ export default function Verification() {
               className="mt-12"
             >
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Benefits of Verification
+                {t('verification.benefits')}
               </h3>
               <ul className="mt-6 space-y-4">
-                {[
-                  "Display the 'Human Verified' badge on all your artworks",
-                  "Build trust with buyers who value authentic human art",
-                  "Get featured in our curated collections",
-                  "Access to commission requests from serious collectors",
-                  "Join a community of verified human artists",
-                ].map((benefit) => (
-                  <li key={benefit} className="flex items-start gap-3">
+                {benefits.map((benefitKey) => (
+                  <li key={benefitKey} className="flex items-start gap-3">
                     <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                    <span className="text-muted-foreground">{benefit}</span>
+                    <span className="text-muted-foreground">{t(benefitKey)}</span>
                   </li>
                 ))}
               </ul>
@@ -139,7 +144,7 @@ export default function Verification() {
               className="mt-12 text-center"
             >
               <Link to="/sell" className="btn-hero-primary">
-                Apply for Verification
+                {t('verification.applyNow')}
               </Link>
             </motion.div>
           </div>

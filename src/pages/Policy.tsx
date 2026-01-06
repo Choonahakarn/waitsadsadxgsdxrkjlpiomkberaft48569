@@ -1,26 +1,29 @@
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { XCircle, CheckCircle, AlertTriangle, Shield } from "lucide-react";
 
-const prohibited = [
-  "AI-generated images or artwork",
-  "Images created using generative AI models (Midjourney, DALL-E, Stable Diffusion, etc.)",
-  "Artwork that uses AI-generated base images, even if modified",
-  "AI-assisted generation or enhancement tools that create content",
-  "Artwork created by feeding prompts to any AI system",
-  "Modifications or edits to AI-generated artwork",
-];
-
-const allowed = [
-  "Reference photos for inspiration (but not AI-generated ones)",
-  "Digital tools for traditional creation (Photoshop, Procreate, etc.)",
-  "Basic photo editing (cropping, color correction of YOUR work)",
-  "Scans or photos of physical artwork",
-  "Digital painting and illustration created stroke-by-stroke",
-  "3D modeling and rendering done manually",
-];
-
 export default function Policy() {
+  const { t } = useTranslation();
+
+  const prohibited = [
+    "policy.prohibited1",
+    "policy.prohibited2",
+    "policy.prohibited3",
+    "policy.prohibited4",
+    "policy.prohibited5",
+    "policy.prohibited6",
+  ];
+
+  const allowed = [
+    "policy.allowed1",
+    "policy.allowed2",
+    "policy.allowed3",
+    "policy.allowed4",
+    "policy.allowed5",
+    "policy.allowed6",
+  ];
+
   return (
     <Layout>
       {/* Header */}
@@ -35,10 +38,10 @@ export default function Policy() {
               <Shield className="h-8 w-8 text-destructive" />
             </div>
             <h1 className="font-serif text-4xl font-bold text-foreground md:text-5xl">
-              Anti-AI Policy
+              {t('policy.title')}
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              SoulHuman is committed to celebrating and protecting authentic human creativity.
+              {t('policy.subtitle')}
             </p>
           </motion.div>
         </div>
@@ -57,10 +60,10 @@ export default function Policy() {
             >
               <h2 className="flex items-center gap-3 font-serif text-2xl font-bold text-foreground">
                 <AlertTriangle className="h-7 w-7 text-destructive" />
-                Zero Tolerance for AI Art
+                {t('policy.zeroTolerance')}
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                SoulHuman maintains a strict policy against AI-generated content. Any artwork found to violate this policy will be immediately removed, and the artist will face a <strong className="text-foreground">permanent ban</strong> from the platform.
+                {t('policy.zeroToleranceDesc')}
               </p>
             </motion.div>
 
@@ -73,16 +76,16 @@ export default function Policy() {
             >
               <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-foreground">
                 <XCircle className="h-6 w-6 text-destructive" />
-                What is NOT Allowed
+                {t('policy.notAllowed')}
               </h3>
               <ul className="mt-6 space-y-4">
-                {prohibited.map((item) => (
+                {prohibited.map((itemKey) => (
                   <li
-                    key={item}
+                    key={itemKey}
                     className="flex items-start gap-3 rounded-lg border border-border bg-card p-4"
                   >
                     <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-                    <span className="text-muted-foreground">{item}</span>
+                    <span className="text-muted-foreground">{t(itemKey)}</span>
                   </li>
                 ))}
               </ul>
@@ -97,16 +100,16 @@ export default function Policy() {
             >
               <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-foreground">
                 <CheckCircle className="h-6 w-6 text-primary" />
-                What IS Allowed
+                {t('policy.allowed')}
               </h3>
               <ul className="mt-6 space-y-4">
-                {allowed.map((item) => (
+                {allowed.map((itemKey) => (
                   <li
-                    key={item}
+                    key={itemKey}
                     className="flex items-start gap-3 rounded-lg border border-border bg-card p-4"
                   >
                     <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                    <span className="text-muted-foreground">{item}</span>
+                    <span className="text-muted-foreground">{t(itemKey)}</span>
                   </li>
                 ))}
               </ul>
@@ -120,24 +123,24 @@ export default function Policy() {
               className="mt-12"
             >
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                How We Enforce This Policy
+                {t('policy.enforcement')}
               </h3>
               <div className="mt-6 space-y-4 text-muted-foreground">
                 <p>
-                  Our verification process includes multiple layers of review:
+                  {t('policy.enforcementDesc')}
                 </p>
                 <ol className="ml-6 list-decimal space-y-2">
                   <li>
-                    <strong className="text-foreground">Process Documentation:</strong> Artists must provide sketches, work-in-progress images, or screen recordings.
+                    <strong className="text-foreground">{t('policy.enforcement1Title')}</strong> {t('policy.enforcement1Desc')}
                   </li>
                   <li>
-                    <strong className="text-foreground">Community Reporting:</strong> Users can report suspected AI art for review.
+                    <strong className="text-foreground">{t('policy.enforcement2Title')}</strong> {t('policy.enforcement2Desc')}
                   </li>
                   <li>
-                    <strong className="text-foreground">Expert Review:</strong> Flagged content is reviewed by trained moderators.
+                    <strong className="text-foreground">{t('policy.enforcement3Title')}</strong> {t('policy.enforcement3Desc')}
                   </li>
                   <li>
-                    <strong className="text-foreground">Technical Analysis:</strong> We use various detection methods to identify AI-generated content.
+                    <strong className="text-foreground">{t('policy.enforcement4Title')}</strong> {t('policy.enforcement4Desc')}
                   </li>
                 </ol>
               </div>
@@ -151,24 +154,24 @@ export default function Policy() {
               className="mt-12 rounded-2xl border border-border bg-card p-8 shadow-soft"
             >
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Consequences of Violations
+                {t('policy.consequences')}
               </h3>
               <ul className="mt-6 space-y-3 text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-destructive">•</span>
-                  Immediate removal of all artwork
+                  {t('policy.consequence1')}
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive">•</span>
-                  Permanent ban from the platform
+                  {t('policy.consequence2')}
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive">•</span>
-                  Forfeiture of any pending payments
+                  {t('policy.consequence3')}
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive">•</span>
-                  Public listing in our violations registry (artist name only)
+                  {t('policy.consequence4')}
                 </li>
               </ul>
             </motion.div>
@@ -181,7 +184,7 @@ export default function Policy() {
               className="mt-12 text-center"
             >
               <p className="text-muted-foreground">
-                Have questions about our policy? Contact us at{" "}
+                {t('policy.contact')}{" "}
                 <a href="mailto:policy@soulhuman.com" className="text-primary hover:underline">
                   policy@soulhuman.com
                 </a>

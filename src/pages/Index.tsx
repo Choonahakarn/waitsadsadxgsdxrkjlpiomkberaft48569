@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Check, Shield, Eye, Users, ArrowRight, Sparkles, Ban } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { TrustBadge } from "@/components/ui/TrustBadge";
@@ -25,6 +26,8 @@ const itemVariants = {
 };
 
 export default function Index() {
+  const { t } = useTranslation();
+
   return (
     <Layout>
       {/* Hero Section */}
@@ -39,33 +42,33 @@ export default function Index() {
             >
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2">
                 <Ban className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">No AI. Zero Generative Models.</span>
+                <span className="text-sm font-medium text-primary">{t('index.badge')}</span>
               </div>
               
               <h1 className="font-serif text-4xl font-bold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-                Human-Made Art Only.{" "}
-                <span className="text-primary">Zero AI.</span>
+                {t('index.heroTitle1')}{" "}
+                <span className="text-primary">{t('index.heroTitle2')}</span>
               </h1>
               
               <p className="mt-6 text-lg leading-relaxed text-muted-foreground lg:text-xl">
-                The marketplace for 100% human-created artwork. Every piece is verified to be made by real artists—no algorithms, no generative models.
+                {t('index.heroDescription')}
               </p>
               
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
                 <Link to="/sell" className="btn-hero-primary">
                   <Sparkles className="h-5 w-5" />
-                  Sell Your Art
+                  {t('index.sellYourArt')}
                 </Link>
                 <Link to="/marketplace" className="btn-hero-secondary">
-                  Buy Human-Made Art
+                  {t('index.buyHumanArt')}
                   <ArrowRight className="h-5 w-5" />
                 </Link>
               </div>
 
               {/* Trust indicators */}
               <div className="mt-12 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
-                <TrustBadge icon={Check} title="Human Verified Artists" />
-                <TrustBadge icon={Shield} title="Process-Based Verification" />
+                <TrustBadge icon={Check} title={t('index.humanVerifiedArtists')} />
+                <TrustBadge icon={Shield} title={t('index.processVerification')} />
               </div>
             </motion.div>
 
@@ -82,8 +85,8 @@ export default function Index() {
                   className="aspect-[4/3] w-full object-cover"
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-foreground/80 to-transparent p-6">
-                  <p className="font-serif text-lg text-primary-foreground">Featured Artwork</p>
-                  <p className="text-sm text-primary-foreground/80">by Elena Vasquez • Human Verified</p>
+                  <p className="font-serif text-lg text-primary-foreground">{t('index.featuredArtwork')}</p>
+                  <p className="text-sm text-primary-foreground/80">by Elena Vasquez • {t('index.humanVerified')}</p>
                 </div>
               </div>
               
@@ -99,8 +102,8 @@ export default function Index() {
                     <Check className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">100% Human</p>
-                    <p className="text-xs text-muted-foreground">Verified Creation</p>
+                    <p className="text-sm font-semibold text-foreground">{t('index.hundredHuman')}</p>
+                    <p className="text-xs text-muted-foreground">{t('index.verifiedCreation')}</p>
                   </div>
                 </div>
               </motion.div>
@@ -114,11 +117,11 @@ export default function Index() {
         <div className="container mx-auto px-4">
           <div className="flex flex-wrap items-center justify-center gap-8 text-center">
             <p className="font-serif text-xl font-medium text-foreground md:text-2xl">
-              "Art made by humans, not algorithms."
+              {t('index.statementQuote')}
             </p>
             <div className="hidden h-8 w-px bg-border md:block" />
             <p className="text-muted-foreground">
-              No AI. No Generative Models. Only Real Artists.
+              {t('index.statementSub')}
             </p>
           </div>
         </div>
@@ -134,10 +137,10 @@ export default function Index() {
             className="mb-12 text-center"
           >
             <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              Featured Artworks
+              {t('index.featuredArtworks')}
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Discover exceptional pieces from verified human artists
+              {t('index.featuredArtworksDesc')}
             </p>
           </motion.div>
 
@@ -169,7 +172,7 @@ export default function Index() {
               to="/marketplace"
               className="inline-flex items-center gap-2 font-medium text-primary transition-colors hover:text-primary/80"
             >
-              View All Artworks
+              {t('common.viewAllArtworks')}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -186,10 +189,10 @@ export default function Index() {
             className="mx-auto max-w-3xl text-center"
           >
             <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              Why Human Art Matters
+              {t('index.whyHumanArt')}
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              In an age of artificial creativity, authentic human expression has never been more valuable.
+              {t('index.whyHumanArtDesc')}
             </p>
           </motion.div>
 
@@ -205,10 +208,10 @@ export default function Index() {
                 <Users className="h-7 w-7 text-primary" />
               </div>
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Support Real Artists
+                {t('index.supportRealArtists')}
               </h3>
               <p className="mt-3 text-muted-foreground">
-                Every purchase directly supports human creators who dedicate their time, skill, and passion to their craft.
+                {t('index.supportRealArtistsDesc')}
               </p>
             </motion.div>
 
@@ -223,10 +226,10 @@ export default function Index() {
                 <Sparkles className="h-7 w-7 text-primary" />
               </div>
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Authentic Expression
+                {t('index.authenticExpression')}
               </h3>
               <p className="mt-3 text-muted-foreground">
-                Human art carries emotion, intention, and story that algorithms simply cannot replicate or understand.
+                {t('index.authenticExpressionDesc')}
               </p>
             </motion.div>
 
@@ -241,10 +244,10 @@ export default function Index() {
                 <Eye className="h-7 w-7 text-primary" />
               </div>
               <h3 className="font-serif text-xl font-semibold text-foreground">
-                Verified Authenticity
+                {t('index.verifiedAuthenticity')}
               </h3>
               <p className="mt-3 text-muted-foreground">
-                Our rigorous verification process ensures every artwork is genuinely created by human hands and minds.
+                {t('index.verifiedAuthenticityDesc')}
               </p>
             </motion.div>
           </div>
@@ -261,17 +264,17 @@ export default function Index() {
             className="mx-auto max-w-4xl rounded-3xl bg-gradient-to-br from-primary/5 via-card to-secondary/30 p-12 text-center shadow-elevated lg:p-16"
           >
             <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              Ready to Join the Movement?
+              {t('index.readyToJoin')}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              Whether you're an artist looking to sell your work or a collector seeking authentic human creativity, SoulHuman is your home.
+              {t('index.readyToJoinDesc')}
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <Link to="/sell" className="btn-hero-primary">
-                Start Selling Today
+                {t('index.startSellingToday')}
               </Link>
               <Link to="/marketplace" className="btn-hero-secondary">
-                Explore the Marketplace
+                {t('index.exploreMarketplace')}
               </Link>
             </div>
           </motion.div>
