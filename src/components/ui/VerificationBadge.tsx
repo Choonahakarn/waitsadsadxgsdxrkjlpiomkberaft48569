@@ -1,7 +1,7 @@
-import { Check, Shield, Paintbrush } from "lucide-react";
+import { Check, Shield, Paintbrush, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type BadgeVariant = "verified" | "traditional" | "digital" | "trust";
+type BadgeVariant = "verified" | "traditional" | "digital" | "trust" | "identity";
 
 interface VerificationBadgeProps {
   variant?: BadgeVariant;
@@ -29,6 +29,11 @@ const badgeConfig = {
     icon: Shield,
     label: "Trusted",
     className: "trust-badge",
+  },
+  identity: {
+    icon: UserCheck,
+    label: "Identity Verified",
+    className: "inline-flex items-center gap-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300",
   },
 };
 

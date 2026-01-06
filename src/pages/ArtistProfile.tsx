@@ -6,9 +6,11 @@ import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { getArtistById, getArtworksByArtist } from "@/data/mockData";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 export default function ArtistProfile() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const artist = getArtistById(id || "");
   const artworks = artist ? getArtworksByArtist(artist.id) : [];
 
@@ -69,6 +71,13 @@ export default function ArtistProfile() {
                     label={badge}
                   />
                 ))}
+                {/* Identity verified badge - shown for verified artists */}
+                {artist.badges.includes("Human Verified") && (
+                  <VerificationBadge
+                    variant="identity"
+                    label={t('artistProfile.identityVerified', 'Identity Verified')}
+                  />
+                )}
               </div>
 
               <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
