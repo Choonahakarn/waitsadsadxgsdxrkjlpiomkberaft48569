@@ -18,6 +18,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminArtists from "./pages/admin/Artists";
 import AdminVerifications from "./pages/admin/Verifications";
+import AdminIdentityVerifications from "./pages/admin/IdentityVerifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/artists" element={<AdminArtists />} />
             <Route path="/admin/verifications" element={<AdminVerifications />} />
+            <Route path="/admin/identity-verifications" element={<AdminIdentityVerifications />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
