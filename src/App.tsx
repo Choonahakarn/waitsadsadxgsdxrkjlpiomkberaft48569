@@ -23,6 +23,7 @@ import AdminTopupRequests from "./pages/admin/TopupRequests";
 import MyArtistProfile from "./pages/artist/MyProfile";
 import VerificationSubmit from "./pages/artist/VerificationSubmit";
 import Wallet from "./pages/Wallet";
+import MyOrders from "./pages/MyOrders";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/artist/my-profile" element={<MyArtistProfile />} />
             <Route path="/artist/verification" element={<VerificationSubmit />} />
             <Route path="/wallet" element={<Wallet />} />
+            <Route path="/my-orders" element={<MyOrders />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
