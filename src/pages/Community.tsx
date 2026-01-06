@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Check } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface CommunityPost {
   id: string;
@@ -64,9 +70,9 @@ const categories = [
   "อื่นๆ"
 ];
 
-const popularTags = ["#DigitalArt", "#Illustration", "#CharacterDesign", "#FanArt", "#Watercolor", "#Sketch"];
-
 type FeedTab = 'discover' | 'following' | 'latest';
+
+const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
@@ -75,13 +81,15 @@ export default function Community() {
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [hoveredPost, setHoveredPost] = useState<string | null>(null);
+  const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
   
   // Form state
   const [title, setTitle] = useState("");
@@ -96,16 +104,11 @@ export default function Community() {
   // Filters
   const [activeTab, setActiveTab] = useState<FeedTab>('discover');
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchPosts();
-    if (user) {
-      fetchFollowing();
-    }
-  }, [user]);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const fetchFollowing = async () => {
+  const fetchFollowing = useCallback(async () => {
     if (!user) return;
     try {
       const { data } = await supabase
@@ -119,14 +122,30 @@ export default function Community() {
     } catch (error) {
       console.error('Error fetching following:', error);
     }
-  };
+  }, [user]);
 
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setPosts([]);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
-      const { data: postsData, error } = await supabase
+      const offset = reset ? 0 : posts.length;
+      
+      let query = supabase
         .from('community_posts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+
+      if (searchQuery.trim()) {
+        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+      }
+
+      const { data: postsData, error } = await query;
 
       if (error) throw error;
 
@@ -177,13 +196,61 @@ export default function Community() {
         })
       );
 
-      setPosts(postsWithDetails);
+      if (reset) {
+        setPosts(postsWithDetails);
+      } else {
+        setPosts(prev => [...prev, ...postsWithDetails]);
+      }
+      
+      setHasMore((postsData?.length || 0) === ITEMS_PER_PAGE);
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, [posts.length, searchQuery, user, followingUsers]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchFollowing();
+  }, [fetchFollowing]);
+
+  useEffect(() => {
+    fetchPosts(true);
+  }, [searchQuery, activeTab]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (loading) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          fetchPosts(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loading, hasMore, loadingMore]);
+
+  // Filter posts by tab
+  const filteredPosts = posts.filter(post => {
+    if (activeTab === 'following') {
+      return followingUsers.has(post.user_id);
+    }
+    return true;
+  });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -246,7 +313,7 @@ export default function Community() {
       setImageFile(null);
       setImagePreview("");
       setIsCreateOpen(false);
-      fetchPosts();
+      fetchPosts(true);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -258,8 +325,8 @@ export default function Community() {
     }
   };
 
-  const handleLike = async (postId: string, isLiked: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleLike = async (postId: string, isLiked: boolean, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!user) {
       toast({
         variant: "destructive",
@@ -297,8 +364,8 @@ export default function Community() {
     }
   };
 
-  const handleFollow = async (userId: string, isFollowing: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleFollow = async (userId: string, isFollowing: boolean, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!user || user.id === userId) return;
 
     try {
@@ -461,38 +528,66 @@ export default function Community() {
     }
   };
 
-  // Filter posts
-  const filteredPosts = useMemo(() => {
-    let result = posts;
-    
-    if (activeTab === 'following') {
-      result = result.filter(post => followingUsers.has(post.user_id));
-    } else if (activeTab === 'latest') {
-      result = [...result].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+  const handleSave = (postId: string) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อบันทึก"
+      });
+      return;
     }
     
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(post => 
-        post.title.toLowerCase().includes(query) ||
-        post.description?.toLowerCase().includes(query) ||
-        post.artist_profile?.artist_name?.toLowerCase().includes(query) ||
-        post.user_profile?.full_name?.toLowerCase().includes(query) ||
-        post.tools_used?.some(tool => tool.toLowerCase().includes(query))
-      );
-    }
+    setSavedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+        toast({ title: "ยกเลิกการบันทึกแล้ว" });
+      } else {
+        newSet.add(postId);
+        toast({ title: "บันทึกแล้ว ✓" });
+      }
+      return newSet;
+    });
+  };
+
+  const handleShare = async (post: CommunityPost) => {
+    const url = `${window.location.origin}/community?post=${post.id}`;
     
-    if (selectedTag) {
-      result = result.filter(post => 
-        post.category?.toLowerCase().includes(selectedTag.replace('#', '').toLowerCase()) ||
-        post.tools_used?.some(tool => tool.toLowerCase().includes(selectedTag.replace('#', '').toLowerCase()))
-      );
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: post.title,
+          text: `ดูผลงาน "${post.title}"`,
+          url: url
+        });
+      } catch (error) {
+        // User cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "คัดลอกลิงก์แล้ว!",
+        description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด"
+      });
     }
-    
-    return result;
-  }, [posts, activeTab, searchQuery, selectedTag, followingUsers]);
+  };
+
+  // Time ago formatter
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "เมื่อกี้";
+    if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`;
+    if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`;
+    if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
+    return date.toLocaleDateString('th-TH');
+  };
 
   // Realtime comments
   useEffect(() => {
@@ -528,24 +623,24 @@ export default function Community() {
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Header Section */}
-        <div className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-20 z-40">
-          <div className="container mx-auto px-4">
+        {/* Sticky Header */}
+        <div className="border-b border-border bg-background/95 backdrop-blur sticky top-20 z-40">
+          <div className="container mx-auto max-w-2xl px-4">
             {/* Search Bar */}
-            <div className="py-4">
-              <div className="relative max-w-xl mx-auto">
+            <div className="py-3">
+              <div className="relative">
                 <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="ค้นหาผลงาน ศิลปิน หรือแท็ก..."
+                  placeholder="ค้นหาผลงาน..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-12 h-12 bg-background/50 border-muted text-base rounded-full"
+                  className="pl-12 h-11 bg-muted/50 border-0 rounded-full"
                 />
                 {searchQuery && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
                     onClick={() => setSearchQuery("")}
                   >
                     <X className="h-4 w-4" />
@@ -554,30 +649,13 @@ export default function Community() {
               </div>
             </div>
 
-            {/* Tags */}
-            <div className="pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {popularTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                  className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    selectedTag === tag
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-
             {/* Tabs */}
             <div className="flex items-center justify-center gap-1 border-t border-border">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                  className={`relative flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -597,11 +675,12 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="container mx-auto px-4 py-6">
+        {/* Feed Content */}
+        <div className="container mx-auto max-w-2xl px-4 py-4">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="py-20 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+              <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
             </div>
           ) : filteredPosts.length === 0 ? (
             <div className="py-20 text-center">
@@ -609,88 +688,182 @@ export default function Community() {
                 <Search className="h-10 w-10 text-muted-foreground" />
               </div>
               <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-muted-foreground mb-4">
                 {activeTab === 'following' 
-                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม ลองติดตามศิลปินคนอื่นดู!'
-                  : 'ลองค้นหาด้วยคำอื่น หรือเลือกแท็กอื่น'}
+                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
+                  : searchQuery ? 'ลองค้นหาด้วยคำอื่น' : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
               </p>
-              {(searchQuery || selectedTag) && (
-                <Button variant="outline" onClick={() => { setSearchQuery(""); setSelectedTag(null); }}>
-                  ล้างตัวกรอง
+              {searchQuery && (
+                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                  ล้างการค้นหา
                 </Button>
               )}
             </div>
           ) : (
-            /* Masonry Grid */
-            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
-              {filteredPosts.map((post) => (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="break-inside-avoid"
-                >
-                  <div
-                    className="group cursor-pointer overflow-hidden rounded-xl bg-card border border-border"
-                    onMouseEnter={() => setHoveredPost(post.id)}
-                    onMouseLeave={() => setHoveredPost(null)}
-                    onClick={() => handleOpenPost(post)}
+            <div className="space-y-6">
+              <AnimatePresence>
+                {filteredPosts.map((post, index) => (
+                  <motion.article
+                    key={post.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-card border border-border rounded-xl overflow-hidden"
                   >
-                    {/* Image Container */}
-                    <div className="relative overflow-hidden">
+                    {/* Post Header */}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                            </span>
+                            {post.artist_profile?.is_verified && (
+                              <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
+                                ✓
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimeAgo(post.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {user && user.id !== post.user_id && (
+                          <Button
+                            variant={followingUsers.has(post.user_id) ? "secondary" : "default"}
+                            size="sm"
+                            className="h-8"
+                            onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
+                          >
+                            {followingUsers.has(post.user_id) ? (
+                              <>
+                                <UserCheck className="h-3.5 w-3.5 mr-1" />
+                                Following
+                              </>
+                            ) : (
+                              <>
+                                <UserPlus className="h-3.5 w-3.5 mr-1" />
+                                Follow
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-5 w-5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleShare(post)}>
+                              <Share2 className="h-4 w-4 mr-2" />
+                              แชร์
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSave(post.id)}>
+                              <Bookmark className="h-4 w-4 mr-2" />
+                              {savedPosts.has(post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Image */}
+                    <div 
+                      className="relative aspect-square bg-muted cursor-pointer"
+                      onClick={() => handleOpenPost(post)}
+                    >
                       <img
                         src={post.image_url}
                         alt={post.title}
-                        className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-full object-cover"
                         loading="lazy"
                       />
-                      
-                      {/* Hover Overlay - Only on image */}
-                      <AnimatePresence>
-                        {hoveredPost === post.id && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/40 flex items-center justify-center"
-                          >
-                            <div className="flex gap-4">
-                              <button
-                                onClick={(e) => handleLike(post.id, post.is_liked || false, e)}
-                                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium backdrop-blur-sm transition-colors ${
-                                  post.is_liked 
-                                    ? 'bg-red-500/90 text-white' 
-                                    : 'bg-white/20 text-white hover:bg-white/30'
-                                }`}
-                              >
-                                <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-current' : ''}`} />
-                                {post.likes_count}
-                              </button>
-                              <div className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
-                                <MessageCircle className="h-4 w-4" />
-                                {post.comments_count || 0}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                     </div>
-                    
-                    {/* Content - Always visible */}
-                    <div className="p-3 space-y-2">
-                      {/* Title */}
-                      <h3 className="font-semibold text-foreground line-clamp-2">
-                        {post.title}
-                      </h3>
+
+                    {/* Actions */}
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10"
+                          onClick={() => handleLike(post.id, post.is_liked || false)}
+                        >
+                          <Heart 
+                            className={`h-6 w-6 transition-colors ${
+                              post.is_liked 
+                                ? "fill-red-500 text-red-500" 
+                                : "text-foreground"
+                            }`} 
+                          />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-10 w-10"
+                          onClick={() => handleOpenPost(post)}
+                        >
+                          <MessageCircle className="h-6 w-6" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10"
+                          onClick={() => handleShare(post)}
+                        >
+                          <Share2 className="h-6 w-6" />
+                        </Button>
+                      </div>
                       
-                      {/* Description */}
-                      {post.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {renderTextWithMentions(post.description)}
-                        </p>
-                      )}
-                      
-                      {/* Category & Tools */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => handleSave(post.id)}
+                      >
+                        <Bookmark 
+                          className={`h-6 w-6 transition-colors ${
+                            savedPosts.has(post.id) 
+                              ? "fill-foreground" 
+                              : ""
+                          }`} 
+                        />
+                      </Button>
+                    </div>
+
+                    {/* Likes count */}
+                    <div className="px-4 pb-2">
+                      <span className="font-semibold text-sm">
+                        {post.likes_count.toLocaleString()} ถูกใจ
+                      </span>
+                    </div>
+
+                    {/* Content */}
+                    <div className="px-4 pb-4 space-y-2">
+                      {/* Title & Description */}
+                      <div>
+                        <span className="font-semibold mr-2">
+                          {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                        </span>
+                        <span className="text-foreground">{post.title}</span>
+                        {post.description && (
+                          <p className="text-muted-foreground text-sm mt-1">
+                            {renderTextWithMentions(post.description)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Tags */}
                       {(post.category || (post.tools_used && post.tools_used.length > 0)) && (
                         <div className="flex flex-wrap gap-1">
                           {post.category && (
@@ -698,53 +871,42 @@ export default function Community() {
                               {post.category}
                             </Badge>
                           )}
-                          {post.tools_used?.slice(0, 2).map((tool, i) => (
+                          {post.tools_used?.slice(0, 3).map((tool, i) => (
                             <Badge key={i} variant="outline" className="text-xs">
                               {tool}
                             </Badge>
                           ))}
                         </div>
                       )}
-                      
-                      {/* Author */}
-                      <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                            <AvatarFallback className="text-xs">
-                              {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm text-muted-foreground truncate max-w-[100px]">
-                            {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
-                          </span>
-                          {post.artist_profile?.is_verified && (
-                            <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
-                              ✓
-                            </Badge>
-                          )}
-                        </div>
-                        {user && user.id !== post.user_id && (
-                          <button
-                            onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
-                            className={`rounded-full p-1.5 transition-colors ${
-                              followingUsers.has(post.user_id)
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                            }`}
-                          >
-                            {followingUsers.has(post.user_id) ? (
-                              <UserCheck className="h-3.5 w-3.5" />
-                            ) : (
-                              <UserPlus className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        )}
-                      </div>
+
+                      {/* View comments */}
+                      {(post.comments_count || 0) > 0 && (
+                        <button 
+                          className="text-muted-foreground text-sm"
+                          onClick={() => handleOpenPost(post)}
+                        >
+                          ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
+                        </button>
+                      )}
                     </div>
+                  </motion.article>
+                ))}
+              </AnimatePresence>
+
+              {/* Load More Trigger */}
+              <div ref={loadMoreRef} className="py-8 text-center">
+                {loadingMore && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="text-muted-foreground">กำลังโหลดเพิ่ม...</span>
                   </div>
-                </motion.div>
-              ))}
+                )}
+                {!hasMore && posts.length > 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    คุณดูโพสต์ทั้งหมดแล้ว ✨
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
