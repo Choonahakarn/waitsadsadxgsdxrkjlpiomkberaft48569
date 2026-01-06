@@ -29,6 +29,7 @@ import Withdraw from "./pages/artist/Withdraw";
 import Wallet from "./pages/Wallet";
 import MyOrders from "./pages/MyOrders";
 import Community from "./pages/Community";
+import SavedPosts from "./pages/SavedPosts";
 import Followers from "./pages/Followers";
 import NotFound from "./pages/NotFound";
 
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/my-orders" element={<MyOrders />} />
             <Route path="/community" element={<Community />} />
+            <Route path="/saved" element={<SavedPosts />} />
             <Route path="/followers" element={<Followers />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
