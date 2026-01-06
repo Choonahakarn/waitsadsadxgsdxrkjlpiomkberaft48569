@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Palette, ShoppingBag, Mail, Lock, User, Check } from 'lucide-react';
+import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().trim().email({ message: 'กรุณากรอกอีเมลที่ถูกต้อง' }),
@@ -22,6 +22,18 @@ const signupSchema = z.object({
   password: z.string().min(6, { message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }),
   fullName: z.string().trim().min(2, { message: 'กรุณากรอกชื่อ' }),
   roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: 'กรุณาเลือกอย่างน้อย 1 บทบาท' }),
+  // Artist verification fields
+  realName: z.string().optional(),
+  phoneNumber: z.string().optional(),
+}).refine((data) => {
+  // If artist role is selected, require verification fields
+  if (data.roles.includes('artist')) {
+    return data.realName && data.realName.trim().length >= 2 && data.phoneNumber && data.phoneNumber.trim().length >= 9;
+  }
+  return true;
+}, {
+  message: 'กรุณากรอกชื่อจริงและเบอร์โทรเพื่อยืนยันตัวตน',
+  path: ['artistVerification'],
 });
 
 type AppRole = 'artist' | 'buyer';
@@ -38,6 +50,8 @@ const Auth = () => {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupFullName, setSignupFullName] = useState('');
   const [signupRoles, setSignupRoles] = useState<AppRole[]>(['buyer']);
+  const [signupRealName, setSignupRealName] = useState('');
+  const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -104,6 +118,8 @@ const Auth = () => {
       password: signupPassword,
       fullName: signupFullName,
       roles: signupRoles,
+      realName: signupRealName,
+      phoneNumber: signupPhoneNumber,
     });
     
     if (!result.success) {
@@ -118,7 +134,13 @@ const Auth = () => {
     }
     
     setIsSubmitting(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupFullName, signupRoles);
+    
+    // Prepare artist verification data if artist role selected
+    const artistVerification = signupRoles.includes('artist') 
+      ? { realName: signupRealName, phoneNumber: signupPhoneNumber }
+      : undefined;
+    
+    const { error } = await signUp(signupEmail, signupPassword, signupFullName, signupRoles, artistVerification);
     setIsSubmitting(false);
     
     if (error) {
@@ -132,7 +154,9 @@ const Auth = () => {
     } else {
       toast({
         title: 'สมัครสมาชิกสำเร็จ',
-        description: 'ยินดีต้อนรับสู่ SoulHuman!',
+        description: signupRoles.includes('artist') 
+          ? 'ยินดีต้อนรับ! ข้อมูลของคุณอยู่ระหว่างการตรวจสอบ'
+          : 'ยินดีต้อนรับสู่ SoulHuman!',
       });
       navigate('/');
     }
@@ -279,7 +303,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <Label>คุณต้องการเข้าร่วมในฐานะ (เลือกได้หลายบทบาท)</Label>
+                    <Label>คุณต้องการเข้าร่วมในฐานะ</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div
                         onClick={() => toggleRole('artist')}
@@ -320,13 +344,62 @@ const Auth = () => {
                         </div>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground text-center">
-                      💡 คุณสามารถเป็นทั้งศิลปินและผู้ซื้อได้ในเวลาเดียวกัน
-                    </p>
+                    {signupRoles.includes('artist') && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        ✨ ศิลปินจะได้รับสิทธิ์เป็นผู้ซื้อโดยอัตโนมัติ
+                      </p>
+                    )}
                     {errors.signup_roles && (
                       <p className="text-sm text-destructive">{errors.signup_roles}</p>
                     )}
                   </div>
+
+                  {/* Artist Verification Section */}
+                  {signupRoles.includes('artist') && (
+                    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <span className="font-medium text-foreground">ยืนยันตัวตนศิลปิน</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        เพื่อความปลอดภัยและความน่าเชื่อถือ กรุณากรอกข้อมูลจริงของคุณ
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-realname">ชื่อ-นามสกุลจริง (ตามบัตรประชาชน)</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="signup-realname"
+                            type="text"
+                            placeholder="ชื่อจริง นามสกุลจริง"
+                            value={signupRealName}
+                            onChange={(e) => setSignupRealName(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-phone">เบอร์โทรศัพท์</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="signup-phone"
+                            type="tel"
+                            placeholder="08X-XXX-XXXX"
+                            value={signupPhoneNumber}
+                            onChange={(e) => setSignupPhoneNumber(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                      
+                      {errors.signup_artistVerification && (
+                        <p className="text-sm text-destructive">{errors.signup_artistVerification}</p>
+                      )}
+                    </div>
+                  )}
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
                     {isSubmitting ? 'กำลังสมัครสมาชิก...' : 'สมัครสมาชิก'}
