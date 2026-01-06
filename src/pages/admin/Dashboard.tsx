@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Palette, ShieldCheck, BarChart3, UserCheck } from 'lucide-react';
+import { Users, Palette, ShieldCheck, BarChart3, UserCheck, Image, CreditCard } from 'lucide-react';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -154,6 +154,26 @@ const AdminDashboard = () => {
                     <div>
                       <p className="font-medium">ยืนยันตัวตนศิลปิน</p>
                       <p className="text-sm text-muted-foreground">ตรวจสอบชื่อจริงและเบอร์โทร</p>
+                    </div>
+                  </Link>
+                  <Link
+                    to="/admin/artwork-verifications"
+                    className="flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                  >
+                    <Image className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium">ยืนยันผลงานศิลปะ</p>
+                      <p className="text-sm text-muted-foreground">ตรวจสอบและอนุมัติผลงานก่อนแสดงในตลาด</p>
+                    </div>
+                  </Link>
+                  <Link
+                    to="/admin/topup-requests"
+                    className="flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                  >
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium">จัดการเติมเงิน</p>
+                      <p className="text-sm text-muted-foreground">ตรวจสอบและอนุมัติคำขอเติมเงิน</p>
                     </div>
                   </Link>
                 </CardContent>
