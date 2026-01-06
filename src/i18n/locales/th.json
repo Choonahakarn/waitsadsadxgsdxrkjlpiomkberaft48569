@@ -24,7 +24,9 @@
     "clearFilters": "ล้างตัวกรอง",
     "showing": "แสดง",
     "artworks": "ผลงาน",
-    "artwork": "ผลงาน"
+    "artwork": "ผลงาน",
+    "translating": "กำลังแปล...",
+    "translateTo": "แปลเป็น {{lang}}"
   },
   "roles": {
     "admin": "ผู้ดูแล",

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Calendar, Ruler, Palette, ShoppingCart, MessageCircle } from "lucide-react";
@@ -6,7 +7,7 @@ import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { getArtworkById, getArtworksByArtist } from "@/data/mockData";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { Button } from "@/components/ui/button";
-
+import { TranslateButton } from "@/components/ui/TranslateButton";
 export default function ArtworkDetail() {
   const { id } = useParams<{ id: string }>();
   const artwork = getArtworkById(id || "");
@@ -25,6 +26,8 @@ export default function ArtworkDetail() {
       </Layout>
     );
   }
+
+  const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
 
   const otherArtworks = getArtworksByArtist(artwork.artistId).filter(
     (a) => a.id !== artwork.id
@@ -93,9 +96,25 @@ export default function ArtworkDetail() {
                 <span className="text-sm text-muted-foreground">USD</span>
               </div>
 
-              <p className="mt-6 leading-relaxed text-muted-foreground">
-                {artwork.description}
-              </p>
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <TranslateButton 
+                    text={artwork.description} 
+                    onTranslated={(text) => setTranslatedDescription(text)} 
+                  />
+                  {translatedDescription && (
+                    <button 
+                      onClick={() => setTranslatedDescription(null)}
+                      className="text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <p className="leading-relaxed text-muted-foreground">
+                  {translatedDescription || artwork.description}
+                </p>
+              </div>
 
               {/* Details */}
               <div className="mt-8 grid grid-cols-2 gap-4">

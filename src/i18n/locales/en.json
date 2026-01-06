@@ -24,7 +24,9 @@
     "clearFilters": "Clear filters",
     "showing": "Showing",
     "artworks": "artworks",
-    "artwork": "artwork"
+    "artwork": "artwork",
+    "translating": "Translating...",
+    "translateTo": "Translate to {{lang}}"
   },
   "roles": {
     "admin": "Admin",
