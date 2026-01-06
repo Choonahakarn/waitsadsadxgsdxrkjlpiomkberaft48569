@@ -9,7 +9,7 @@ interface AuthContextType {
   session: Session | null;
   roles: AppRole[];
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, roles: AppRole[]) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, roles: AppRole[], artistVerification?: { realName: string; phoneNumber: string }) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   addRole: (role: AppRole) => Promise<{ error: Error | null }>;
@@ -75,11 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, selectedRoles: AppRole[]) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    fullName: string, 
+    selectedRoles: AppRole[],
+    artistVerification?: { realName: string; phoneNumber: string }
+  ) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    // Use the first role for the trigger, we'll add additional roles after
-    const primaryRole = selectedRoles[0] || 'buyer';
+    // If artist is selected, always include buyer role
+    const rolesToAdd = selectedRoles.includes('artist') && !selectedRoles.includes('buyer')
+      ? [...selectedRoles, 'buyer']
+      : selectedRoles;
+    
+    // Use the first role for the trigger
+    const primaryRole = rolesToAdd[0] || 'buyer';
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -93,22 +104,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    // If signup successful and user has multiple roles, add the additional roles
-    if (!error && data.user && selectedRoles.length > 1) {
-      for (let i = 1; i < selectedRoles.length; i++) {
+    // If signup successful and user has additional roles, add them
+    if (!error && data.user && rolesToAdd.length > 1) {
+      for (let i = 1; i < rolesToAdd.length; i++) {
+        const roleToInsert = rolesToAdd[i];
         await supabase.from('user_roles').insert({
           user_id: data.user.id,
-          role: selectedRoles[i],
+          role: roleToInsert as 'admin' | 'artist' | 'buyer',
         });
         
-        // If adding artist role, create artist profile
-        if (selectedRoles[i] === 'artist') {
+        // If adding artist role, create artist profile with verification info
+        if (roleToInsert === 'artist' && artistVerification) {
           await supabase.from('artist_profiles').insert({
             user_id: data.user.id,
             artist_name: fullName || 'Artist',
+            real_name: artistVerification.realName,
+            phone_number: artistVerification.phoneNumber,
+            verification_submitted_at: new Date().toISOString(),
           });
         }
       }
+    }
+    
+    // If primary role is artist and we have verification info, update the profile
+    if (!error && data.user && primaryRole === 'artist' && artistVerification) {
+      await supabase.from('artist_profiles')
+        .update({
+          real_name: artistVerification.realName,
+          phone_number: artistVerification.phoneNumber,
+          verification_submitted_at: new Date().toISOString(),
+        })
+        .eq('user_id', data.user.id);
     }
     
     return { error: error as Error | null };

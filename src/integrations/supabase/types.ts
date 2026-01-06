@@ -19,8 +19,11 @@ export type Database = {
           artist_name: string
           created_at: string
           id: string
+          identity_verified: boolean | null
           is_verified: boolean | null
+          phone_number: string | null
           portfolio_url: string | null
+          real_name: string | null
           specialty: string | null
           tools_used: string[] | null
           updated_at: string
@@ -32,8 +35,11 @@ export type Database = {
           artist_name: string
           created_at?: string
           id?: string
+          identity_verified?: boolean | null
           is_verified?: boolean | null
+          phone_number?: string | null
           portfolio_url?: string | null
+          real_name?: string | null
           specialty?: string | null
           tools_used?: string[] | null
           updated_at?: string
@@ -45,8 +51,11 @@ export type Database = {
           artist_name?: string
           created_at?: string
           id?: string
+          identity_verified?: boolean | null
           is_verified?: boolean | null
+          phone_number?: string | null
           portfolio_url?: string | null
+          real_name?: string | null
           specialty?: string | null
           tools_used?: string[] | null
           updated_at?: string
