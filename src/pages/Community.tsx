@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Check } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
 
 interface CommunityPost {
   id: string;
@@ -413,6 +413,34 @@ export default function Community() {
 
       if (error) throw error;
 
+      // Send notifications to mentioned users
+      const mentionedUserIds = await getMentionedUserIds(newComment);
+      const { data: commenterProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      const { data: commenterArtist } = await supabase
+        .from('artist_profiles')
+        .select('artist_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      const commenterName = commenterArtist?.artist_name || commenterProfile?.full_name || 'ผู้ใช้';
+      
+      for (const mentionedUserId of mentionedUserIds) {
+        if (mentionedUserId !== user.id) {
+          await supabase.from('notifications').insert({
+            user_id: mentionedUserId,
+            title: 'คุณถูกแท็กในความคิดเห็น 💬',
+            message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+            type: 'mention',
+            reference_id: selectedPost.id
+          });
+        }
+      }
+
       setNewComment("");
       fetchComments(selectedPost.id);
       
@@ -658,7 +686,7 @@ export default function Community() {
                       {/* Description */}
                       {post.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {post.description}
+                          {renderTextWithMentions(post.description)}
                         </p>
                       )}
                       
@@ -748,12 +776,11 @@ export default function Community() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="description">คำอธิบาย</Label>
-                  <Textarea
-                    id="description"
+                  <Label htmlFor="description">คำอธิบาย (พิมพ์ @ เพื่อแท็กผู้ใช้)</Label>
+                  <MentionInput
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="เล่าเรื่องราวเบื้องหลังผลงาน..."
+                    onChange={setDescription}
+                    placeholder="เล่าเรื่องราวเบื้องหลังผลงาน... พิมพ์ @ เพื่อแท็กผู้ใช้"
                     rows={3}
                   />
                 </div>
@@ -892,7 +919,9 @@ export default function Community() {
                   <div className="p-4 border-b border-border">
                     <h2 className="font-bold text-lg">{selectedPost.title}</h2>
                     {selectedPost.description && (
-                      <p className="text-muted-foreground mt-2 text-sm">{selectedPost.description}</p>
+                      <p className="text-muted-foreground mt-2 text-sm">
+                        {renderTextWithMentions(selectedPost.description)}
+                      </p>
                     )}
                     {selectedPost.tools_used && selectedPost.tools_used.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-3">
@@ -1000,7 +1029,7 @@ export default function Community() {
                               <span className="font-semibold mr-2">
                                 {comment.user_profile?.full_name || "ผู้ใช้"}
                               </span>
-                              {comment.content}
+                              {renderTextWithMentions(comment.content)}
                             </p>
                             <span className="text-xs text-muted-foreground">
                               {new Date(comment.created_at).toLocaleDateString('th-TH')}
@@ -1014,18 +1043,16 @@ export default function Community() {
                   {/* Comment Input */}
                   {user && (
                     <div className="p-4 border-t border-border">
-                      <div className="flex gap-2">
-                        <Input
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="เขียนความคิดเห็น..."
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSubmitComment();
-                            }
-                          }}
-                        />
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <MentionInput
+                            value={newComment}
+                            onChange={setNewComment}
+                            placeholder="เขียนความคิดเห็น... พิมพ์ @ เพื่อแท็กผู้ใช้"
+                            rows={1}
+                            className="min-h-[40px] resize-none"
+                          />
+                        </div>
                         <Button
                           size="icon"
                           onClick={handleSubmitComment}
