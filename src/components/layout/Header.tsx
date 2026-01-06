@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -164,6 +164,12 @@ export function Header() {
                       <Link to="/artist/earnings" className="cursor-pointer">
                         <TrendingUp className="mr-2 h-4 w-4" />
                         สรุปรายได้
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/artist/withdraw" className="cursor-pointer">
+                        <ArrowDownToLine className="mr-2 h-4 w-4" />
+                        ถอนเงิน
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
