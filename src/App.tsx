@@ -28,6 +28,7 @@ import Earnings from "./pages/artist/Earnings";
 import Withdraw from "./pages/artist/Withdraw";
 import Wallet from "./pages/Wallet";
 import MyOrders from "./pages/MyOrders";
+import Community from "./pages/Community";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/artist/withdraw" element={<Withdraw />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/community" element={<Community />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
