@@ -603,86 +603,117 @@ export default function Community() {
                   className="break-inside-avoid"
                 >
                   <div
-                    className="group relative cursor-pointer overflow-hidden rounded-xl bg-card"
+                    className="group cursor-pointer overflow-hidden rounded-xl bg-card border border-border"
                     onMouseEnter={() => setHoveredPost(post.id)}
                     onMouseLeave={() => setHoveredPost(null)}
                     onClick={() => handleOpenPost(post)}
                   >
-                    {/* Image */}
-                    <img
-                      src={post.image_url}
-                      alt={post.title}
-                      className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    
-                    {/* Hover Overlay */}
-                    <AnimatePresence>
-                      {hoveredPost === post.id && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
-                        >
-                          {/* Top Actions */}
-                          <div className="absolute top-3 right-3 flex gap-2">
-                            <button
-                              onClick={(e) => handleLike(post.id, post.is_liked || false, e)}
-                              className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors ${
-                                post.is_liked 
-                                  ? 'bg-red-500/90 text-white' 
-                                  : 'bg-white/20 text-white hover:bg-white/30'
-                              }`}
-                            >
-                              <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-current' : ''}`} />
-                              {post.likes_count}
-                            </button>
-                          </div>
-
-                          {/* Bottom Info */}
-                          <div className="absolute bottom-0 left-0 right-0 p-4">
-                            <h3 className="font-semibold text-white line-clamp-2 mb-2">
-                              {post.title}
-                            </h3>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-7 w-7 border-2 border-white/30">
-                                  <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                                  <AvatarFallback className="text-xs bg-primary/80">
-                                    {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-sm text-white/90 font-medium truncate max-w-[120px]">
-                                  {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
-                                </span>
-                                {post.artist_profile?.is_verified && (
-                                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-blue-500/80 text-white border-0">
-                                    ✓
-                                  </Badge>
-                                )}
+                    {/* Image Container */}
+                    <div className="relative overflow-hidden">
+                      <img
+                        src={post.image_url}
+                        alt={post.title}
+                        className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      
+                      {/* Hover Overlay - Only on image */}
+                      <AnimatePresence>
+                        {hoveredPost === post.id && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/40 flex items-center justify-center"
+                          >
+                            <div className="flex gap-4">
+                              <button
+                                onClick={(e) => handleLike(post.id, post.is_liked || false, e)}
+                                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium backdrop-blur-sm transition-colors ${
+                                  post.is_liked 
+                                    ? 'bg-red-500/90 text-white' 
+                                    : 'bg-white/20 text-white hover:bg-white/30'
+                                }`}
+                              >
+                                <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-current' : ''}`} />
+                                {post.likes_count}
+                              </button>
+                              <div className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
+                                <MessageCircle className="h-4 w-4" />
+                                {post.comments_count || 0}
                               </div>
-                              {user && user.id !== post.user_id && (
-                                <button
-                                  onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
-                                  className={`rounded-full p-1.5 backdrop-blur-sm transition-colors ${
-                                    followingUsers.has(post.user_id)
-                                      ? 'bg-primary/90 text-primary-foreground'
-                                      : 'bg-white/20 text-white hover:bg-white/30'
-                                  }`}
-                                >
-                                  {followingUsers.has(post.user_id) ? (
-                                    <UserCheck className="h-4 w-4" />
-                                  ) : (
-                                    <UserPlus className="h-4 w-4" />
-                                  )}
-                                </button>
-                              )}
                             </div>
-                          </div>
-                        </motion.div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    
+                    {/* Content - Always visible */}
+                    <div className="p-3 space-y-2">
+                      {/* Title */}
+                      <h3 className="font-semibold text-foreground line-clamp-2">
+                        {post.title}
+                      </h3>
+                      
+                      {/* Description */}
+                      {post.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {post.description}
+                        </p>
                       )}
-                    </AnimatePresence>
+                      
+                      {/* Category & Tools */}
+                      {(post.category || (post.tools_used && post.tools_used.length > 0)) && (
+                        <div className="flex flex-wrap gap-1">
+                          {post.category && (
+                            <Badge variant="secondary" className="text-xs">
+                              {post.category}
+                            </Badge>
+                          )}
+                          {post.tools_used?.slice(0, 2).map((tool, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {tool}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Author */}
+                      <div className="flex items-center justify-between pt-2 border-t border-border">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs">
+                              {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm text-muted-foreground truncate max-w-[100px]">
+                            {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                          </span>
+                          {post.artist_profile?.is_verified && (
+                            <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
+                              ✓
+                            </Badge>
+                          )}
+                        </div>
+                        {user && user.id !== post.user_id && (
+                          <button
+                            onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
+                            className={`rounded-full p-1.5 transition-colors ${
+                              followingUsers.has(post.user_id)
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            }`}
+                          >
+                            {followingUsers.has(post.user_id) ? (
+                              <UserCheck className="h-3.5 w-3.5" />
+                            ) : (
+                              <UserPlus className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}
