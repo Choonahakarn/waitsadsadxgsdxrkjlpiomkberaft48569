@@ -73,7 +73,7 @@ export default function Sell() {
             className="mb-16 text-center"
           >
             <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              Why Artists Choose OnlyHumanArt
+              Why Artists Choose SoulHuman
             </h2>
           </motion.div>
 

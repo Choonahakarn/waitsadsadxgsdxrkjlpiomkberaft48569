@@ -12,7 +12,7 @@ export function Footer() {
                 <span className="font-serif text-lg font-bold text-primary-foreground">O</span>
               </div>
               <span className="font-serif text-xl font-semibold text-foreground">
-                OnlyHumanArt
+                SoulHuman
               </span>
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
@@ -111,7 +111,7 @@ export function Footer() {
         <div className="section-divider mt-12" />
 
         <div className="mt-8 flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
-          <p>© 2026 OnlyHumanArt. All rights reserved.</p>
+          <p>© 2026 SoulHuman. All rights reserved.</p>
           <p className="font-medium">Art made by humans, not algorithms.</p>
         </div>
       </div>

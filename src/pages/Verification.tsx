@@ -39,7 +39,7 @@ export default function Verification() {
               Artist Verification
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Our process-based verification ensures every artwork on OnlyHumanArt is genuinely created by human hands.
+              Our process-based verification ensures every artwork on SoulHuman is genuinely created by human hands.
             </p>
           </motion.div>
         </div>
