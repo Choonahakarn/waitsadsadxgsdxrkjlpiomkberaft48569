@@ -137,6 +137,12 @@ export function Header() {
                     ประวัติการซื้อ
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/followers" className="cursor-pointer">
+                    <Users className="mr-2 h-4 w-4" />
+                    ผู้ติดตาม
+                  </Link>
+                </DropdownMenuItem>
                 {isAdmin && (
                   <>
                     <DropdownMenuItem asChild>
