@@ -1,17 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { motion } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Users, Globe, Search } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +64,10 @@ const categories = [
   "อื่นๆ"
 ];
 
+const popularTags = ["#DigitalArt", "#Illustration", "#CharacterDesign", "#FanArt", "#Watercolor", "#Sketch"];
+
+type FeedTab = 'discover' | 'following' | 'latest';
+
 export default function Community() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -79,6 +81,7 @@ export default function Community() {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [hoveredPost, setHoveredPost] = useState<string | null>(null);
   
   // Form state
   const [title, setTitle] = useState("");
@@ -89,9 +92,11 @@ export default function Community() {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
-  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all');
+  
+  // Filters
+  const [activeTab, setActiveTab] = useState<FeedTab>('discover');
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPosts();
@@ -125,24 +130,20 @@ export default function Community() {
 
       if (error) throw error;
 
-      // Fetch user profiles and likes
       const postsWithDetails = await Promise.all(
         (postsData || []).map(async (post) => {
-          // Get user profile
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, avatar_url')
             .eq('id', post.user_id)
-            .single();
+            .maybeSingle();
 
-          // Get artist profile if exists
           const { data: artistProfile } = await supabase
             .from('artist_profiles')
             .select('artist_name, is_verified')
             .eq('user_id', post.user_id)
-            .single();
+            .maybeSingle();
 
-          // Check if current user liked
           let isLiked = false;
           if (user) {
             const { data: like } = await supabase
@@ -150,17 +151,15 @@ export default function Community() {
               .select('id')
               .eq('post_id', post.id)
               .eq('user_id', user.id)
-              .single();
+              .maybeSingle();
             isLiked = !!like;
           }
 
-          // Get comments count
           const { count: commentsCount } = await supabase
             .from('community_comments')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
 
-          // Get followers count for this user
           const { count: followersCount } = await supabase
             .from('follows')
             .select('*', { count: 'exact', head: true })
@@ -210,7 +209,6 @@ export default function Community() {
 
     setSubmitting(true);
     try {
-      // Upload image
       const fileExt = imageFile.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
@@ -223,7 +221,6 @@ export default function Community() {
         .from('artworks')
         .getPublicUrl(fileName);
 
-      // Create post
       const { error: postError } = await supabase
         .from('community_posts')
         .insert({
@@ -242,7 +239,6 @@ export default function Community() {
         description: "ผลงานของคุณถูกเผยแพร่แล้ว"
       });
 
-      // Reset form
       setTitle("");
       setDescription("");
       setCategory("");
@@ -262,7 +258,8 @@ export default function Community() {
     }
   };
 
-  const handleLike = async (postId: string, isLiked: boolean) => {
+  const handleLike = async (postId: string, isLiked: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!user) {
       toast({
         variant: "destructive",
@@ -285,7 +282,6 @@ export default function Community() {
           .insert({ post_id: postId, user_id: user.id });
       }
 
-      // Update local state
       setPosts(posts.map(post => {
         if (post.id === postId) {
           return {
@@ -301,19 +297,9 @@ export default function Community() {
     }
   };
 
-  const handleFollow = async (userId: string, isFollowing: boolean) => {
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "กรุณาเข้าสู่ระบบ",
-        description: "เข้าสู่ระบบเพื่อติดตามศิลปิน"
-      });
-      return;
-    }
-
-    if (user.id === userId) {
-      return; // Can't follow yourself
-    }
+  const handleFollow = async (userId: string, isFollowing: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || user.id === userId) return;
 
     try {
       if (isFollowing) {
@@ -335,22 +321,20 @@ export default function Community() {
         
         setFollowingUsers(prev => new Set(prev).add(userId));
 
-        // Get follower's profile name for notification
         const { data: followerProfile } = await supabase
           .from('profiles')
           .select('full_name')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         const { data: artistProfile } = await supabase
           .from('artist_profiles')
           .select('artist_name')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         const followerName = artistProfile?.artist_name || followerProfile?.full_name || 'ผู้ใช้';
 
-        // Send notification to followed user
         await supabase
           .from('notifications')
           .insert({
@@ -362,7 +346,6 @@ export default function Community() {
           });
       }
 
-      // Update local posts state
       setPosts(posts.map(post => {
         if (post.user_id === userId) {
           return {
@@ -375,11 +358,6 @@ export default function Community() {
         }
         return post;
       }));
-
-      toast({
-        title: isFollowing ? "เลิกติดตามแล้ว" : "ติดตามแล้ว! 🎉",
-        description: isFollowing ? "คุณได้เลิกติดตามศิลปินนี้" : "คุณจะเห็นผลงานใหม่ๆ จากศิลปินนี้"
-      });
     } catch (error) {
       console.error('Error following:', error);
     }
@@ -402,7 +380,7 @@ export default function Community() {
             .from('profiles')
             .select('full_name, avatar_url')
             .eq('id', comment.user_id)
-            .single();
+            .maybeSingle();
           return { ...comment, user_profile: profile };
         })
       );
@@ -415,7 +393,7 @@ export default function Community() {
     }
   };
 
-  const handleOpenComments = (post: CommunityPost) => {
+  const handleOpenPost = (post: CommunityPost) => {
     setSelectedPost(post);
     fetchComments(post.id);
   };
@@ -438,7 +416,6 @@ export default function Community() {
       setNewComment("");
       fetchComments(selectedPost.id);
       
-      // Update comments count
       setPosts(posts.map(post => {
         if (post.id === selectedPost.id) {
           return { ...post, comments_count: (post.comments_count || 0) + 1 };
@@ -456,7 +433,40 @@ export default function Community() {
     }
   };
 
-  // Realtime subscription for comments
+  // Filter posts
+  const filteredPosts = useMemo(() => {
+    let result = posts;
+    
+    if (activeTab === 'following') {
+      result = result.filter(post => followingUsers.has(post.user_id));
+    } else if (activeTab === 'latest') {
+      result = [...result].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(post => 
+        post.title.toLowerCase().includes(query) ||
+        post.description?.toLowerCase().includes(query) ||
+        post.artist_profile?.artist_name?.toLowerCase().includes(query) ||
+        post.user_profile?.full_name?.toLowerCase().includes(query) ||
+        post.tools_used?.some(tool => tool.toLowerCase().includes(query))
+      );
+    }
+    
+    if (selectedTag) {
+      result = result.filter(post => 
+        post.category?.toLowerCase().includes(selectedTag.replace('#', '').toLowerCase()) ||
+        post.tools_used?.some(tool => tool.toLowerCase().includes(selectedTag.replace('#', '').toLowerCase()))
+      );
+    }
+    
+    return result;
+  }, [posts, activeTab, searchQuery, selectedTag, followingUsers]);
+
+  // Realtime comments
   useEffect(() => {
     if (!selectedPost) return;
 
@@ -481,461 +491,469 @@ export default function Community() {
     };
   }, [selectedPost]);
 
+  const tabs = [
+    { id: 'discover' as FeedTab, label: 'Discover', icon: Sparkles },
+    { id: 'following' as FeedTab, label: 'Following', icon: Users },
+    { id: 'latest' as FeedTab, label: 'Latest', icon: Clock },
+  ];
+
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              🎨 คอมมูนิตี้
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              แบ่งปันผลงานศิลปะ พูดคุย และแลกเปลี่ยนความคิดเห็นกับศิลปินคนอื่นๆ
-            </p>
-          </div>
-          
-          {user && (
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  โพสต์ผลงาน
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>โพสต์ผลงานใหม่</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">ชื่อผลงาน *</Label>
-                    <Input
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="ตั้งชื่อผลงานของคุณ"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="description">คำอธิบาย</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="เล่าเรื่องราวเบื้องหลังผลงาน..."
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="category">หมวดหมู่</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="เลือกหมวดหมู่" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="tools">เครื่องมือที่ใช้</Label>
-                    <Input
-                      id="tools"
-                      value={toolsUsed}
-                      onChange={(e) => setToolsUsed(e.target.value)}
-                      placeholder="เช่น Procreate, Photoshop, สีน้ำ (คั่นด้วย ,)"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="image">รูปภาพ *</Label>
-                    <div className="mt-2">
-                      {imagePreview ? (
-                        <div className="relative">
-                          <img
-                            src={imagePreview}
-                            alt="Preview"
-                            className="h-48 w-full rounded-lg object-cover"
-                          />
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            className="absolute right-2 top-2"
-                            onClick={() => {
-                              setImageFile(null);
-                              setImagePreview("");
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <label className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary">
-                          <Image className="h-8 w-8 text-muted-foreground" />
-                          <span className="mt-2 text-sm text-muted-foreground">
-                            คลิกเพื่ออัปโหลดรูปภาพ
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleImageChange}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                  
+      <div className="min-h-screen bg-background">
+        {/* Header Section */}
+        <div className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-20 z-40">
+          <div className="container mx-auto px-4">
+            {/* Search Bar */}
+            <div className="py-4">
+              <div className="relative max-w-xl mx-auto">
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหาผลงาน ศิลปิน หรือแท็ก..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-12 h-12 bg-background/50 border-muted text-base rounded-full"
+                />
+                {searchQuery && (
                   <Button
-                    onClick={handleSubmitPost}
-                    disabled={submitting || !title || !imageFile}
-                    className="w-full"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => setSearchQuery("")}
                   >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        กำลังโพสต์...
-                      </>
-                    ) : (
-                      "โพสต์ผลงาน"
-                    )}
+                    <X className="h-4 w-4" />
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-
-        {/* Search and Filter */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="ค้นหาผลงานหรือศิลปิน..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="หมวดหมู่" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Feed Filter Tabs */}
-        {user && (
-          <Tabs value={feedFilter} onValueChange={(v) => setFeedFilter(v as 'all' | 'following')} className="mb-6">
-            <TabsList>
-              <TabsTrigger value="all" className="gap-2">
-                <Globe className="h-4 w-4" />
-                ทั้งหมด
-              </TabsTrigger>
-              <TabsTrigger value="following" className="gap-2">
-                <Users className="h-4 w-4" />
-                กำลังติดตาม
-                {followingUsers.size > 0 && (
-                  <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs">
-                    {followingUsers.size}
-                  </span>
                 )}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        )}
+              </div>
+            </div>
 
-        {/* Posts Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            {/* Tags */}
+            <div className="pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              {popularTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    selectedTag === tag
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center justify-center gap-1 border-t border-border">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <tab.icon className="h-4 w-4" />
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : (() => {
-          // Apply all filters
-          let filteredPosts = posts;
-          
-          // Filter by feed type
-          if (feedFilter === 'following') {
-            filteredPosts = filteredPosts.filter(post => followingUsers.has(post.user_id));
-          }
-          
-          // Filter by search query
-          if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            filteredPosts = filteredPosts.filter(post => 
-              post.title.toLowerCase().includes(query) ||
-              post.description?.toLowerCase().includes(query) ||
-              post.artist_profile?.artist_name?.toLowerCase().includes(query) ||
-              post.user_profile?.full_name?.toLowerCase().includes(query) ||
-              post.tools_used?.some(tool => tool.toLowerCase().includes(query)) ||
-              post.category?.toLowerCase().includes(query)
-            );
-          }
-          
-          // Filter by category
-          if (selectedCategory !== 'all') {
-            filteredPosts = filteredPosts.filter(post => post.category === selectedCategory);
-          }
-          
-          return filteredPosts.length === 0 ? (
-            <div className="py-12 text-center">
-              <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
-              <p className="mt-4 text-muted-foreground">
-                {searchQuery || selectedCategory !== 'all'
-                  ? 'ไม่พบผลงานที่ตรงกับการค้นหา'
-                  : feedFilter === 'following' 
-                    ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม' 
-                    : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
+        </div>
+
+        {/* Content */}
+        <div className="container mx-auto px-4 py-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            </div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="py-20 text-center">
+              <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+                <Search className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
+              <p className="text-muted-foreground mb-6">
+                {activeTab === 'following' 
+                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม ลองติดตามศิลปินคนอื่นดู!'
+                  : 'ลองค้นหาด้วยคำอื่น หรือเลือกแท็กอื่น'}
               </p>
-              {(searchQuery || selectedCategory !== 'all') ? (
-                <Button 
-                  variant="outline" 
-                  className="mt-4" 
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedCategory("all");
-                  }}
-                >
+              {(searchQuery || selectedTag) && (
+                <Button variant="outline" onClick={() => { setSearchQuery(""); setSelectedTag(null); }}>
                   ล้างตัวกรอง
-                </Button>
-              ) : feedFilter === 'following' ? (
-                <Button 
-                  variant="outline" 
-                  className="mt-4" 
-                  onClick={() => setFeedFilter('all')}
-                >
-                  ดูโพสต์ทั้งหมด
-                </Button>
-              ) : user && (
-                <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
-                  เป็นคนแรกที่โพสต์!
                 </Button>
               )}
             </div>
           ) : (
-            <>
-              {(searchQuery || selectedCategory !== 'all') && (
-                <div className="mb-4 flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    พบ {filteredPosts.length} ผลงาน
-                  </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setSelectedCategory("all");
-                    }}
-                  >
-                    <X className="mr-1 h-3 w-3" />
-                    ล้างตัวกรอง
-                  </Button>
-                </div>
-              )}
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            /* Masonry Grid */
+            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
               {filteredPosts.map((post) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <Card className="overflow-hidden transition-shadow hover:shadow-lg">
-                  <CardHeader className="p-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium text-foreground">
-                            {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
-                          </span>
-                          {post.artist_profile?.is_verified && (
-                            <Badge variant="secondary" className="shrink-0 text-xs">
-                              ✓
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>
-                            {new Date(post.created_at).toLocaleDateString('th-TH', {
-                              day: 'numeric',
-                              month: 'short'
-                            })}
-                          </span>
-                          <span>•</span>
-                          <span>{post.followers_count || 0} ผู้ติดตาม</span>
-                        </div>
-                      </div>
-                      {user && user.id !== post.user_id && (
-                        <Button
-                          variant={followingUsers.has(post.user_id) ? "secondary" : "outline"}
-                          size="sm"
-                          className="shrink-0 gap-1"
-                          onClick={() => handleFollow(post.user_id, followingUsers.has(post.user_id))}
-                        >
-                          {followingUsers.has(post.user_id) ? (
-                            <>
-                              <UserCheck className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">ติดตามแล้ว</span>
-                            </>
-                          ) : (
-                            <>
-                              <UserPlus className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">ติดตาม</span>
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="p-0">
+                <motion.div
+                  key={post.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="break-inside-avoid"
+                >
+                  <div
+                    className="group relative cursor-pointer overflow-hidden rounded-xl bg-card"
+                    onMouseEnter={() => setHoveredPost(post.id)}
+                    onMouseLeave={() => setHoveredPost(null)}
+                    onClick={() => handleOpenPost(post)}
+                  >
+                    {/* Image */}
                     <img
                       src={post.image_url}
                       alt={post.title}
-                      className="aspect-square w-full object-cover"
+                      className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
                     />
-                  </CardContent>
-                  
-                  <CardFooter className="flex-col items-start gap-2 p-3">
-                    <div className="flex w-full items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => handleLike(post.id, post.is_liked || false)}
-                          className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-destructive"
+                    
+                    {/* Hover Overlay */}
+                    <AnimatePresence>
+                      {hoveredPost === post.id && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
                         >
-                          <Heart
-                            className={`h-5 w-5 ${post.is_liked ? 'fill-destructive text-destructive' : ''}`}
-                          />
-                          <span className="text-sm">{post.likes_count}</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenComments(post)}
-                          className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+                          {/* Top Actions */}
+                          <div className="absolute top-3 right-3 flex gap-2">
+                            <button
+                              onClick={(e) => handleLike(post.id, post.is_liked || false, e)}
+                              className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors ${
+                                post.is_liked 
+                                  ? 'bg-red-500/90 text-white' 
+                                  : 'bg-white/20 text-white hover:bg-white/30'
+                              }`}
+                            >
+                              <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-current' : ''}`} />
+                              {post.likes_count}
+                            </button>
+                          </div>
+
+                          {/* Bottom Info */}
+                          <div className="absolute bottom-0 left-0 right-0 p-4">
+                            <h3 className="font-semibold text-white line-clamp-2 mb-2">
+                              {post.title}
+                            </h3>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-7 w-7 border-2 border-white/30">
+                                  <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                                  <AvatarFallback className="text-xs bg-primary/80">
+                                    {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm text-white/90 font-medium truncate max-w-[120px]">
+                                  {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                                </span>
+                                {post.artist_profile?.is_verified && (
+                                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-blue-500/80 text-white border-0">
+                                    ✓
+                                  </Badge>
+                                )}
+                              </div>
+                              {user && user.id !== post.user_id && (
+                                <button
+                                  onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
+                                  className={`rounded-full p-1.5 backdrop-blur-sm transition-colors ${
+                                    followingUsers.has(post.user_id)
+                                      ? 'bg-primary/90 text-primary-foreground'
+                                      : 'bg-white/20 text-white hover:bg-white/30'
+                                  }`}
+                                >
+                                  {followingUsers.has(post.user_id) ? (
+                                    <UserCheck className="h-4 w-4" />
+                                  ) : (
+                                    <UserPlus className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Floating Create Button */}
+        {user && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="lg"
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-50"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>โพสต์ผลงานใหม่</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">ชื่อผลงาน *</Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="ตั้งชื่อผลงานของคุณ"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="description">คำอธิบาย</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="เล่าเรื่องราวเบื้องหลังผลงาน..."
+                    rows={3}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="category">หมวดหมู่</Label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือกหมวดหมู่" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="tools">เครื่องมือที่ใช้</Label>
+                  <Input
+                    id="tools"
+                    value={toolsUsed}
+                    onChange={(e) => setToolsUsed(e.target.value)}
+                    placeholder="เช่น Procreate, Photoshop, สีน้ำ (คั่นด้วย ,)"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="image">รูปภาพ *</Label>
+                  <div className="mt-2">
+                    {imagePreview ? (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full rounded-lg object-cover max-h-64"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute right-2 top-2"
+                          onClick={() => {
+                            setImageFile(null);
+                            setImagePreview("");
+                          }}
                         >
-                          <MessageCircle className="h-5 w-5" />
-                          <span className="text-sm">{post.comments_count || 0}</span>
-                        </button>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      {post.category && (
-                        <Badge variant="outline" className="text-xs">
-                          {post.category}
-                        </Badge>
+                    ) : (
+                      <label className="flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 hover:border-primary transition-colors">
+                        <Image className="h-10 w-10 text-muted-foreground" />
+                        <span className="mt-2 text-sm text-muted-foreground">
+                          คลิกเพื่ออัปโหลดรูปภาพ
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageChange}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+                
+                <Button
+                  onClick={handleSubmitPost}
+                  disabled={submitting || !title || !imageFile}
+                  className="w-full"
+                  size="lg"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      กำลังโพสต์...
+                    </>
+                  ) : (
+                    "โพสต์ผลงาน"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Post Detail Dialog */}
+        <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+            {selectedPost && (
+              <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+                {/* Image */}
+                <div className="md:w-3/5 bg-black flex items-center justify-center">
+                  <img
+                    src={selectedPost.image_url}
+                    alt={selectedPost.title}
+                    className="max-h-[50vh] md:max-h-[90vh] w-full object-contain"
+                  />
+                </div>
+                
+                {/* Details */}
+                <div className="md:w-2/5 flex flex-col max-h-[40vh] md:max-h-[90vh]">
+                  {/* Header */}
+                  <div className="p-4 border-b border-border">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={selectedPost.user_profile?.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {(selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "U")[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">
+                            {selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "ผู้ใช้"}
+                          </span>
+                          {selectedPost.artist_profile?.is_verified && (
+                            <Badge variant="secondary" className="text-xs">✓</Badge>
+                          )}
+                        </div>
+                      </div>
+                      {user && user.id !== selectedPost.user_id && (
+                        <Button
+                          variant={followingUsers.has(selectedPost.user_id) ? "secondary" : "default"}
+                          size="sm"
+                          onClick={(e) => handleFollow(selectedPost.user_id, followingUsers.has(selectedPost.user_id), e)}
+                        >
+                          {followingUsers.has(selectedPost.user_id) ? 'Following' : 'Follow'}
+                        </Button>
                       )}
                     </div>
-                    
-                    <div>
-                      <h3 className="font-semibold text-foreground">{post.title}</h3>
-                      {post.description && (
-                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                          {post.description}
-                        </p>
-                      )}
-                    </div>
-                    
-                    {post.tools_used && post.tools_used.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {post.tools_used.slice(0, 3).map((tool) => (
-                          <Badge key={tool} variant="secondary" className="text-xs">
-                            {tool}
-                          </Badge>
+                  </div>
+
+                  {/* Title & Description */}
+                  <div className="p-4 border-b border-border">
+                    <h2 className="font-bold text-lg">{selectedPost.title}</h2>
+                    {selectedPost.description && (
+                      <p className="text-muted-foreground mt-2 text-sm">{selectedPost.description}</p>
+                    )}
+                    {selectedPost.tools_used && selectedPost.tools_used.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {selectedPost.tools_used.map((tool) => (
+                          <Badge key={tool} variant="outline" className="text-xs">{tool}</Badge>
                         ))}
                       </div>
                     )}
-                  </CardFooter>
-                </Card>
-              </motion.div>
-            ))}
-              </div>
-            </>
-          );
-        })()}
-
-        {/* Comments Dialog */}
-        <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
-          <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>ความคิดเห็น - {selectedPost?.title}</DialogTitle>
-            </DialogHeader>
-            
-            <div className="flex max-h-[60vh] flex-col">
-              <div className="flex-1 space-y-4 overflow-y-auto p-2">
-                {commentsLoading ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ) : comments.length === 0 ? (
-                  <p className="py-4 text-center text-muted-foreground">
-                    ยังไม่มีความคิดเห็น เป็นคนแรกที่แสดงความคิดเห็น!
-                  </p>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {(comment.user_profile?.full_name || "U")[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 rounded-lg bg-muted p-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
-                            {comment.user_profile?.full_name || "ผู้ใช้"}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(comment.created_at).toLocaleDateString('th-TH')}
-                          </span>
+
+                  {/* Actions */}
+                  <div className="p-4 border-b border-border flex items-center gap-4">
+                    <button
+                      onClick={(e) => handleLike(selectedPost.id, selectedPost.is_liked || false, e)}
+                      className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Heart className={`h-6 w-6 ${selectedPost.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
+                      <span className="font-medium">{selectedPost.likes_count}</span>
+                    </button>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MessageCircle className="h-6 w-6" />
+                      <span className="font-medium">{selectedPost.comments_count || 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Comments */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {commentsLoading ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    ) : comments.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-4">
+                        ยังไม่มีความคิดเห็น
+                      </p>
+                    ) : (
+                      comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs">
+                              {(comment.user_profile?.full_name || "U")[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm">
+                              <span className="font-semibold mr-2">
+                                {comment.user_profile?.full_name || "ผู้ใช้"}
+                              </span>
+                              {comment.content}
+                            </p>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(comment.created_at).toLocaleDateString('th-TH')}
+                            </span>
+                          </div>
                         </div>
-                        <p className="mt-1 text-sm">{comment.content}</p>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Comment Input */}
+                  {user && (
+                    <div className="p-4 border-t border-border">
+                      <div className="flex gap-2">
+                        <Input
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="เขียนความคิดเห็น..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSubmitComment();
+                            }
+                          }}
+                        />
+                        <Button
+                          size="icon"
+                          onClick={handleSubmitComment}
+                          disabled={!newComment.trim() || submittingComment}
+                        >
+                          {submittingComment ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-              
-              {user && (
-                <div className="mt-4 flex gap-2 border-t pt-4">
-                  <Input
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="เขียนความคิดเห็น..."
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmitComment();
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    onClick={handleSubmitComment}
-                    disabled={!newComment.trim() || submittingComment}
-                  >
-                    {submittingComment ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
