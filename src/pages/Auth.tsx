@@ -2,44 +2,21 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield } from 'lucide-react';
-
-const loginSchema = z.object({
-  email: z.string().trim().email({ message: 'กรุณากรอกอีเมลที่ถูกต้อง' }),
-  password: z.string().min(6, { message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }),
-});
-
-const signupSchema = z.object({
-  email: z.string().trim().email({ message: 'กรุณากรอกอีเมลที่ถูกต้อง' }),
-  password: z.string().min(6, { message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }),
-  fullName: z.string().trim().min(2, { message: 'กรุณากรอกชื่อ' }),
-  roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: 'กรุณาเลือกอย่างน้อย 1 บทบาท' }),
-  // Artist verification fields
-  realName: z.string().optional(),
-  phoneNumber: z.string().optional(),
-}).refine((data) => {
-  // If artist role is selected, require verification fields
-  if (data.roles.includes('artist')) {
-    return data.realName && data.realName.trim().length >= 2 && data.phoneNumber && data.phoneNumber.trim().length >= 9;
-  }
-  return true;
-}, {
-  message: 'กรุณากรอกชื่อจริงและเบอร์โทรเพื่อยืนยันตัวตน',
-  path: ['artistVerification'],
-});
 
 type AppRole = 'artist' | 'buyer';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, signIn, signUp, loading } = useAuth();
   const { toast } = useToast();
   
@@ -54,6 +31,28 @@ const Auth = () => {
   const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const loginSchema = z.object({
+    email: z.string().trim().email({ message: t('validation.emailRequired') }),
+    password: z.string().min(6, { message: t('validation.passwordMin') }),
+  });
+
+  const signupSchema = z.object({
+    email: z.string().trim().email({ message: t('validation.emailRequired') }),
+    password: z.string().min(6, { message: t('validation.passwordMin') }),
+    fullName: z.string().trim().min(2, { message: t('validation.nameRequired') }),
+    roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: t('validation.roleRequired') }),
+    realName: z.string().optional(),
+    phoneNumber: z.string().optional(),
+  }).refine((data) => {
+    if (data.roles.includes('artist')) {
+      return data.realName && data.realName.trim().length >= 2 && data.phoneNumber && data.phoneNumber.trim().length >= 9;
+    }
+    return true;
+  }, {
+    message: t('validation.verificationRequired'),
+    path: ['artistVerification'],
+  });
+
   useEffect(() => {
     if (user && !loading) {
       navigate('/');
@@ -63,7 +62,6 @@ const Auth = () => {
   const toggleRole = (role: AppRole) => {
     setSignupRoles(prev => {
       if (prev.includes(role)) {
-        // Don't allow removing if it's the only role
         if (prev.length === 1) return prev;
         return prev.filter(r => r !== role);
       } else {
@@ -95,15 +93,15 @@ const Auth = () => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'เข้าสู่ระบบไม่สำเร็จ',
+        title: t('auth.loginFailed'),
         description: error.message === 'Invalid login credentials' 
-          ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' 
+          ? t('auth.invalidCredentials')
           : error.message,
       });
     } else {
       toast({
-        title: 'เข้าสู่ระบบสำเร็จ',
-        description: 'ยินดีต้อนรับกลับมา!',
+        title: t('auth.loginSuccess'),
+        description: t('auth.welcomeBack'),
       });
       navigate('/');
     }
@@ -135,7 +133,6 @@ const Auth = () => {
     
     setIsSubmitting(true);
     
-    // Prepare artist verification data if artist role selected
     const artistVerification = signupRoles.includes('artist') 
       ? { realName: signupRealName, phoneNumber: signupPhoneNumber }
       : undefined;
@@ -146,17 +143,17 @@ const Auth = () => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'สมัครสมาชิกไม่สำเร็จ',
+        title: t('auth.signupFailed'),
         description: error.message.includes('already registered')
-          ? 'อีเมลนี้ถูกใช้งานแล้ว'
+          ? t('auth.emailExists')
           : error.message,
       });
     } else {
       toast({
-        title: 'สมัครสมาชิกสำเร็จ',
+        title: t('auth.signupSuccess'),
         description: signupRoles.includes('artist') 
-          ? 'ยินดีต้อนรับ! ข้อมูลของคุณอยู่ระหว่างการตรวจสอบ'
-          : 'ยินดีต้อนรับสู่ SoulHuman!',
+          ? t('auth.welcomeArtist')
+          : t('auth.welcomeNew'),
       });
       navigate('/');
     }
@@ -183,10 +180,10 @@ const Auth = () => {
             className="text-center"
           >
             <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              เข้าร่วม SoulHuman
+              {t('auth.joinSoulHuman')}
             </h1>
             <p className="mt-4 text-muted-foreground">
-              เชื่อมต่อกับชุมชนศิลปินและนักสะสมงานศิลปะ
+              {t('auth.connectCommunity')}
             </p>
           </motion.div>
 
@@ -198,14 +195,14 @@ const Auth = () => {
           >
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">เข้าสู่ระบบ</TabsTrigger>
-                <TabsTrigger value="signup">สมัครสมาชิก</TabsTrigger>
+                <TabsTrigger value="login">{t('auth.loginTab')}</TabsTrigger>
+                <TabsTrigger value="signup">{t('auth.signupTab')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login" className="mt-6">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">อีเมล</Label>
+                    <Label htmlFor="login-email">{t('auth.email')}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -223,7 +220,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">รหัสผ่าน</Label>
+                    <Label htmlFor="login-password">{t('auth.password')}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -241,7 +238,7 @@ const Auth = () => {
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+                    {isSubmitting ? t('auth.signingIn') : t('auth.loginButton')}
                   </Button>
                 </form>
               </TabsContent>
@@ -249,13 +246,13 @@ const Auth = () => {
               <TabsContent value="signup" className="mt-6">
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">ชื่อ-นามสกุล</Label>
+                    <Label htmlFor="signup-name">{t('auth.fullName')}</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="signup-name"
                         type="text"
-                        placeholder="ชื่อของคุณ"
+                        placeholder={t('auth.fullName')}
                         value={signupFullName}
                         onChange={(e) => setSignupFullName(e.target.value)}
                         className="pl-10"
@@ -267,7 +264,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">อีเมล</Label>
+                    <Label htmlFor="signup-email">{t('auth.email')}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -285,7 +282,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">รหัสผ่าน</Label>
+                    <Label htmlFor="signup-password">{t('auth.password')}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -303,7 +300,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <Label>คุณต้องการเข้าร่วมในฐานะ</Label>
+                    <Label>{t('auth.selectRole')}</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div
                         onClick={() => toggleRole('artist')}
@@ -320,8 +317,8 @@ const Auth = () => {
                         )}
                         <div className="flex flex-col items-center">
                           <Palette className="mb-3 h-6 w-6" />
-                          <span className="font-medium">ศิลปิน</span>
-                          <span className="text-xs text-muted-foreground">ขายงานศิลปะ</span>
+                          <span className="font-medium">{t('auth.artistRole')}</span>
+                          <span className="text-xs text-muted-foreground">{t('auth.artistDesc')}</span>
                         </div>
                       </div>
                       <div
@@ -339,14 +336,14 @@ const Auth = () => {
                         )}
                         <div className="flex flex-col items-center">
                           <ShoppingBag className="mb-3 h-6 w-6" />
-                          <span className="font-medium">ผู้ซื้อ</span>
-                          <span className="text-xs text-muted-foreground">ซื้องานศิลปะ</span>
+                          <span className="font-medium">{t('auth.buyerRole')}</span>
+                          <span className="text-xs text-muted-foreground">{t('auth.buyerDesc')}</span>
                         </div>
                       </div>
                     </div>
                     {signupRoles.includes('artist') && (
                       <p className="text-xs text-muted-foreground text-center">
-                        ✨ ศิลปินจะได้รับสิทธิ์เป็นผู้ซื้อโดยอัตโนมัติ
+                        ✨ {t('auth.artistAutoBuyer')}
                       </p>
                     )}
                     {errors.signup_roles && (
@@ -359,20 +356,20 @@ const Auth = () => {
                     <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
                       <div className="flex items-center gap-2">
                         <Shield className="h-5 w-5 text-primary" />
-                        <span className="font-medium text-foreground">ยืนยันตัวตนศิลปิน</span>
+                        <span className="font-medium text-foreground">{t('auth.artistVerification')}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        เพื่อความปลอดภัยและความน่าเชื่อถือ กรุณากรอกข้อมูลจริงของคุณ
+                        {t('auth.verificationDesc')}
                       </p>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="signup-realname">ชื่อ-นามสกุลจริง (ตามบัตรประชาชน)</Label>
+                        <Label htmlFor="signup-realname">{t('auth.realName')}</Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="signup-realname"
                             type="text"
-                            placeholder="ชื่อจริง นามสกุลจริง"
+                            placeholder={t('auth.realName')}
                             value={signupRealName}
                             onChange={(e) => setSignupRealName(e.target.value)}
                             className="pl-10"
@@ -381,7 +378,7 @@ const Auth = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="signup-phone">เบอร์โทรศัพท์</Label>
+                        <Label htmlFor="signup-phone">{t('auth.phoneNumber')}</Label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
@@ -402,7 +399,7 @@ const Auth = () => {
                   )}
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'กำลังสมัครสมาชิก...' : 'สมัครสมาชิก'}
+                    {isSubmitting ? t('auth.signingUp') : t('auth.signupButton')}
                   </Button>
                 </form>
               </TabsContent>

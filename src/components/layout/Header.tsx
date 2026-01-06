@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,23 +16,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/marketplace", label: "Marketplace" },
-  { href: "/artists", label: "Artists" },
-  { href: "/verification", label: "Verification" },
-  { href: "/policy", label: "Policy" },
-];
-
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { t } = useTranslation();
   const auth = useAuth();
   const { toast } = useToast();
   const [isAddingRole, setIsAddingRole] = useState(false);
   
-  // Destructure after getting the auth context to handle edge cases
   const { user, signOut, isAdmin, isArtist, isBuyer, addRole, loading } = auth;
+
+  const navLinks = [
+    { href: "/", label: t('common.home') },
+    { href: "/marketplace", label: t('common.marketplace') },
+    { href: "/artists", label: t('common.artists') },
+    { href: "/verification", label: t('common.verification') },
+    { href: "/policy", label: t('common.policy') },
+  ];
 
   const handleSignOut = async () => {
     await signOut();
@@ -45,13 +47,13 @@ export function Header() {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'เกิดข้อผิดพลาด',
+        title: t('auth.addRoleFailed'),
         description: error.message,
       });
     } else {
       toast({
-        title: 'เพิ่มบทบาทสำเร็จ',
-        description: role === 'artist' ? 'คุณเป็นศิลปินแล้ว!' : 'คุณสามารถซื้อผลงานได้แล้ว!',
+        title: t('auth.addRoleSuccess'),
+        description: role === 'artist' ? t('auth.nowArtist') : t('auth.nowBuyer'),
       });
     }
   };
@@ -65,7 +67,7 @@ export function Header() {
             <span className="font-serif text-lg font-bold text-primary-foreground">S</span>
           </div>
           <span className="font-serif text-xl font-semibold text-foreground">
-            SoulHuman
+            {t('header.soulHuman')}
           </span>
         </Link>
 
@@ -86,6 +88,8 @@ export function Header() {
 
         {/* Desktop CTA */}
         <div className="hidden items-center gap-4 md:flex">
+          <LanguageSwitcher />
+          
           {loading ? (
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           ) : user ? (
@@ -100,18 +104,18 @@ export function Header() {
                   <p className="text-sm font-medium">{user.email}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {isAdmin && (
-                      <Badge variant="destructive" className="text-xs">Admin</Badge>
+                      <Badge variant="destructive" className="text-xs">{t('roles.admin')}</Badge>
                     )}
                     {isArtist && (
                       <Badge variant="default" className="text-xs">
                         <Palette className="mr-1 h-3 w-3" />
-                        ศิลปิน
+                        {t('roles.artist')}
                       </Badge>
                     )}
                     {isBuyer && (
                       <Badge variant="secondary" className="text-xs">
                         <ShoppingBag className="mr-1 h-3 w-3" />
-                        ผู้ซื้อ
+                        {t('roles.buyer')}
                       </Badge>
                     )}
                   </div>
@@ -121,7 +125,7 @@ export function Header() {
                   <DropdownMenuItem asChild>
                     <Link to="/admin" className="cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
-                      Admin Dashboard
+                      {t('common.adminDashboard')}
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -129,7 +133,7 @@ export function Header() {
                   <DropdownMenuItem asChild>
                     <Link to="/sell" className="cursor-pointer">
                       <Palette className="mr-2 h-4 w-4" />
-                      โปรไฟล์ศิลปิน
+                      {t('common.artistProfile')}
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -141,7 +145,7 @@ export function Header() {
                     className="cursor-pointer"
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    เป็นศิลปิน
+                    {t('common.becomeArtist')}
                   </DropdownMenuItem>
                 )}
                 {!isBuyer && (
@@ -151,13 +155,13 @@ export function Header() {
                     className="cursor-pointer"
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    เป็นผู้ซื้อ
+                    {t('common.becomeBuyer')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  ออกจากระบบ
+                  {t('common.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -167,27 +171,29 @@ export function Header() {
                 to="/auth"
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                เข้าสู่ระบบ
+                {t('common.login')}
               </Link>
               <Link to="/auth" className="btn-hero-primary !px-6 !py-2.5 !text-sm">
-                สมัครสมาชิก
+                {t('common.signup')}
               </Link>
             </>
           )}
         </div>
 
         {/* Mobile Menu Button */}
-        <button
-          className="md:hidden"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? (
-            <X className="h-6 w-6 text-foreground" />
-          ) : (
-            <Menu className="h-6 w-6 text-foreground" />
-          )}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <LanguageSwitcher />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6 text-foreground" />
+            ) : (
+              <Menu className="h-6 w-6 text-foreground" />
+            )}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Menu */}
@@ -220,11 +226,11 @@ export function Header() {
                         className="text-center text-sm font-medium text-muted-foreground"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        Admin Dashboard
+                        {t('common.adminDashboard')}
                       </Link>
                     )}
                     <Button variant="outline" onClick={handleSignOut}>
-                      ออกจากระบบ
+                      {t('common.logout')}
                     </Button>
                   </>
                 ) : (
@@ -234,14 +240,14 @@ export function Header() {
                       className="text-center text-sm font-medium text-muted-foreground"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      เข้าสู่ระบบ
+                      {t('common.login')}
                     </Link>
                     <Link
                       to="/auth"
                       className="btn-hero-primary text-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      สมัครสมาชิก
+                      {t('common.signup')}
                     </Link>
                   </>
                 )}
