@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Calendar, Ruler, Palette, ShoppingCart, MessageCircle
 import { Layout } from "@/components/layout/Layout";
 import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
+import { ArtworkReviews } from "@/components/artwork/ArtworkReviews";
 import { Button } from "@/components/ui/button";
 import { TranslateButton } from "@/components/ui/TranslateButton";
 import { Badge } from "@/components/ui/badge";
@@ -389,6 +390,13 @@ export default function ArtworkDetail() {
               )}
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* Reviews Section */}
+      <section className="border-t border-border py-12">
+        <div className="container mx-auto px-4 lg:px-8">
+          <ArtworkReviews artworkId={artwork.id} />
         </div>
       </section>
 
