@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, UserCheck } from "lucide-react";
 
 export interface ArtworkCardProps {
   id: string;
@@ -10,6 +10,7 @@ export interface ArtworkCardProps {
   image: string;
   price: number;
   isVerified?: boolean;
+  isIdentityVerified?: boolean;
   medium?: string;
 }
 
@@ -21,6 +22,7 @@ export function ArtworkCard({
   image,
   price,
   isVerified = true,
+  isIdentityVerified = false,
   medium,
 }: ArtworkCardProps) {
   return (
@@ -38,12 +40,20 @@ export function ArtworkCard({
             alt={title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          {isVerified && (
-            <div className="absolute left-3 top-3">
-              <span className="verified-badge">
-                <Check className="h-3 w-3" />
-                Human Verified
-              </span>
+          {(isVerified || isIdentityVerified) && (
+            <div className="absolute left-3 top-3 flex flex-col gap-1">
+              {isVerified && (
+                <span className="verified-badge">
+                  <Check className="h-3 w-3" />
+                  Human Verified
+                </span>
+              )}
+              {isIdentityVerified && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                  <UserCheck className="h-3 w-3" />
+                  ID Verified
+                </span>
+              )}
             </div>
           )}
         </div>
