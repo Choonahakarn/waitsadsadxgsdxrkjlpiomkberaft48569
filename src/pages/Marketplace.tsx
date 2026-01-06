@@ -1,31 +1,76 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, SlidersHorizontal, Check } from "lucide-react";
+import { Search, SlidersHorizontal, Check, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
-import { artworks, Artwork } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
 
 type CategoryFilter = "all" | "traditional" | "digital";
 type TypeFilter = "all" | "original" | "commission";
 
+interface Artwork {
+  id: string;
+  title: string;
+  image_url: string;
+  price: number;
+  medium: string | null;
+  category: string | null;
+  type: string | null;
+  is_verified: boolean | null;
+  is_sold: boolean | null;
+  artist_id: string;
+  artist_profiles?: {
+    id: string;
+    artist_name: string;
+  };
+}
+
 export default function Marketplace() {
   const { t } = useTranslation();
+  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
-  const filteredArtworks = artworks.filter((artwork: Artwork) => {
+  useEffect(() => {
+    fetchArtworks();
+  }, []);
+
+  const fetchArtworks = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("artworks")
+        .select(`
+          *,
+          artist_profiles (id, artist_name)
+        `)
+        .eq("is_sold", false)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setArtworks(data || []);
+    } catch (error) {
+      console.error("Error fetching artworks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredArtworks = artworks.filter((artwork) => {
+    const artistName = artwork.artist_profiles?.artist_name || "";
     const matchesSearch =
       artwork.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      artwork.artist.toLowerCase().includes(searchQuery.toLowerCase());
+      artistName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
       categoryFilter === "all" || artwork.category === categoryFilter;
     const matchesType = typeFilter === "all" || artwork.type === typeFilter;
-    const matchesVerified = !verifiedOnly || artwork.isVerified;
+    const matchesVerified = !verifiedOnly || artwork.is_verified;
 
     return matchesSearch && matchesCategory && matchesType && matchesVerified;
   });
@@ -146,7 +191,12 @@ export default function Marketplace() {
             </p>
           </div>
 
-          {filteredArtworks.length > 0 ? (
+          {loading ? (
+            <div className="py-20 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+              <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
+            </div>
+          ) : filteredArtworks.length > 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -157,12 +207,12 @@ export default function Marketplace() {
                   key={artwork.id}
                   id={artwork.id}
                   title={artwork.title}
-                  artist={artwork.artist}
-                  artistId={artwork.artistId}
-                  image={artwork.image}
+                  artist={artwork.artist_profiles?.artist_name || "Unknown Artist"}
+                  artistId={artwork.artist_id}
+                  image={artwork.image_url}
                   price={artwork.price}
-                  isVerified={artwork.isVerified}
-                  medium={artwork.medium}
+                  isVerified={artwork.is_verified || false}
+                  medium={artwork.medium || ""}
                 />
               ))}
             </motion.div>
@@ -176,6 +226,7 @@ export default function Marketplace() {
                   setSearchQuery("");
                   setCategoryFilter("all");
                   setTypeFilter("all");
+                  setVerifiedOnly(false);
                 }}
                 className="mt-4 text-primary hover:underline"
               >
