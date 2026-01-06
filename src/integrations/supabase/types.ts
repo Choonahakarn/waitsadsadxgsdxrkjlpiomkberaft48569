@@ -136,6 +136,51 @@ export type Database = {
           },
         ]
       }
+      orders: {
+        Row: {
+          amount: number
+          artist_id: string
+          artwork_id: string
+          buyer_id: string
+          created_at: string
+          id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          artist_id: string
+          artwork_id: string
+          buyer_id: string
+          created_at?: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          artist_id?: string
+          artwork_id?: string
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artist_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_artwork_id_fkey"
+            columns: ["artwork_id"]
+            isOneToOne: false
+            referencedRelation: "artworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -353,6 +398,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      purchase_artwork: {
+        Args: { p_artwork_id: string; p_buyer_id: string }
+        Returns: Json
       }
     }
     Enums: {

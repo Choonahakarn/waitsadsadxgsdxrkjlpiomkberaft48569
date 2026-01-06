@@ -127,6 +127,12 @@ export function Header() {
                     กระเป๋าเงิน
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/my-orders" className="cursor-pointer">
+                    <ShoppingBag className="mr-2 h-4 w-4" />
+                    ประวัติการซื้อ
+                  </Link>
+                </DropdownMenuItem>
                 {isAdmin && (
                   <>
                     <DropdownMenuItem asChild>
