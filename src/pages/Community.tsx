@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Users, Globe } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -88,6 +89,7 @@ export default function Community() {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
+  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all');
 
   useEffect(() => {
     fetchPosts();
@@ -608,23 +610,61 @@ export default function Community() {
           )}
         </div>
 
+        {/* Feed Filter Tabs */}
+        {user && (
+          <Tabs value={feedFilter} onValueChange={(v) => setFeedFilter(v as 'all' | 'following')} className="mb-6">
+            <TabsList>
+              <TabsTrigger value="all" className="gap-2">
+                <Globe className="h-4 w-4" />
+                ทั้งหมด
+              </TabsTrigger>
+              <TabsTrigger value="following" className="gap-2">
+                <Users className="h-4 w-4" />
+                กำลังติดตาม
+                {followingUsers.size > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs">
+                    {followingUsers.size}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
         {/* Posts Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : posts.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-muted-foreground">ยังไม่มีโพสต์ในคอมมูนิตี้</p>
-            {user && (
-              <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
-                เป็นคนแรกที่โพสต์!
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post) => (
+        ) : (() => {
+          const filteredPosts = feedFilter === 'following' 
+            ? posts.filter(post => followingUsers.has(post.user_id))
+            : posts;
+          
+          return filteredPosts.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">
+                {feedFilter === 'following' 
+                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม' 
+                  : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
+              </p>
+              {feedFilter === 'following' ? (
+                <Button 
+                  variant="outline" 
+                  className="mt-4" 
+                  onClick={() => setFeedFilter('all')}
+                >
+                  ดูโพสต์ทั้งหมด
+                </Button>
+              ) : user && (
+                <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
+                  เป็นคนแรกที่โพสต์!
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredPosts.map((post) => (
               <motion.div
                 key={post.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -741,8 +781,9 @@ export default function Community() {
                 </Card>
               </motion.div>
             ))}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Comments Dialog */}
         <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
