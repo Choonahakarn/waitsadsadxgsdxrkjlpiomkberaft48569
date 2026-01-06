@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
+import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -850,7 +851,8 @@ export default function Community() {
       <div className="min-h-screen bg-background">
         {/* Sticky Header */}
         <div className="border-b border-border bg-background/95 backdrop-blur sticky top-20 z-40">
-          <div className="container mx-auto max-w-2xl px-4">
+          <div className="container mx-auto max-w-6xl px-4">
+            <div className="max-w-2xl mx-auto lg:mx-0 lg:max-w-none lg:pr-[340px]">
             {/* Search Bar */}
             <div className="py-3">
               <div className="relative">
@@ -897,11 +899,15 @@ export default function Community() {
                 </button>
               ))}
             </div>
+            </div>
           </div>
         </div>
 
-        {/* Feed Content */}
-        <div className="container mx-auto max-w-2xl px-4 py-4">
+        {/* Main Content with Sidebar */}
+        <div className="container mx-auto max-w-6xl px-4 py-4">
+          <div className="flex gap-6">
+            {/* Feed Content */}
+            <div className="flex-1 max-w-2xl">
           {loading ? (
             <div className="py-20 text-center">
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -1177,6 +1183,15 @@ export default function Community() {
               </div>
             </div>
           )}
+            </div>
+
+            {/* Sidebar */}
+            <aside className="hidden lg:block w-80 shrink-0">
+              <div className="sticky top-44">
+                <CommunitySidebar />
+              </div>
+            </aside>
+          </div>
         </div>
 
         {/* Floating Create Button */}
