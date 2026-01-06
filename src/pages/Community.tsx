@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Users, Globe } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Users, Globe, Search } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -90,6 +90,8 @@ export default function Community() {
   const [submitting, setSubmitting] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   useEffect(() => {
     fetchPosts();
@@ -483,7 +485,7 @@ export default function Community() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
               🎨 คอมมูนิตี้
@@ -610,6 +612,30 @@ export default function Community() {
           )}
         </div>
 
+        {/* Search and Filter */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="ค้นหาผลงานหรือศิลปิน..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="หมวดหมู่" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Feed Filter Tabs */}
         {user && (
           <Tabs value={feedFilter} onValueChange={(v) => setFeedFilter(v as 'all' | 'following')} className="mb-6">
@@ -637,18 +663,54 @@ export default function Community() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (() => {
-          const filteredPosts = feedFilter === 'following' 
-            ? posts.filter(post => followingUsers.has(post.user_id))
-            : posts;
+          // Apply all filters
+          let filteredPosts = posts;
+          
+          // Filter by feed type
+          if (feedFilter === 'following') {
+            filteredPosts = filteredPosts.filter(post => followingUsers.has(post.user_id));
+          }
+          
+          // Filter by search query
+          if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filteredPosts = filteredPosts.filter(post => 
+              post.title.toLowerCase().includes(query) ||
+              post.description?.toLowerCase().includes(query) ||
+              post.artist_profile?.artist_name?.toLowerCase().includes(query) ||
+              post.user_profile?.full_name?.toLowerCase().includes(query) ||
+              post.tools_used?.some(tool => tool.toLowerCase().includes(query)) ||
+              post.category?.toLowerCase().includes(query)
+            );
+          }
+          
+          // Filter by category
+          if (selectedCategory !== 'all') {
+            filteredPosts = filteredPosts.filter(post => post.category === selectedCategory);
+          }
           
           return filteredPosts.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-muted-foreground">
-                {feedFilter === 'following' 
-                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม' 
-                  : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
+              <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">
+                {searchQuery || selectedCategory !== 'all'
+                  ? 'ไม่พบผลงานที่ตรงกับการค้นหา'
+                  : feedFilter === 'following' 
+                    ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม' 
+                    : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
               </p>
-              {feedFilter === 'following' ? (
+              {(searchQuery || selectedCategory !== 'all') ? (
+                <Button 
+                  variant="outline" 
+                  className="mt-4" 
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedCategory("all");
+                  }}
+                >
+                  ล้างตัวกรอง
+                </Button>
+              ) : feedFilter === 'following' ? (
                 <Button 
                   variant="outline" 
                   className="mt-4" 
@@ -663,7 +725,26 @@ export default function Community() {
               )}
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <>
+              {(searchQuery || selectedCategory !== 'all') && (
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    พบ {filteredPosts.length} ผลงาน
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedCategory("all");
+                    }}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    ล้างตัวกรอง
+                  </Button>
+                </div>
+              )}
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredPosts.map((post) => (
               <motion.div
                 key={post.id}
@@ -781,7 +862,8 @@ export default function Community() {
                 </Card>
               </motion.div>
             ))}
-            </div>
+              </div>
+            </>
           );
         })()}
 
