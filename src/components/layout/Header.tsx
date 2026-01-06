@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -121,13 +121,27 @@ export function Header() {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/wallet" className="cursor-pointer">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    กระเป๋าเงิน
+                  </Link>
+                </DropdownMenuItem>
                 {isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link to="/admin" className="cursor-pointer">
-                      <Settings className="mr-2 h-4 w-4" />
-                      {t('common.adminDashboard')}
-                    </Link>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin" className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        {t('common.adminDashboard')}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/topup-requests" className="cursor-pointer">
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        จัดการเติมเงิน
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {isArtist && (
                   <>
