@@ -1,12 +1,251 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import { Link, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
-import { Upload, Shield, DollarSign, Users, ArrowRight, Check } from "lucide-react";
-import { Link } from "react-router-dom";
+import { 
+  Upload, Shield, DollarSign, Users, ArrowRight, Check, 
+  Image, Plus, Loader2, Trash2, Edit2 
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+
+interface ArtistProfile {
+  id: string;
+  artist_name: string;
+  is_verified: boolean | null;
+}
+
+interface Artwork {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string;
+  price: number;
+  medium: string | null;
+  dimensions: string | null;
+  year: number | null;
+  category: string | null;
+  tools_used: string[] | null;
+  is_verified: boolean | null;
+  is_sold: boolean | null;
+  created_at: string;
+}
 
 export default function Sell() {
   const { t } = useTranslation();
+  const { user, isArtist } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null);
+  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    price: "",
+    medium: "",
+    dimensions: "",
+    year: new Date().getFullYear().toString(),
+    category: "",
+    tools_used: "",
+  });
+  const [artworkImage, setArtworkImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user && isArtist) {
+      fetchArtistData();
+    } else {
+      setLoading(false);
+    }
+  }, [user, isArtist]);
+
+  const fetchArtistData = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      // Get artist profile
+      const { data: profile, error: profileError } = await supabase
+        .from("artist_profiles")
+        .select("id, artist_name, is_verified")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      setArtistProfile(profile);
+
+      // Get artist's artworks
+      if (profile) {
+        const { data: artworksData, error: artworksError } = await supabase
+          .from("artworks")
+          .select("*")
+          .eq("artist_id", profile.id)
+          .order("created_at", { ascending: false });
+
+        if (artworksError) throw artworksError;
+        setArtworks(artworksData || []);
+      }
+    } catch (error) {
+      console.error("Error fetching artist data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setArtworkImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !artistProfile || !artworkImage) {
+      toast({
+        title: "ข้อมูลไม่ครบ",
+        description: "กรุณากรอกข้อมูลและอัพโหลดรูปภาพ",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price <= 0) {
+      toast({
+        title: "ราคาไม่ถูกต้อง",
+        description: "กรุณากรอกราคาที่ถูกต้อง",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Upload image
+      const fileExt = artworkImage.name.split(".").pop();
+      const fileName = `${artistProfile.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("artworks")
+        .upload(fileName, artworkImage);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("artworks")
+        .getPublicUrl(fileName);
+
+      // Create artwork record
+      const { error: insertError } = await supabase
+        .from("artworks")
+        .insert({
+          artist_id: artistProfile.id,
+          title: formData.title,
+          description: formData.description || null,
+          image_url: urlData.publicUrl,
+          price: price,
+          medium: formData.medium || null,
+          dimensions: formData.dimensions || null,
+          year: formData.year ? parseInt(formData.year) : null,
+          category: formData.category || null,
+          tools_used: formData.tools_used ? formData.tools_used.split(",").map(t => t.trim()) : null,
+          is_verified: false,
+          is_sold: false,
+        });
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "อัพโหลดสำเร็จ!",
+        description: "ผลงานของคุณถูกเพิ่มเรียบร้อยแล้ว",
+      });
+
+      // Reset form
+      setFormData({
+        title: "",
+        description: "",
+        price: "",
+        medium: "",
+        dimensions: "",
+        year: new Date().getFullYear().toString(),
+        category: "",
+        tools_used: "",
+      });
+      setArtworkImage(null);
+      setImagePreview(null);
+      setShowUploadDialog(false);
+      fetchArtistData();
+    } catch (error) {
+      console.error("Error uploading artwork:", error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถอัพโหลดผลงานได้",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteArtwork = async (artworkId: string) => {
+    if (!confirm("คุณแน่ใจหรือไม่ที่จะลบผลงานนี้?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("artworks")
+        .delete()
+        .eq("id", artworkId);
+
+      if (error) throw error;
+
+      toast({
+        title: "ลบสำเร็จ",
+        description: "ผลงานถูกลบเรียบร้อยแล้ว",
+      });
+      fetchArtistData();
+    } catch (error) {
+      console.error("Error deleting artwork:", error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถลบผลงานได้",
+        variant: "destructive",
+      });
+    }
+  };
 
   const benefits = [
     {
@@ -45,6 +284,304 @@ export default function Sell() {
     "sell.medium8",
   ];
 
+  const categories = [
+    "Portrait",
+    "Landscape",
+    "Abstract",
+    "Character Design",
+    "Illustration",
+    "Concept Art",
+    "Fan Art",
+    "Other",
+  ];
+
+  const mediumOptions = [
+    "Digital Painting",
+    "Oil Painting",
+    "Watercolor",
+    "Acrylic",
+    "Pencil",
+    "Ink",
+    "Mixed Media",
+    "Other",
+  ];
+
+  // Show artist dashboard if user is an artist
+  if (user && isArtist && !loading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                  <Image className="h-8 w-8" />
+                  ผลงานของฉัน
+                </h1>
+                {artistProfile && (
+                  <p className="text-muted-foreground mt-1">
+                    ศิลปิน: {artistProfile.artist_name}
+                    {artistProfile.is_verified && (
+                      <Badge className="ml-2 bg-green-500">ยืนยันแล้ว</Badge>
+                    )}
+                  </p>
+                )}
+              </div>
+              <Button onClick={() => setShowUploadDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                เพิ่มผลงานใหม่
+              </Button>
+            </div>
+
+            {/* Artworks Grid */}
+            {artworks.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Image className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                  <h2 className="text-xl font-semibold mb-2">ยังไม่มีผลงาน</h2>
+                  <p className="text-muted-foreground mb-6">
+                    เริ่มขายผลงานของคุณโดยการเพิ่มผลงานใหม่
+                  </p>
+                  <Button onClick={() => setShowUploadDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    เพิ่มผลงานแรก
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {artworks.map((artwork) => (
+                  <Card key={artwork.id} className="overflow-hidden">
+                    <div className="relative aspect-square">
+                      <img
+                        src={artwork.image_url}
+                        alt={artwork.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {artwork.is_sold && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <Badge className="text-lg py-2 px-4 bg-red-500">ขายแล้ว</Badge>
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        {artwork.is_verified && (
+                          <Badge className="bg-green-500">ยืนยันแล้ว</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold truncate">{artwork.title}</h3>
+                      <p className="text-lg font-bold text-primary mt-1">
+                        ฿{artwork.price.toLocaleString()}
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => navigate(`/artwork/${artwork.id}`)}
+                        >
+                          <Edit2 className="h-3 w-3 mr-1" />
+                          ดู
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteArtwork(artwork.id)}
+                          disabled={artwork.is_sold || false}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Upload Dialog */}
+        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>เพิ่มผลงานใหม่</DialogTitle>
+              <DialogDescription>
+                กรอกข้อมูลและอัพโหลดรูปภาพผลงานของคุณ
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Image Upload */}
+              <div>
+                <Label>รูปภาพผลงาน *</Label>
+                <div className="mt-2">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-64 object-cover rounded-lg"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={() => {
+                          setArtworkImage(null);
+                          setImagePreview(null);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors">
+                      <Upload className="h-10 w-10 text-muted-foreground mb-2" />
+                      <span className="text-muted-foreground">คลิกเพื่ออัพโหลดรูปภาพ</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="title">ชื่อผลงาน *</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="ชื่อผลงานของคุณ"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="price">ราคา (บาท) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="description">รายละเอียด</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="อธิบายเกี่ยวกับผลงานของคุณ..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="category">หมวดหมู่</Label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือกหมวดหมู่" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="medium">สื่อ/เทคนิค</Label>
+                  <Select
+                    value={formData.medium}
+                    onValueChange={(value) => setFormData({ ...formData, medium: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือกสื่อ/เทคนิค" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mediumOptions.map((med) => (
+                        <SelectItem key={med} value={med}>{med}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="dimensions">ขนาด</Label>
+                  <Input
+                    id="dimensions"
+                    value={formData.dimensions}
+                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                    placeholder="เช่น 30x40 cm"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="year">ปีที่สร้าง</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    value={formData.year}
+                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="tools">เครื่องมือที่ใช้ (คั่นด้วยเครื่องหมาย ,)</Label>
+                <Input
+                  id="tools"
+                  value={formData.tools_used}
+                  onChange={(e) => setFormData({ ...formData, tools_used: e.target.value })}
+                  placeholder="เช่น Photoshop, Wacom Tablet, Procreate"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowUploadDialog(false)}>
+                ยกเลิก
+              </Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={uploading || !formData.title || !formData.price || !artworkImage}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    กำลังอัพโหลด...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    อัพโหลดผลงาน
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Layout>
+    );
+  }
+
+  // Show landing page for non-artists
   return (
     <Layout>
       {/* Hero */}
@@ -64,10 +601,28 @@ export default function Sell() {
               {t('sell.heroDesc')}
             </p>
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <Button className="btn-hero-primary">
-                <Upload className="h-5 w-5" />
-                {t('sell.startSelling')}
-              </Button>
+              {user ? (
+                isArtist ? (
+                  <Button className="btn-hero-primary" onClick={() => setShowUploadDialog(true)}>
+                    <Upload className="h-5 w-5" />
+                    {t('sell.startSelling')}
+                  </Button>
+                ) : (
+                  <Link to="/artist/my-profile">
+                    <Button className="btn-hero-primary">
+                      <Upload className="h-5 w-5" />
+                      สมัครเป็นศิลปิน
+                    </Button>
+                  </Link>
+                )
+              ) : (
+                <Link to="/auth">
+                  <Button className="btn-hero-primary">
+                    <Upload className="h-5 w-5" />
+                    เข้าสู่ระบบเพื่อเริ่มขาย
+                  </Button>
+                </Link>
+              )}
               <Link to="/verification" className="btn-hero-secondary">
                 {t('sell.learnVerification')}
                 <ArrowRight className="h-5 w-5" />
@@ -194,10 +749,28 @@ export default function Sell() {
             {t('sell.ctaDesc')}
           </p>
           <div className="mt-8">
-            <Button className="btn-hero-primary">
-              <Upload className="h-5 w-5" />
-              {t('sell.applyNow')}
-            </Button>
+            {user ? (
+              isArtist ? (
+                <Button className="btn-hero-primary" onClick={() => setShowUploadDialog(true)}>
+                  <Upload className="h-5 w-5" />
+                  {t('sell.applyNow')}
+                </Button>
+              ) : (
+                <Link to="/artist/my-profile">
+                  <Button className="btn-hero-primary">
+                    <Upload className="h-5 w-5" />
+                    สมัครเป็นศิลปิน
+                  </Button>
+                </Link>
+              )
+            ) : (
+              <Link to="/auth">
+                <Button className="btn-hero-primary">
+                  <Upload className="h-5 w-5" />
+                  เข้าสู่ระบบเพื่อเริ่มขาย
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>
