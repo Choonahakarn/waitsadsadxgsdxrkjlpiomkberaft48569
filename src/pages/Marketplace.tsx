@@ -51,6 +51,7 @@ export default function Marketplace() {
           artist_profiles (id, artist_name)
         `)
         .eq("is_sold", false)
+        .eq("is_verified", true)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
