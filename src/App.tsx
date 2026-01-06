@@ -23,6 +23,7 @@ import AdminArtworkVerifications from "./pages/admin/ArtworkVerifications";
 import AdminTopupRequests from "./pages/admin/TopupRequests";
 import MyArtistProfile from "./pages/artist/MyProfile";
 import VerificationSubmit from "./pages/artist/VerificationSubmit";
+import Earnings from "./pages/artist/Earnings";
 import Wallet from "./pages/Wallet";
 import MyOrders from "./pages/MyOrders";
 import NotFound from "./pages/NotFound";
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/admin/topup-requests" element={<AdminTopupRequests />} />
             <Route path="/artist/my-profile" element={<MyArtistProfile />} />
             <Route path="/artist/verification" element={<VerificationSubmit />} />
+            <Route path="/artist/earnings" element={<Earnings />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/my-orders" element={<MyOrders />} />
             <Route path="*" element={<NotFound />} />
