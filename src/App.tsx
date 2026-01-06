@@ -21,9 +21,11 @@ import AdminVerifications from "./pages/admin/Verifications";
 import AdminIdentityVerifications from "./pages/admin/IdentityVerifications";
 import AdminArtworkVerifications from "./pages/admin/ArtworkVerifications";
 import AdminTopupRequests from "./pages/admin/TopupRequests";
+import AdminWithdrawalRequests from "./pages/admin/WithdrawalRequests";
 import MyArtistProfile from "./pages/artist/MyProfile";
 import VerificationSubmit from "./pages/artist/VerificationSubmit";
 import Earnings from "./pages/artist/Earnings";
+import Withdraw from "./pages/artist/Withdraw";
 import Wallet from "./pages/Wallet";
 import MyOrders from "./pages/MyOrders";
 import NotFound from "./pages/NotFound";
@@ -55,9 +57,11 @@ const App = () => (
             <Route path="/admin/identity-verifications" element={<AdminIdentityVerifications />} />
             <Route path="/admin/artwork-verifications" element={<AdminArtworkVerifications />} />
             <Route path="/admin/topup-requests" element={<AdminTopupRequests />} />
+            <Route path="/admin/withdrawal-requests" element={<AdminWithdrawalRequests />} />
             <Route path="/artist/my-profile" element={<MyArtistProfile />} />
             <Route path="/artist/verification" element={<VerificationSubmit />} />
             <Route path="/artist/earnings" element={<Earnings />} />
+            <Route path="/artist/withdraw" element={<Withdraw />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/my-orders" element={<MyOrders />} />
             <Route path="*" element={<NotFound />} />

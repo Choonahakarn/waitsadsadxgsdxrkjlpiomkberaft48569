@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Palette, ShieldCheck, BarChart3, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock } from 'lucide-react';
+import { Users, Palette, ShieldCheck, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock, ArrowDownToLine } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
@@ -331,6 +331,16 @@ const AdminDashboard = () => {
                         {stats.pendingTopups}
                       </span>
                     )}
+                  </Link>
+                  <Link
+                    to="/admin/withdrawal-requests"
+                    className="flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                  >
+                    <ArrowDownToLine className="h-5 w-5 text-primary" />
+                    <div className="flex-1">
+                      <p className="font-medium">จัดการถอนเงิน</p>
+                      <p className="text-sm text-muted-foreground">ตรวจสอบและอนุมัติคำขอถอนเงินศิลปิน</p>
+                    </div>
                   </Link>
                 </CardContent>
               </Card>
