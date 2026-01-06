@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2 } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -35,6 +35,8 @@ interface CommunityPost {
     is_verified: boolean;
   };
   is_liked?: boolean;
+  is_following?: boolean;
+  followers_count?: number;
   comments_count?: number;
 }
 
@@ -85,10 +87,30 @@ export default function Community() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchPosts();
+    if (user) {
+      fetchFollowing();
+    }
   }, [user]);
+
+  const fetchFollowing = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+      
+      if (data) {
+        setFollowingUsers(new Set(data.map(f => f.following_id)));
+      }
+    } catch (error) {
+      console.error('Error fetching following:', error);
+    }
+  };
 
   const fetchPosts = async () => {
     try {
@@ -129,17 +151,25 @@ export default function Community() {
           }
 
           // Get comments count
-          const { count } = await supabase
+          const { count: commentsCount } = await supabase
             .from('community_comments')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
+
+          // Get followers count for this user
+          const { count: followersCount } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', post.user_id);
 
           return {
             ...post,
             user_profile: profile,
             artist_profile: artistProfile,
             is_liked: isLiked,
-            comments_count: count || 0
+            is_following: followingUsers.has(post.user_id),
+            followers_count: followersCount || 0,
+            comments_count: commentsCount || 0
           };
         })
       );
@@ -264,6 +294,64 @@ export default function Community() {
       }));
     } catch (error) {
       console.error('Error liking post:', error);
+    }
+  };
+
+  const handleFollow = async (userId: string, isFollowing: boolean) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อติดตามศิลปิน"
+      });
+      return;
+    }
+
+    if (user.id === userId) {
+      return; // Can't follow yourself
+    }
+
+    try {
+      if (isFollowing) {
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('following_id', userId);
+        
+        setFollowingUsers(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(userId);
+          return newSet;
+        });
+      } else {
+        await supabase
+          .from('follows')
+          .insert({ follower_id: user.id, following_id: userId });
+        
+        setFollowingUsers(prev => new Set(prev).add(userId));
+      }
+
+      // Update local posts state
+      setPosts(posts.map(post => {
+        if (post.user_id === userId) {
+          return {
+            ...post,
+            is_following: !isFollowing,
+            followers_count: isFollowing 
+              ? (post.followers_count || 1) - 1 
+              : (post.followers_count || 0) + 1
+          };
+        }
+        return post;
+      }));
+
+      toast({
+        title: isFollowing ? "เลิกติดตามแล้ว" : "ติดตามแล้ว! 🎉",
+        description: isFollowing ? "คุณได้เลิกติดตามศิลปินนี้" : "คุณจะเห็นผลงานใหม่ๆ จากศิลปินนี้"
+      });
+    } catch (error) {
+      console.error('Error following:', error);
     }
   };
 
@@ -525,25 +613,48 @@ export default function Community() {
                           {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">
+                          <span className="truncate font-medium text-foreground">
                             {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
                           </span>
                           {post.artist_profile?.is_verified && (
-                            <Badge variant="secondary" className="text-xs">
-                              ✓ Verified
+                            <Badge variant="secondary" className="shrink-0 text-xs">
+                              ✓
                             </Badge>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(post.created_at).toLocaleDateString('th-TH', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>
+                            {new Date(post.created_at).toLocaleDateString('th-TH', {
+                              day: 'numeric',
+                              month: 'short'
+                            })}
+                          </span>
+                          <span>•</span>
+                          <span>{post.followers_count || 0} ผู้ติดตาม</span>
+                        </div>
                       </div>
+                      {user && user.id !== post.user_id && (
+                        <Button
+                          variant={followingUsers.has(post.user_id) ? "secondary" : "outline"}
+                          size="sm"
+                          className="shrink-0 gap-1"
+                          onClick={() => handleFollow(post.user_id, followingUsers.has(post.user_id))}
+                        >
+                          {followingUsers.has(post.user_id) ? (
+                            <>
+                              <UserCheck className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">ติดตามแล้ว</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">ติดตาม</span>
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   
