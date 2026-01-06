@@ -74,7 +74,7 @@ export default function Sell() {
     medium: "",
     dimensions: "",
     year: new Date().getFullYear().toString(),
-    category: "",
+    category: "digital",
     tools_used: "",
   });
   const [artworkImage, setArtworkImage] = useState<File | null>(null);
@@ -154,10 +154,13 @@ export default function Sell() {
     }
 
     setUploading(true);
+    let uploadedPath: string | null = null;
+
     try {
       // Upload image
       const fileExt = artworkImage.name.split(".").pop();
       const fileName = `${artistProfile.id}/${Date.now()}.${fileExt}`;
+      uploadedPath = fileName;
 
       const { error: uploadError } = await supabase.storage
         .from("artworks")
@@ -165,29 +168,37 @@ export default function Sell() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("artworks")
-        .getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage.from("artworks").getPublicUrl(fileName);
 
       // Create artwork record
-      const { error: insertError } = await supabase
-        .from("artworks")
-        .insert({
-          artist_id: artistProfile.id,
-          title: formData.title,
-          description: formData.description || null,
-          image_url: urlData.publicUrl,
-          price: price,
-          medium: formData.medium || null,
-          dimensions: formData.dimensions || null,
-          year: formData.year ? parseInt(formData.year) : null,
-          category: formData.category || null,
-          tools_used: formData.tools_used ? formData.tools_used.split(",").map(t => t.trim()) : null,
-          is_verified: false,
-          is_sold: false,
-        });
+      const { error: insertError } = await supabase.from("artworks").insert({
+        artist_id: artistProfile.id,
+        title: formData.title,
+        description: formData.description || null,
+        image_url: urlData.publicUrl,
+        price,
+        medium: formData.medium || null,
+        dimensions: formData.dimensions || null,
+        year: formData.year ? parseInt(formData.year) : null,
+        category: formData.category || null, // allowed: 'digital' | 'traditional'
+        type: "original", // allowed: 'original' | 'commission'
+        tools_used: formData.tools_used
+          ? formData.tools_used
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : null,
+        is_verified: false,
+        is_sold: false,
+      });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Best-effort cleanup of uploaded file to avoid orphans
+        if (uploadedPath) {
+          await supabase.storage.from("artworks").remove([uploadedPath]);
+        }
+        throw insertError;
+      }
 
       toast({
         title: "อัพโหลดสำเร็จ!",
@@ -202,18 +213,42 @@ export default function Sell() {
         medium: "",
         dimensions: "",
         year: new Date().getFullYear().toString(),
-        category: "",
+        category: "digital",
         tools_used: "",
       });
       setArtworkImage(null);
       setImagePreview(null);
       setShowUploadDialog(false);
       fetchArtistData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading artwork:", error);
+
+      const code = error?.code as string | undefined;
+      const msg = (error?.message as string | undefined) || "";
+
+      let title = "อัพโหลดไม่สำเร็จ";
+      let description = "กรุณาลองใหม่อีกครั้ง";
+
+      // Friendly, actionable messages
+      if (code === "23514" && msg.includes("artworks_category_check")) {
+        title = "ประเภทงานไม่ถูกต้อง";
+        description = "ระบบรองรับเฉพาะ: ดิจิทัล (digital) หรือ วาดมือ (traditional) เท่านั้น";
+      } else if (code === "23514" && msg.includes("artworks_type_check")) {
+        title = "ประเภทการขายไม่ถูกต้อง";
+        description = "กรุณาเลือกประเภทการขายให้ถูกต้อง (original/commission)";
+      } else if (msg.toLowerCase().includes("row-level security")) {
+        title = "สิทธิ์ไม่เพียงพอ";
+        description = "บัญชีนี้ยังไม่มีสิทธิ์อัพโหลด (ลองออก/เข้าใหม่ หรือเช็คว่าเป็นบทบาทศิลปินจริง)";
+      } else if (code) {
+        // Show DB error code in a readable way
+        description = `${msg || description} (รหัส: ${code})`;
+      } else if (msg) {
+        description = msg;
+      }
+
       toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถอัพโหลดผลงานได้",
+        title,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -285,14 +320,8 @@ export default function Sell() {
   ];
 
   const categories = [
-    "Portrait",
-    "Landscape",
-    "Abstract",
-    "Character Design",
-    "Illustration",
-    "Concept Art",
-    "Fan Art",
-    "Other",
+    { value: "digital", label: "ดิจิทัล (Digital)" },
+    { value: "traditional", label: "วาดมือ (Traditional)" },
   ];
 
   const mediumOptions = [
@@ -487,17 +516,19 @@ export default function Sell() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="category">หมวดหมู่</Label>
+                  <Label htmlFor="category">ประเภทงาน</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(value) => setFormData({ ...formData, category: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="เลือกหมวดหมู่" />
+                      <SelectValue placeholder="เลือกประเภทงาน" />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
