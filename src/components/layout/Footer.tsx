@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export function Footer() {
+  const { t } = useTranslation();
+
   return (
     <footer className="border-t border-border bg-secondary/30">
       <div className="container mx-auto px-4 py-16 lg:px-8">
@@ -9,41 +12,41 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Link to="/" className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
-                <span className="font-serif text-lg font-bold text-primary-foreground">O</span>
+                <span className="font-serif text-lg font-bold text-primary-foreground">S</span>
               </div>
               <span className="font-serif text-xl font-semibold text-foreground">
                 SoulHuman
               </span>
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              The marketplace for 100% human-created artwork. No AI. No algorithms. Only real artists.
+              {t('footer.tagline')}
             </p>
           </div>
 
           {/* Marketplace */}
           <div>
             <h4 className="mb-4 font-serif text-base font-semibold text-foreground">
-              Marketplace
+              {t('footer.marketplace')}
             </h4>
             <ul className="space-y-3">
               <li>
                 <Link to="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Browse Artworks
+                  {t('footer.browseArtworks')}
                 </Link>
               </li>
               <li>
                 <Link to="/artists" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Featured Artists
+                  {t('footer.featuredArtists')}
                 </Link>
               </li>
               <li>
                 <Link to="/commission" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Commission Art
+                  {t('footer.commissionArt')}
                 </Link>
               </li>
               <li>
                 <Link to="/sell" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Sell Your Art
+                  {t('footer.sellYourArt')}
                 </Link>
               </li>
             </ul>
@@ -52,27 +55,27 @@ export function Footer() {
           {/* Trust & Safety */}
           <div>
             <h4 className="mb-4 font-serif text-base font-semibold text-foreground">
-              Trust & Safety
+              {t('footer.trustSafety')}
             </h4>
             <ul className="space-y-3">
               <li>
                 <Link to="/verification" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Artist Verification
+                  {t('footer.artistVerification')}
                 </Link>
               </li>
               <li>
                 <Link to="/policy" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Anti-AI Policy
+                  {t('footer.antiAiPolicy')}
                 </Link>
               </li>
               <li>
                 <Link to="/policy" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Terms of Service
+                  {t('footer.termsOfService')}
                 </Link>
               </li>
               <li>
                 <Link to="/policy" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Privacy Policy
+                  {t('footer.privacyPolicy')}
                 </Link>
               </li>
             </ul>
@@ -81,27 +84,27 @@ export function Footer() {
           {/* Connect */}
           <div>
             <h4 className="mb-4 font-serif text-base font-semibold text-foreground">
-              Connect
+              {t('footer.connect')}
             </h4>
             <ul className="space-y-3">
               <li>
                 <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  About Us
+                  {t('footer.aboutUs')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Contact
+                  {t('footer.contact')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Blog
+                  {t('footer.blog')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Newsletter
+                  {t('footer.newsletter')}
                 </a>
               </li>
             </ul>
@@ -111,8 +114,8 @@ export function Footer() {
         <div className="section-divider mt-12" />
 
         <div className="mt-8 flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
-          <p>© 2026 SoulHuman. All rights reserved.</p>
-          <p className="font-medium">Art made by humans, not algorithms.</p>
+          <p>{t('footer.copyright')}</p>
+          <p className="font-medium">{t('footer.slogan')}</p>
         </div>
       </div>
     </footer>

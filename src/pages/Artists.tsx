@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { artists } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { VerificationBadge } from "@/components/ui/VerificationBadge";
 
 export default function Artists() {
+  const { t } = useTranslation();
+
   return (
     <Layout>
       {/* Header */}
@@ -16,10 +19,10 @@ export default function Artists() {
             className="text-center"
           >
             <h1 className="font-serif text-4xl font-bold text-foreground md:text-5xl">
-              Featured Artists
+              {t('artists.title')}
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Meet the verified human creators behind our exceptional artworks
+              {t('artists.subtitle')}
             </p>
           </motion.div>
         </div>
@@ -71,7 +74,7 @@ export default function Artists() {
                   
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Tools & Mediums
+                      {t('artists.toolsMediums')}
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {artist.tools.slice(0, 3).map((tool) => (
@@ -89,7 +92,7 @@ export default function Artists() {
                     to={`/artist/${artist.id}`}
                     className="mt-6 block text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
                   >
-                    View Portfolio →
+                    {t('common.viewPortfolio')}
                   </Link>
                 </div>
               </motion.article>
