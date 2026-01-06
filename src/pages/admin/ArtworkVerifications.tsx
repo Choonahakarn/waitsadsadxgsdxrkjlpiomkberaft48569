@@ -29,6 +29,7 @@ interface Artwork {
   is_verified: boolean | null;
   is_sold: boolean | null;
   created_at: string;
+  artist_id: string;
   artist_profiles?: {
     artist_name: string;
     is_verified: boolean | null;
@@ -93,6 +94,31 @@ const ArtworkVerifications = () => {
     }
   };
 
+  const getArtistUserId = async (artistId: string): Promise<string | null> => {
+    const { data } = await supabase
+      .from("artist_profiles")
+      .select("user_id")
+      .eq("id", artistId)
+      .single();
+    return data?.user_id || null;
+  };
+
+  const sendNotification = async (
+    userId: string,
+    title: string,
+    message: string,
+    type: string,
+    referenceId?: string
+  ) => {
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      title,
+      message,
+      type,
+      reference_id: referenceId || null,
+    });
+  };
+
   const handleApprove = async () => {
     if (!selectedArtwork) return;
 
@@ -104,6 +130,18 @@ const ArtworkVerifications = () => {
         .eq("id", selectedArtwork.id);
 
       if (error) throw error;
+
+      // Send notification to artist
+      const artistUserId = await getArtistUserId(selectedArtwork.artist_id);
+      if (artistUserId) {
+        await sendNotification(
+          artistUserId,
+          "ผลงานได้รับการอนุมัติ ✅",
+          `ผลงาน "${selectedArtwork.title}" ของคุณได้รับการอนุมัติและแสดงในตลาดแล้ว`,
+          "success",
+          selectedArtwork.id
+        );
+      }
 
       toast({
         title: "อนุมัติสำเร็จ",
@@ -130,8 +168,18 @@ const ArtworkVerifications = () => {
 
     setProcessing(true);
     try {
-      // For rejection, we could delete the artwork or mark it somehow
-      // For now, we'll just keep it unverified but you could add a rejected status
+      // Send notification to artist before deleting
+      const artistUserId = await getArtistUserId(selectedArtwork.artist_id);
+      if (artistUserId) {
+        await sendNotification(
+          artistUserId,
+          "ผลงานถูกปฏิเสธ ❌",
+          `ผลงาน "${selectedArtwork.title}" ไม่ผ่านการอนุมัติ${adminNotes ? ` - หมายเหตุ: ${adminNotes}` : ""}`,
+          "error",
+          selectedArtwork.id
+        );
+      }
+
       const { error } = await supabase
         .from("artworks")
         .delete()
