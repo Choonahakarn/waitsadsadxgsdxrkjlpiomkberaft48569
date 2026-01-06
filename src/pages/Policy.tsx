@@ -38,7 +38,7 @@ export default function Policy() {
               Anti-AI Policy
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              OnlyHumanArt is committed to celebrating and protecting authentic human creativity.
+              SoulHuman is committed to celebrating and protecting authentic human creativity.
             </p>
           </motion.div>
         </div>
@@ -60,7 +60,7 @@ export default function Policy() {
                 Zero Tolerance for AI Art
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                OnlyHumanArt maintains a strict policy against AI-generated content. Any artwork found to violate this policy will be immediately removed, and the artist will face a <strong className="text-foreground">permanent ban</strong> from the platform.
+                SoulHuman maintains a strict policy against AI-generated content. Any artwork found to violate this policy will be immediately removed, and the artist will face a <strong className="text-foreground">permanent ban</strong> from the platform.
               </p>
             </motion.div>
 
@@ -182,8 +182,8 @@ export default function Policy() {
             >
               <p className="text-muted-foreground">
                 Have questions about our policy? Contact us at{" "}
-                <a href="mailto:policy@onlyhumanart.com" className="text-primary hover:underline">
-                  policy@onlyhumanart.com
+                <a href="mailto:policy@soulhuman.com" className="text-primary hover:underline">
+                  policy@soulhuman.com
                 </a>
               </p>
             </motion.div>

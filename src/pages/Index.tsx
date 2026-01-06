@@ -264,7 +264,7 @@ export default function Index() {
               Ready to Join the Movement?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              Whether you're an artist looking to sell your work or a collector seeking authentic human creativity, OnlyHumanArt is your home.
+              Whether you're an artist looking to sell your work or a collector seeking authentic human creativity, SoulHuman is your home.
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <Link to="/sell" className="btn-hero-primary">

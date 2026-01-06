@@ -24,7 +24,7 @@ export function Header() {
             <span className="font-serif text-lg font-bold text-primary-foreground">O</span>
           </div>
           <span className="font-serif text-xl font-semibold text-foreground">
-            OnlyHumanArt
+            SoulHuman
           </span>
         </Link>
 
