@@ -330,6 +330,32 @@ export default function Community() {
           .insert({ follower_id: user.id, following_id: userId });
         
         setFollowingUsers(prev => new Set(prev).add(userId));
+
+        // Get follower's profile name for notification
+        const { data: followerProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        const { data: artistProfile } = await supabase
+          .from('artist_profiles')
+          .select('artist_name')
+          .eq('user_id', user.id)
+          .single();
+
+        const followerName = artistProfile?.artist_name || followerProfile?.full_name || 'ผู้ใช้';
+
+        // Send notification to followed user
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title: 'มีผู้ติดตามใหม่! 🎉',
+            message: `${followerName} เริ่มติดตามคุณแล้ว`,
+            type: 'follow',
+            reference_id: user.id
+          });
       }
 
       // Update local posts state
