@@ -1,14 +1,27 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Shield, Eye, Users, ArrowRight, Sparkles, Ban } from "lucide-react";
+import { Check, Shield, Eye, Users, ArrowRight, Sparkles, Ban, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/layout/Layout";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { TrustBadge } from "@/components/ui/TrustBadge";
-import { artworks } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 import heroArtwork from "@/assets/hero-artwork-1.jpg";
 
-const featuredArtworks = artworks.slice(0, 6);
+interface Artwork {
+  id: string;
+  title: string;
+  image_url: string;
+  price: number;
+  medium: string | null;
+  artist_id: string;
+  is_verified: boolean | null;
+  artist_profiles?: {
+    id: string;
+    artist_name: string;
+  };
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -27,6 +40,34 @@ const itemVariants = {
 
 export default function Index() {
   const { t } = useTranslation();
+  const [featuredArtworks, setFeaturedArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFeaturedArtworks();
+  }, []);
+
+  const fetchFeaturedArtworks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("artworks")
+        .select(`
+          id, title, image_url, price, medium, artist_id, is_verified,
+          artist_profiles (id, artist_name)
+        `)
+        .eq("is_sold", false)
+        .eq("is_verified", true)
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (error) throw error;
+      setFeaturedArtworks(data || []);
+    } catch (error) {
+      console.error("Error fetching artworks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -144,28 +185,46 @@ export default function Index() {
             </p>
           </motion.div>
 
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="gallery-grid"
-          >
-            {featuredArtworks.map((artwork) => (
-              <motion.div key={artwork.id} variants={itemVariants}>
-                <ArtworkCard
-                  id={artwork.id}
-                  title={artwork.title}
-                  artist={artwork.artist}
-                  artistId={artwork.artistId}
-                  image={artwork.image}
-                  price={artwork.price}
-                  isVerified={artwork.isVerified}
-                  medium={artwork.medium}
-                />
-              </motion.div>
-            ))}
-          </motion.div>
+          {loading ? (
+            <div className="py-12 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+              <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
+            </div>
+          ) : featuredArtworks.length > 0 ? (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              className="gallery-grid"
+            >
+              {featuredArtworks.map((artwork) => (
+                <motion.div key={artwork.id} variants={itemVariants}>
+                  <ArtworkCard
+                    id={artwork.id}
+                    title={artwork.title}
+                    artist={artwork.artist_profiles?.artist_name || "Unknown Artist"}
+                    artistId={artwork.artist_id}
+                    image={artwork.image_url}
+                    price={artwork.price}
+                    isVerified={artwork.is_verified || false}
+                    medium={artwork.medium || ""}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">ยังไม่มีผลงานที่พร้อมแสดง</p>
+              <Link
+                to="/marketplace"
+                className="mt-4 inline-flex items-center gap-2 font-medium text-primary"
+              >
+                ดูตลาดทั้งหมด
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
 
           <div className="mt-12 text-center">
             <Link
