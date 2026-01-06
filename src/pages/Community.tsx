@@ -124,6 +124,22 @@ export default function Community() {
     }
   }, [user]);
 
+  const fetchSavedPosts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('saved_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
+      if (data) {
+        setSavedPosts(new Set(data.map(s => s.post_id)));
+      }
+    } catch (error) {
+      console.error('Error fetching saved posts:', error);
+    }
+  }, [user]);
+
   const fetchPosts = useCallback(async (reset = false) => {
     if (reset) {
       setLoading(true);
@@ -214,7 +230,8 @@ export default function Community() {
   // Initial fetch
   useEffect(() => {
     fetchFollowing();
-  }, [fetchFollowing]);
+    fetchSavedPosts();
+  }, [fetchFollowing, fetchSavedPosts]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -528,7 +545,7 @@ export default function Community() {
     }
   };
 
-  const handleSave = (postId: string) => {
+  const handleSave = async (postId: string) => {
     if (!user) {
       toast({
         variant: "destructive",
@@ -538,17 +555,40 @@ export default function Community() {
       return;
     }
     
-    setSavedPosts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
+    const isSaved = savedPosts.has(postId);
+    
+    try {
+      if (isSaved) {
+        // Unsave
+        await supabase
+          .from('saved_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', postId);
+        
+        setSavedPosts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
         toast({ title: "ยกเลิกการบันทึกแล้ว" });
       } else {
-        newSet.add(postId);
+        // Save
+        await supabase
+          .from('saved_posts')
+          .insert({ user_id: user.id, post_id: postId });
+        
+        setSavedPosts(prev => new Set(prev).add(postId));
         toast({ title: "บันทึกแล้ว ✓" });
       }
-      return newSet;
-    });
+    } catch (error) {
+      console.error('Error saving post:', error);
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถบันทึกได้"
+      });
+    }
   };
 
   const handleShare = async (post: CommunityPost) => {

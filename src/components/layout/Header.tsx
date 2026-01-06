@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine, Users } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine, Users, Bookmark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -141,6 +141,12 @@ export function Header() {
                   <Link to="/followers" className="cursor-pointer">
                     <Users className="mr-2 h-4 w-4" />
                     ผู้ติดตาม
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/saved" className="cursor-pointer">
+                    <Bookmark className="mr-2 h-4 w-4" />
+                    โพสต์ที่บันทึก
                   </Link>
                 </DropdownMenuItem>
                 {isAdmin && (
