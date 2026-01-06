@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,20 @@ interface CommunityPost {
   is_following?: boolean;
   followers_count?: number;
   comments_count?: number;
+  shares_count?: number;
+  // For reposted content
+  is_repost?: boolean;
+  repost_user_id?: string;
+  repost_caption?: string;
+  repost_created_at?: string;
+  repost_user_profile?: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+  repost_artist_profile?: {
+    artist_name: string;
+    is_verified: boolean;
+  };
 }
 
 interface Comment {
@@ -90,6 +104,9 @@ export default function Community() {
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
+  const [shareDialogPost, setShareDialogPost] = useState<CommunityPost | null>(null);
+  const [shareCaption, setShareCaption] = useState("");
+  const [sharingPost, setSharingPost] = useState(false);
   
   // Form state
   const [title, setTitle] = useState("");
@@ -200,6 +217,11 @@ export default function Community() {
             .select('*', { count: 'exact', head: true })
             .eq('following_id', post.user_id);
 
+          const { count: sharesCount } = await supabase
+            .from('shared_posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
           return {
             ...post,
             user_profile: profile,
@@ -207,7 +229,8 @@ export default function Community() {
             is_liked: isLiked,
             is_following: followingUsers.has(post.user_id),
             followers_count: followersCount || 0,
-            comments_count: commentsCount || 0
+            comments_count: commentsCount || 0,
+            shares_count: sharesCount || 0
           };
         })
       );
@@ -613,6 +636,71 @@ export default function Community() {
     }
   };
 
+  const handleRepost = async () => {
+    if (!user || !shareDialogPost) return;
+    
+    setSharingPost(true);
+    try {
+      await supabase
+        .from('shared_posts')
+        .insert({
+          user_id: user.id,
+          post_id: shareDialogPost.id,
+          caption: shareCaption.trim() || null
+        });
+
+      // Notify original poster
+      if (shareDialogPost.user_id !== user.id) {
+        const { data: sharerProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        
+        const { data: sharerArtist } = await supabase
+          .from('artist_profiles')
+          .select('artist_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
+        
+        await supabase.from('notifications').insert({
+          user_id: shareDialogPost.user_id,
+          title: 'โพสต์ของคุณถูกแชร์! 🔁',
+          message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
+          type: 'share',
+          reference_id: shareDialogPost.id
+        });
+      }
+
+      // Update shares count in UI
+      setPosts(posts.map(post => {
+        if (post.id === shareDialogPost.id) {
+          return { ...post, shares_count: (post.shares_count || 0) + 1 };
+        }
+        return post;
+      }));
+
+      toast({
+        title: "แชร์โพสต์สำเร็จ! 🔁",
+        description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว"
+      });
+
+      setShareDialogPost(null);
+      setShareCaption("");
+      fetchPosts(true);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setSharingPost(false);
+    }
+  };
+
   // Time ago formatter
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -804,9 +892,13 @@ export default function Community() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setShareDialogPost(post)}>
+                              <Repeat2 className="h-4 w-4 mr-2" />
+                              แชร์โพสต์ภายใน
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleShare(post)}>
                               <Share2 className="h-4 w-4 mr-2" />
-                              แชร์
+                              แชร์ลิงก์
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleSave(post.id)}>
                               <Bookmark className="h-4 w-4 mr-2" />
@@ -859,6 +951,14 @@ export default function Community() {
                           variant="ghost"
                           size="icon"
                           className="h-10 w-10"
+                          onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                        >
+                          <Repeat2 className="h-6 w-6" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10"
                           onClick={() => handleShare(post)}
                         >
                           <Share2 className="h-6 w-6" />
@@ -881,11 +981,17 @@ export default function Community() {
                       </Button>
                     </div>
 
-                    {/* Likes count */}
-                    <div className="px-4 pb-2">
+                    {/* Likes & Reposts count */}
+                    <div className="px-4 pb-2 flex items-center gap-4">
                       <span className="font-semibold text-sm">
                         {post.likes_count.toLocaleString()} ถูกใจ
                       </span>
+                      {(post.shares_count || 0) > 0 && (
+                        <span className="text-muted-foreground text-sm flex items-center gap-1">
+                          <Repeat2 className="h-4 w-4" />
+                          {post.shares_count} รีโพสต์
+                        </span>
+                      )}
                     </div>
 
                     {/* Content */}
@@ -1269,6 +1375,88 @@ export default function Community() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Share/Repost Dialog */}
+        <Dialog open={!!shareDialogPost} onOpenChange={(open) => !open && setShareDialogPost(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Repeat2 className="h-5 w-5" />
+                แชร์โพสต์
+              </DialogTitle>
+            </DialogHeader>
+            
+            {shareDialogPost && (
+              <div className="space-y-4">
+                {/* Preview of original post */}
+                <div className="border border-border rounded-lg p-3 flex gap-3">
+                  <img
+                    src={shareDialogPost.image_url}
+                    alt={shareDialogPost.title}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={shareDialogPost.user_profile?.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {(shareDialogPost.artist_profile?.artist_name || shareDialogPost.user_profile?.full_name || "U")[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium truncate">
+                        {shareDialogPost.artist_profile?.artist_name || shareDialogPost.user_profile?.full_name || "ผู้ใช้"}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold truncate">{shareDialogPost.title}</p>
+                  </div>
+                </div>
+
+                {/* Caption input */}
+                <div>
+                  <Label htmlFor="shareCaption">เพิ่มข้อความ (ไม่บังคับ)</Label>
+                  <Input
+                    id="shareCaption"
+                    value={shareCaption}
+                    onChange={(e) => setShareCaption(e.target.value)}
+                    placeholder="พูดอะไรเกี่ยวกับโพสต์นี้..."
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShareDialogPost(null);
+                      setShareCaption("");
+                    }}
+                  >
+                    ยกเลิก
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleRepost}
+                    disabled={sharingPost}
+                  >
+                    {sharingPost ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        กำลังแชร์...
+                      </>
+                    ) : (
+                      <>
+                        <Repeat2 className="mr-2 h-4 w-4" />
+                        แชร์โพสต์
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             )}
