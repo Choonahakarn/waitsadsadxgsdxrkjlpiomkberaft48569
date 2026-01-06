@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,11 +25,32 @@ const navLinks = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { user, signOut, isAdmin, isArtist, loading } = useAuth();
+  const { user, signOut, isAdmin, isArtist, isBuyer, addRole, loading } = useAuth();
+  const { toast } = useToast();
+  const [isAddingRole, setIsAddingRole] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
     setMobileMenuOpen(false);
+  };
+
+  const handleAddRole = async (role: 'artist' | 'buyer') => {
+    setIsAddingRole(true);
+    const { error } = await addRole(role);
+    setIsAddingRole(false);
+    
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: 'เพิ่มบทบาทสำเร็จ',
+        description: role === 'artist' ? 'คุณเป็นศิลปินแล้ว!' : 'คุณสามารถซื้อผลงานได้แล้ว!',
+      });
+    }
   };
 
   return (
@@ -69,12 +92,26 @@ export function Header() {
                   <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5">
                   <p className="text-sm font-medium">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {isAdmin ? 'Admin' : isArtist ? 'ศิลปิน' : 'ผู้ซื้อ'}
-                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {isAdmin && (
+                      <Badge variant="destructive" className="text-xs">Admin</Badge>
+                    )}
+                    {isArtist && (
+                      <Badge variant="default" className="text-xs">
+                        <Palette className="mr-1 h-3 w-3" />
+                        ศิลปิน
+                      </Badge>
+                    )}
+                    {isBuyer && (
+                      <Badge variant="secondary" className="text-xs">
+                        <ShoppingBag className="mr-1 h-3 w-3" />
+                        ผู้ซื้อ
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <DropdownMenuSeparator />
                 {isAdmin && (
@@ -88,9 +125,30 @@ export function Header() {
                 {isArtist && (
                   <DropdownMenuItem asChild>
                     <Link to="/sell" className="cursor-pointer">
-                      <User className="mr-2 h-4 w-4" />
+                      <Palette className="mr-2 h-4 w-4" />
                       โปรไฟล์ศิลปิน
                     </Link>
+                  </DropdownMenuItem>
+                )}
+                {/* Add role options */}
+                {!isArtist && (
+                  <DropdownMenuItem 
+                    onClick={() => handleAddRole('artist')}
+                    disabled={isAddingRole}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    เป็นศิลปิน
+                  </DropdownMenuItem>
+                )}
+                {!isBuyer && (
+                  <DropdownMenuItem 
+                    onClick={() => handleAddRole('buyer')}
+                    disabled={isAddingRole}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    เป็นผู้ซื้อ
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
