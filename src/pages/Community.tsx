@@ -816,6 +816,22 @@ export default function Community() {
             });
           }
         }
+
+        // Delete the like notification if exists
+        const { data: postData } = await supabase
+          .from('community_posts')
+          .select('user_id')
+          .eq('id', actualPostId)
+          .maybeSingle();
+
+        if (postData && postData.user_id !== user.id) {
+          await supabase
+            .from('notifications')
+            .delete()
+            .eq('user_id', postData.user_id)
+            .eq('type', 'like')
+            .eq('reference_id', actualPostId);
+        }
       } else {
         // Like - insert new like
         const { error } = await supabase
