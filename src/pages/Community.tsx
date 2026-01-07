@@ -1554,22 +1554,32 @@ export default function Community() {
                             }`} 
                           />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10"
-                          onClick={() => handleOpenPost(post)}
-                        >
-                          <MessageCircle className="h-6 w-6" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10"
-                          onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
-                        >
-                          <Repeat2 className="h-6 w-6" />
-                        </Button>
+                        <div className="flex items-center">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10"
+                            onClick={() => handleOpenPost(post)}
+                          >
+                            <MessageCircle className="h-6 w-6" />
+                          </Button>
+                          {(post.comments_count || 0) > 0 && (
+                            <span className="text-sm text-muted-foreground -ml-1">{post.comments_count}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10"
+                            onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                          >
+                            <Repeat2 className="h-6 w-6" />
+                          </Button>
+                          {(post.shares_count || 0) > 0 && (
+                            <span className="text-sm text-muted-foreground -ml-1">{post.shares_count}</span>
+                          )}
+                        </div>
                         <Button
                           variant="ghost"
                           size="icon"
