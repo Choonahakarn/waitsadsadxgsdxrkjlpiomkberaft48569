@@ -512,30 +512,52 @@ export default function Community() {
     const actualPostId = originalPostId || postId;
 
     try {
-      if (isLiked) {
+      // Check if user already liked this post
+      const { data: existingLike } = await supabase
+        .from('community_likes')
+        .select('id')
+        .eq('post_id', actualPostId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existingLike) {
+        // Unlike - delete the like
         await supabase
           .from('community_likes')
           .delete()
-          .eq('post_id', actualPostId)
-          .eq('user_id', user.id);
+          .eq('id', existingLike.id);
+
+        setPosts(posts.map(post => {
+          const postActualId = post.original_post_id || post.id;
+          if (postActualId === actualPostId) {
+            return {
+              ...post,
+              is_liked: false,
+              likes_count: Math.max(0, post.likes_count - 1)
+            };
+          }
+          return post;
+        }));
       } else {
-        await supabase
+        // Like - insert new like
+        const { error } = await supabase
           .from('community_likes')
           .insert({ post_id: actualPostId, user_id: user.id });
-      }
 
-      setPosts(posts.map(post => {
-        // Update both original and repost entries
-        const postActualId = post.original_post_id || post.id;
-        if (postActualId === actualPostId) {
-          return {
-            ...post,
-            is_liked: !isLiked,
-            likes_count: isLiked ? post.likes_count - 1 : post.likes_count + 1
-          };
+        if (!error) {
+          setPosts(posts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === actualPostId) {
+              return {
+                ...post,
+                is_liked: true,
+                likes_count: post.likes_count + 1
+              };
+            }
+            return post;
+          }));
         }
-        return post;
-      }));
+      }
     } catch (error) {
       console.error('Error liking post:', error);
     }
