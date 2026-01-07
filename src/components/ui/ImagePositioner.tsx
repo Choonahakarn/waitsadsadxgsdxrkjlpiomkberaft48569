@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Move, Check, X } from 'lucide-react';
+import { Move, Check, X, RotateCcw } from 'lucide-react';
 
 interface ImagePositionerProps {
   imageUrl: string;
@@ -188,6 +188,18 @@ export function ImagePositioner({
       {/* Edit mode floating action buttons */}
       {isEditing && (
         <div className={`absolute bottom-3 right-3 flex gap-2 transition-opacity duration-200 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setTempPositionY(50);
+              setTempPositionX(50);
+            }}
+            className="h-8 px-3 rounded-full shadow-lg"
+          >
+            <RotateCcw className="h-4 w-4 mr-1" />
+            รีเซ็ต
+          </Button>
           <Button
             size="sm"
             variant="secondary"
