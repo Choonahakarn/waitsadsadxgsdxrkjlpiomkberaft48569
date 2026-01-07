@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, MapPin } from "lucide-react";
+import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -260,6 +260,16 @@ export default function UserProfile() {
                 <span className="text-muted-foreground ml-1">Followers</span>
               </div>
             </div>
+
+            {/* Edit Profile Button (for own profile) */}
+            {user && user.id === userId && (
+              <Link to="/artist/edit-profile">
+                <Button variant="outline" className="min-w-[120px]">
+                  <Settings className="w-4 h-4 mr-2" />
+                  แก้ไขโปรไฟล์
+                </Button>
+              </Link>
+            )}
 
             {/* Follow Button */}
             {user && user.id !== userId && (
