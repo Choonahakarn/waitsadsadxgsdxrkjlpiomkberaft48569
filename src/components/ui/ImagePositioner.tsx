@@ -169,7 +169,7 @@ export function ImagePositioner({
         />
         
         {isEditing && (
-          <div className="absolute inset-0 bg-black/40 pointer-events-none">
+          <div className={`absolute inset-0 pointer-events-none transition-opacity duration-200 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
             {/* Grid overlay for better positioning reference */}
             <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
               {[...Array(9)].map((_, i) => (
@@ -186,9 +186,9 @@ export function ImagePositioner({
         )}
       </div>
 
-      {/* Edit mode controls */}
-      {isEditing && (
-        <div className="absolute -bottom-20 left-0 right-0 bg-background/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
+      {/* Edit mode controls - hide when dragging */}
+      {isEditing && !isDragging && (
+        <div className="absolute -bottom-20 left-0 right-0 bg-background/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border animate-fade-in">
           <div className="flex flex-col gap-3">
             {/* Position indicator */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
