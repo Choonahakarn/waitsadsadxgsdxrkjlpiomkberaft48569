@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2 } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,6 +122,9 @@ export default function Community() {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
+  const [addToPortfolio, setAddToPortfolio] = useState(false);
+  const [artistProfile, setArtistProfile] = useState<{ id: string; artist_name: string } | null>(null);
+  const [price, setPrice] = useState("");
   
   // Filters
   const [activeTab, setActiveTab] = useState<FeedTab>('discover');
@@ -381,12 +385,31 @@ export default function Community() {
     }
   }, [posts.length, searchQuery, user, followingUsers]);
 
+  // Fetch artist profile
+  const fetchArtistProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('artist_profiles')
+        .select('id, artist_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (data) {
+        setArtistProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching artist profile:', error);
+    }
+  }, [user]);
+
   // Initial fetch
   useEffect(() => {
     fetchFollowing();
     fetchSavedPosts();
     fetchRepostedPosts();
-  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts]);
+    fetchArtistProfile();
+  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -459,6 +482,16 @@ export default function Community() {
       return;
     }
 
+    // If adding to portfolio, user needs artist profile
+    if (addToPortfolio && !artistProfile) {
+      toast({
+        variant: "destructive",
+        title: "ไม่สามารถเพิ่มใน Portfolio ได้",
+        description: "คุณต้องมีบัญชีศิลปินเพื่อเพิ่มใน Portfolio"
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const fileExt = imageFile.name.split('.').pop();
@@ -486,10 +519,41 @@ export default function Community() {
 
       if (postError) throw postError;
 
-      toast({
-        title: "โพสต์สำเร็จ! 🎉",
-        description: "ผลงานของคุณถูกเผยแพร่แล้ว"
-      });
+      // Also add to portfolio (artworks table) if checkbox is checked
+      if (addToPortfolio && artistProfile) {
+        const { error: artworkError } = await supabase
+          .from('artworks')
+          .insert({
+            artist_id: artistProfile.id,
+            title,
+            description: description || null,
+            image_url: urlData.publicUrl,
+            category: category || null,
+            tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
+            price: price ? parseFloat(price) : 0,
+            is_verified: false,
+            is_sold: false
+          });
+
+        if (artworkError) {
+          console.error('Error adding to portfolio:', artworkError);
+          toast({
+            variant: "destructive",
+            title: "เกิดข้อผิดพลาด",
+            description: "โพสต์สำเร็จ แต่ไม่สามารถเพิ่มใน Portfolio ได้"
+          });
+        } else {
+          toast({
+            title: "โพสต์สำเร็จ! 🎉",
+            description: "ผลงานของคุณถูกเผยแพร่และเพิ่มใน Portfolio แล้ว"
+          });
+        }
+      } else {
+        toast({
+          title: "โพสต์สำเร็จ! 🎉",
+          description: "ผลงานของคุณถูกเผยแพร่แล้ว"
+        });
+      }
 
       setTitle("");
       setDescription("");
@@ -497,6 +561,8 @@ export default function Community() {
       setToolsUsed("");
       setImageFile(null);
       setImagePreview("");
+      setAddToPortfolio(false);
+      setPrice("");
       setIsCreateOpen(false);
       fetchPosts(true);
     } catch (error: any) {
@@ -1447,6 +1513,42 @@ export default function Community() {
                     )}
                   </div>
                 </div>
+
+                {/* Add to Portfolio checkbox */}
+                {artistProfile && imageFile && (
+                  <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="addToPortfolio"
+                        checked={addToPortfolio}
+                        onCheckedChange={(checked) => setAddToPortfolio(checked === true)}
+                      />
+                      <div className="flex items-center gap-2">
+                        <FolderPlus className="h-4 w-4 text-primary" />
+                        <Label htmlFor="addToPortfolio" className="text-sm font-medium cursor-pointer">
+                          Add to Portfolio
+                        </Label>
+                      </div>
+                    </div>
+                    
+                    {addToPortfolio && (
+                      <div className="pl-6">
+                        <Label htmlFor="price" className="text-sm text-muted-foreground">
+                          ราคา (บาท) - กรอก 0 หากไม่ต้องการขาย
+                        </Label>
+                        <Input
+                          id="price"
+                          type="number"
+                          min="0"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                          placeholder="0"
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <Button
                   onClick={handleSubmitPost}
@@ -1460,7 +1562,10 @@ export default function Community() {
                       กำลังโพสต์...
                     </>
                   ) : (
-                    "โพสต์ผลงาน"
+                    <>
+                      {addToPortfolio && <FolderPlus className="mr-2 h-4 w-4" />}
+                      {addToPortfolio ? "โพสต์ & เพิ่มใน Portfolio" : "โพสต์ผลงาน"}
+                    </>
                   )}
                 </Button>
               </div>
