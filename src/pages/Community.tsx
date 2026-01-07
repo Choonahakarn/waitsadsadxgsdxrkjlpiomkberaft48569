@@ -864,28 +864,42 @@ export default function Community() {
               .maybeSingle();
 
             if (!isMuted) {
-              // Get liker's name
-              const { data: likerProfile } = await supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('id', user.id)
+              // Check cooldown - don't send if notification was sent within last hour
+              const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+              const { data: recentNotification } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('user_id', postData.user_id)
+                .eq('type', 'like')
+                .eq('reference_id', actualPostId)
+                .gte('created_at', oneHourAgo)
                 .maybeSingle();
 
-              const { data: likerArtist } = await supabase
-                .from('artist_profiles')
-                .select('artist_name')
-                .eq('user_id', user.id)
-                .maybeSingle();
+              // Only send notification if no recent notification exists
+              if (!recentNotification) {
+                // Get liker's name
+                const { data: likerProfile } = await supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('id', user.id)
+                  .maybeSingle();
 
-              const likerName = likerArtist?.artist_name || likerProfile?.full_name || 'ผู้ใช้';
+                const { data: likerArtist } = await supabase
+                  .from('artist_profiles')
+                  .select('artist_name')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
 
-              await supabase.from('notifications').insert({
-                user_id: postData.user_id,
-                title: 'มีคนถูกใจโพสต์ของคุณ ❤️',
-                message: `${likerName} ถูกใจโพสต์ของคุณ`,
-                type: 'like',
-                reference_id: actualPostId
-              });
+                const likerName = likerArtist?.artist_name || likerProfile?.full_name || 'ผู้ใช้';
+
+                await supabase.from('notifications').insert({
+                  user_id: postData.user_id,
+                  title: 'มีคนถูกใจโพสต์ของคุณ ❤️',
+                  message: `${likerName} ถูกใจโพสต์ของคุณ`,
+                  type: 'like',
+                  reference_id: actualPostId
+                });
+              }
             }
           }
         }
@@ -1071,13 +1085,27 @@ export default function Community() {
           .maybeSingle();
 
         if (!isMuted) {
-          await supabase.from('notifications').insert({
-            user_id: selectedPost.user_id,
-            title: 'มีคนแสดงความคิดเห็น 💬',
-            message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
-            type: 'comment',
-            reference_id: actualPostId
-          });
+          // Check cooldown - don't send if notification was sent within last 10 minutes
+          const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+          const { data: recentNotification } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', selectedPost.user_id)
+            .eq('type', 'comment')
+            .eq('reference_id', actualPostId)
+            .gte('created_at', tenMinutesAgo)
+            .maybeSingle();
+
+          // Only send notification if no recent notification exists
+          if (!recentNotification) {
+            await supabase.from('notifications').insert({
+              user_id: selectedPost.user_id,
+              title: 'มีคนแสดงความคิดเห็น 💬',
+              message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+              type: 'comment',
+              reference_id: actualPostId
+            });
+          }
         }
       }
 
@@ -1220,29 +1248,53 @@ export default function Community() {
 
         setRepostedPosts(prev => new Set(prev).add(postId));
 
-        // Notify original poster
+        // Notify original poster (with cooldown check)
         if (shareDialogPost.user_id !== user.id) {
-          const { data: sharerProfile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
+          // Check if sharer is muted by post owner
+          const { data: isMuted } = await supabase
+            .from('user_mutes')
+            .select('id')
+            .eq('muter_id', shareDialogPost.user_id)
+            .eq('muted_id', user.id)
             .maybeSingle();
-          
-          const { data: sharerArtist } = await supabase
-            .from('artist_profiles')
-            .select('artist_name')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
-          
-          await supabase.from('notifications').insert({
-            user_id: shareDialogPost.user_id,
-            title: 'โพสต์ของคุณถูกแชร์! 🔁',
-            message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
-            type: 'share',
-            reference_id: postId
-          });
+
+          if (!isMuted) {
+            // Check cooldown - don't send if notification was sent within last hour
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+            const { data: recentNotification } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('user_id', shareDialogPost.user_id)
+              .eq('type', 'share')
+              .eq('reference_id', postId)
+              .gte('created_at', oneHourAgo)
+              .maybeSingle();
+
+            // Only send notification if no recent notification exists
+            if (!recentNotification) {
+              const { data: sharerProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
+                .maybeSingle();
+              
+              const { data: sharerArtist } = await supabase
+                .from('artist_profiles')
+                .select('artist_name')
+                .eq('user_id', user.id)
+                .maybeSingle();
+              
+              const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
+              
+              await supabase.from('notifications').insert({
+                user_id: shareDialogPost.user_id,
+                title: 'โพสต์ของคุณถูกแชร์! 🔁',
+                message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
+                type: 'share',
+                reference_id: postId
+              });
+            }
+          }
         }
 
         // Update shares count in UI
