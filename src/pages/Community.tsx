@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
@@ -1060,8 +1061,8 @@ export default function Community() {
                     className="bg-card border border-border rounded-xl overflow-hidden"
                   >
                     {/* Repost Header */}
-                    {post.is_repost && (
-                      <div className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50">
+                    {post.is_repost && post.repost_user_id && (
+                      <Link to={`/profile/${post.repost_user_id}`} className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50 hover:bg-muted/30 transition-colors">
                         <Repeat2 className="h-4 w-4" />
                         <Avatar className="h-5 w-5">
                           <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
@@ -1074,7 +1075,7 @@ export default function Community() {
                         </span>
                         <span>รีโพสต์</span>
                         <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
-                      </div>
+                      </Link>
                     )}
 
                     {/* Repost Caption */}
@@ -1086,7 +1087,7 @@ export default function Community() {
 
                     {/* Post Header */}
                     <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
+                      <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                         <Avatar className="h-10 w-10 ring-2 ring-primary/20">
                           <AvatarImage src={post.user_profile?.avatar_url || undefined} />
                           <AvatarFallback>
@@ -1108,7 +1109,7 @@ export default function Community() {
                             {formatTimeAgo(post.created_at)}
                           </span>
                         </div>
-                      </div>
+                      </Link>
                       
                       <div className="flex items-center gap-2">
                         {user && user.id !== post.user_id && (
@@ -1486,22 +1487,24 @@ export default function Community() {
                   {/* Header */}
                   <div className="p-4 border-b border-border">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={selectedPost.user_profile?.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {(selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "U")[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">
-                            {selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "ผู้ใช้"}
-                          </span>
-                          {selectedPost.artist_profile?.is_verified && (
-                            <Badge variant="secondary" className="text-xs">✓</Badge>
-                          )}
+                      <Link to={`/profile/${selectedPost.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={selectedPost.user_profile?.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {(selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "U")[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">
+                              {selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "ผู้ใช้"}
+                            </span>
+                            {selectedPost.artist_profile?.is_verified && (
+                              <Badge variant="secondary" className="text-xs">✓</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      </Link>
                       {user && user.id !== selectedPost.user_id && (
                         <Button
                           variant={followingUsers.has(selectedPost.user_id) ? "secondary" : "default"}

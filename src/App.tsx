@@ -31,6 +31,7 @@ import MyOrders from "./pages/MyOrders";
 import Community from "./pages/Community";
 import SavedPosts from "./pages/SavedPosts";
 import Followers from "./pages/Followers";
+import UserProfile from "./pages/UserProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/community" element={<Community />} />
             <Route path="/saved" element={<SavedPosts />} />
             <Route path="/followers" element={<Followers />} />
+            <Route path="/profile/:userId" element={<UserProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
