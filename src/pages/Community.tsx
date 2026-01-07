@@ -24,6 +24,7 @@ import {
 
 interface CommunityPost {
   id: string;
+  original_post_id?: string; // For reposts, this is the actual post ID
   user_id: string;
   title: string;
   description: string | null;
@@ -478,7 +479,7 @@ export default function Community() {
     }
   };
 
-  const handleLike = async (postId: string, isLiked: boolean, e?: React.MouseEvent) => {
+  const handleLike = async (postId: string, isLiked: boolean, e?: React.MouseEvent, originalPostId?: string) => {
     e?.stopPropagation();
     if (!user) {
       toast({
@@ -489,21 +490,26 @@ export default function Community() {
       return;
     }
 
+    // Use originalPostId for database operations (for reposts)
+    const actualPostId = originalPostId || postId;
+
     try {
       if (isLiked) {
         await supabase
           .from('community_likes')
           .delete()
-          .eq('post_id', postId)
+          .eq('post_id', actualPostId)
           .eq('user_id', user.id);
       } else {
         await supabase
           .from('community_likes')
-          .insert({ post_id: postId, user_id: user.id });
+          .insert({ post_id: actualPostId, user_id: user.id });
       }
 
       setPosts(posts.map(post => {
-        if (post.id === postId) {
+        // Update both original and repost entries
+        const postActualId = post.original_post_id || post.id;
+        if (postActualId === actualPostId) {
           return {
             ...post,
             is_liked: !isLiked,
@@ -615,18 +621,23 @@ export default function Community() {
 
   const handleOpenPost = (post: CommunityPost) => {
     setSelectedPost(post);
-    fetchComments(post.id);
+    // Use original_post_id for reposts, otherwise use id
+    const actualPostId = post.original_post_id || post.id;
+    fetchComments(actualPostId);
   };
 
   const handleSubmitComment = async () => {
     if (!user || !selectedPost || !newComment.trim()) return;
+
+    // Use original_post_id for reposts, otherwise use id
+    const actualPostId = selectedPost.original_post_id || selectedPost.id;
 
     setSubmittingComment(true);
     try {
       const { error } = await supabase
         .from('community_comments')
         .insert({
-          post_id: selectedPost.id,
+          post_id: actualPostId,
           user_id: user.id,
           content: newComment.trim()
         });
@@ -656,16 +667,18 @@ export default function Community() {
             title: 'คุณถูกแท็กในความคิดเห็น 💬',
             message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
             type: 'mention',
-            reference_id: selectedPost.id
+            reference_id: actualPostId
           });
         }
       }
 
       setNewComment("");
-      fetchComments(selectedPost.id);
+      fetchComments(actualPostId);
       
       setPosts(posts.map(post => {
-        if (post.id === selectedPost.id) {
+        // Update both the repost and original post if they exist
+        const postActualId = post.original_post_id || post.id;
+        if (postActualId === actualPostId) {
           return { ...post, comments_count: (post.comments_count || 0) + 1 };
         }
         return post;
@@ -681,7 +694,7 @@ export default function Community() {
     }
   };
 
-  const handleSave = async (postId: string) => {
+  const handleSave = async (postId: string, originalPostId?: string) => {
     if (!user) {
       toast({
         variant: "destructive",
@@ -691,7 +704,9 @@ export default function Community() {
       return;
     }
     
-    const isSaved = savedPosts.has(postId);
+    // Use originalPostId for database operations (for reposts)
+    const actualPostId = originalPostId || postId;
+    const isSaved = savedPosts.has(actualPostId);
     
     try {
       if (isSaved) {
@@ -700,11 +715,11 @@ export default function Community() {
           .from('saved_posts')
           .delete()
           .eq('user_id', user.id)
-          .eq('post_id', postId);
+          .eq('post_id', actualPostId);
         
         setSavedPosts(prev => {
           const newSet = new Set(prev);
-          newSet.delete(postId);
+          newSet.delete(actualPostId);
           return newSet;
         });
         toast({ title: "ยกเลิกการบันทึกแล้ว" });
@@ -712,9 +727,9 @@ export default function Community() {
         // Save
         await supabase
           .from('saved_posts')
-          .insert({ user_id: user.id, post_id: postId });
+          .insert({ user_id: user.id, post_id: actualPostId });
         
-        setSavedPosts(prev => new Set(prev).add(postId));
+        setSavedPosts(prev => new Set(prev).add(actualPostId));
         toast({ title: "บันทึกแล้ว ✓" });
       }
     } catch (error) {
@@ -1043,9 +1058,9 @@ export default function Community() {
                               <Share2 className="h-4 w-4 mr-2" />
                               แชร์ลิงก์
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave(post.id)}>
+                            <DropdownMenuItem onClick={() => handleSave(post.id, post.original_post_id)}>
                               <Bookmark className="h-4 w-4 mr-2" />
-                              {savedPosts.has(post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
+                              {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1072,7 +1087,7 @@ export default function Community() {
                           variant="ghost"
                           size="icon"
                           className="h-10 w-10"
-                          onClick={() => handleLike(post.id, post.is_liked || false)}
+                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
                         >
                           <Heart 
                             className={`h-6 w-6 transition-colors ${
@@ -1112,12 +1127,12 @@ export default function Community() {
                         variant="ghost"
                         size="icon"
                         className="h-10 w-10"
-                        onClick={() => handleSave(post.id)}
+                        onClick={() => handleSave(post.id, post.original_post_id)}
                       >
                         <Bookmark 
                           className={`h-6 w-6 transition-colors ${
-                            savedPosts.has(post.id) 
-                              ? "fill-foreground" 
+                            savedPosts.has(post.original_post_id || post.id) 
+                              ? "fill-foreground"
                               : ""
                           }`} 
                         />
