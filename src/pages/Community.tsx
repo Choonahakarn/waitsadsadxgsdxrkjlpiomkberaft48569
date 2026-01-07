@@ -236,6 +236,11 @@ export default function Community() {
             isLiked = !!like;
           }
 
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
           const { count: commentsCount } = await supabase
             .from('community_comments')
             .select('*', { count: 'exact', head: true })
@@ -253,6 +258,7 @@ export default function Community() {
 
           return {
             ...post,
+            likes_count: likesCount || 0,
             user_profile: profile,
             artist_profile: artistProfile,
             is_liked: isLiked,
@@ -309,6 +315,11 @@ export default function Community() {
             isLiked = !!like;
           }
 
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
           const { count: commentsCount } = await supabase
             .from('community_comments')
             .select('*', { count: 'exact', head: true })
@@ -323,6 +334,7 @@ export default function Community() {
             ...originalPost,
             id: `repost-${share.id}`, // Unique key for repost
             original_post_id: originalPost.id,
+            likes_count: likesCount || 0,
             user_profile: originalProfile,
             artist_profile: originalArtist,
             is_liked: isLiked,
