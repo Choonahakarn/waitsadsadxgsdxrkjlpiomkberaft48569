@@ -521,6 +521,11 @@ export default function Community() {
 
       // Also add to portfolio (artworks table) if checkbox is checked
       if (addToPortfolio && artistProfile) {
+        // Map community category to artworks category
+        const artworkCategory = category ? 
+          (category.includes('ดิจิทัล') || category.includes('3D') ? 'digital' : 'traditional') 
+          : null;
+        
         const { error: artworkError } = await supabase
           .from('artworks')
           .insert({
@@ -528,7 +533,7 @@ export default function Community() {
             title,
             description: description || null,
             image_url: urlData.publicUrl,
-            category: category || null,
+            category: artworkCategory,
             tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
             price: price ? parseFloat(price) : 0,
             is_verified: false,
