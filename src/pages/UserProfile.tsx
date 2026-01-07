@@ -964,7 +964,7 @@ export default function UserProfile() {
             >
               <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
                 {/* Large Avatar - Only this overlaps the cover */}
-                <div className="w-32 h-32 md:w-40 md:h-40 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-24">
+                <div className="w-32 h-32 md:w-40 md:h-40 shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-24">
                   {displayAvatar ? (
                     <img
                       src={displayAvatar}
