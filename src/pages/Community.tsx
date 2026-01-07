@@ -165,6 +165,12 @@ export default function Community() {
     { value: "other", label: "อื่นๆ" }
   ];
 
+  // Comment edit/delete state
+  const [editingComment, setEditingComment] = useState<Comment | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState("");
+  const [savingCommentEdit, setSavingCommentEdit] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -1502,6 +1508,88 @@ export default function Community() {
     return date.toLocaleDateString('th-TH');
   };
 
+  // Handle edit comment
+  const handleEditComment = async () => {
+    if (!user || !editingComment || !editCommentContent.trim()) return;
+    
+    setSavingCommentEdit(true);
+    try {
+      const { error } = await supabase
+        .from('community_comments')
+        .update({ content: editCommentContent.trim() })
+        .eq('id', editingComment.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setComments(comments.map(c => 
+        c.id === editingComment.id 
+          ? { ...c, content: editCommentContent.trim() }
+          : c
+      ));
+
+      toast({
+        title: "แก้ไขความคิดเห็นสำเร็จ ✓"
+      });
+
+      setEditingComment(null);
+      setEditCommentContent("");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setSavingCommentEdit(false);
+    }
+  };
+
+  // Handle delete comment
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
+    
+    setDeletingCommentId(commentId);
+    try {
+      const { error } = await supabase
+        .from('community_comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setComments(comments.filter(c => c.id !== commentId));
+
+      // Update comments count in posts
+      if (selectedPost) {
+        setPosts(posts.map(p => 
+          p.id === selectedPost.id 
+            ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) }
+            : p
+        ));
+        setSelectedPost({
+          ...selectedPost,
+          comments_count: Math.max(0, (selectedPost.comments_count || 0) - 1)
+        });
+      }
+
+      toast({
+        title: "ลบความคิดเห็นสำเร็จ"
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
   // Realtime comments
   useEffect(() => {
     if (!selectedPost) return;
@@ -2264,23 +2352,88 @@ export default function Community() {
                       </p>
                     ) : (
                       comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-3">
+                        <div key={comment.id} className="group flex gap-3">
                           <Avatar className="h-8 w-8 shrink-0">
                             <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
                             <AvatarFallback className="text-xs">
                               {(comment.user_profile?.full_name || "U")[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <p className="text-sm">
-                              <span className="font-semibold mr-2">
-                                {comment.user_profile?.full_name || "ผู้ใช้"}
-                              </span>
-                              {renderTextWithMentions(comment.content)}
-                            </p>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(comment.created_at).toLocaleDateString('th-TH')}
-                            </span>
+                          <div className="flex-1 min-w-0">
+                            {editingComment?.id === comment.id ? (
+                              // Edit mode
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={editCommentContent}
+                                  onChange={(e) => setEditCommentContent(e.target.value)}
+                                  className="min-h-[60px] text-sm"
+                                  autoFocus
+                                />
+                                <div className="flex gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={handleEditComment}
+                                    disabled={!editCommentContent.trim() || savingCommentEdit}
+                                  >
+                                    {savingCommentEdit ? (
+                                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                    ) : null}
+                                    บันทึก
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingComment(null);
+                                      setEditCommentContent("");
+                                    }}
+                                  >
+                                    ยกเลิก
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              // Display mode
+                              <>
+                                <p className="text-sm">
+                                  <span className="font-semibold mr-2">
+                                    {comment.user_profile?.full_name || "ผู้ใช้"}
+                                  </span>
+                                  {renderTextWithMentions(comment.content)}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatTimeAgo(comment.created_at)}
+                                  </span>
+                                  {/* Edit/Delete buttons for own comments */}
+                                  {user && user.id === comment.user_id && (
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setEditingComment(comment);
+                                          setEditCommentContent(comment.content);
+                                        }}
+                                        className="text-xs text-muted-foreground hover:text-foreground"
+                                      >
+                                        แก้ไข
+                                      </button>
+                                      <span className="text-muted-foreground">•</span>
+                                      <button
+                                        onClick={() => handleDeleteComment(comment.id)}
+                                        disabled={deletingCommentId === comment.id}
+                                        className="text-xs text-destructive hover:text-destructive/80"
+                                      >
+                                        {deletingCommentId === comment.id ? (
+                                          <Loader2 className="h-3 w-3 animate-spin inline" />
+                                        ) : (
+                                          "ลบ"
+                                        )}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))
