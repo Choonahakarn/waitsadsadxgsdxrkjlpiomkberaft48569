@@ -125,6 +125,14 @@ export function Header() {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
+                {user && (
+                  <DropdownMenuItem asChild>
+                    <Link to={`/profile/${user.id}`} className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      โปรไฟล์ของฉัน
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link to="/wallet" className="cursor-pointer">
                     <Wallet className="mr-2 h-4 w-4" />
@@ -186,9 +194,9 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/artist/my-profile" className="cursor-pointer">
-                        <Palette className="mr-2 h-4 w-4" />
-                        {t('common.artistProfile')}
+                      <Link to="/artist/edit-profile" className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        {t('common.editProfile', 'แก้ไขโปรไฟล์')}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
