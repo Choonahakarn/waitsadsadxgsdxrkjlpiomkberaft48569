@@ -57,6 +57,15 @@ interface CommunityPost {
   comments_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
+  user_id?: string;
+  user_profile?: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+  artist_profile?: {
+    artist_name: string;
+    is_verified: boolean;
+  };
 }
 
 interface Comment {
@@ -109,6 +118,10 @@ export default function UserProfile() {
   // Saved posts state
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
   
+  // Liked posts tab state
+  const [likedPosts, setLikedPosts] = useState<CommunityPost[]>([]);
+  const [likedPostsLoading, setLikedPostsLoading] = useState(false);
+  
   // Repost state
   const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set());
   const [repostDialogPost, setRepostDialogPost] = useState<CommunityPost | null>(null);
@@ -152,6 +165,97 @@ export default function UserProfile() {
     };
     fetchRepostedPosts();
   }, [user]);
+
+  // Fetch liked posts when tab changes to likes
+  useEffect(() => {
+    if (activeTab === 'likes' && userId) {
+      fetchLikedPosts();
+    }
+  }, [activeTab, userId]);
+
+  const fetchLikedPosts = async () => {
+    if (!userId) return;
+    setLikedPostsLoading(true);
+
+    try {
+      // Get all likes by this user
+      const { data: likesData } = await supabase
+        .from('community_likes')
+        .select('post_id, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!likesData || likesData.length === 0) {
+        setLikedPosts([]);
+        return;
+      }
+
+      // Get the post details for each liked post
+      const postIds = likesData.map(l => l.post_id);
+      const { data: postsData } = await supabase
+        .from('community_posts')
+        .select('*')
+        .in('id', postIds);
+
+      if (!postsData) {
+        setLikedPosts([]);
+        return;
+      }
+
+      // Fetch additional details for each post
+      const postsWithDetails = await Promise.all(
+        postsData.map(async (post) => {
+          // Get user profile
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', post.user_id)
+            .maybeSingle();
+
+          // Get artist profile
+          const { data: artistData } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', post.user_id)
+            .maybeSingle();
+
+          // Get comments count
+          const { count: commentsCount } = await supabase
+            .from('community_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          // Get likes count
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          return {
+            ...post,
+            user_profile: userProfile,
+            artist_profile: artistData,
+            comments_count: commentsCount || 0,
+            likes_count: likesCount || 0,
+            is_liked: true // User has liked this post
+          };
+        })
+      );
+
+      // Sort by like time (most recent first)
+      const sortedPosts = postsWithDetails.sort((a, b) => {
+        const aLike = likesData.find(l => l.post_id === a.id);
+        const bLike = likesData.find(l => l.post_id === b.id);
+        return new Date(bLike?.created_at || 0).getTime() - new Date(aLike?.created_at || 0).getTime();
+      });
+
+      setLikedPosts(sortedPosts);
+    } catch (error) {
+      console.error('Error fetching liked posts:', error);
+    } finally {
+      setLikedPostsLoading(false);
+    }
+  };
 
   const fetchUserData = async () => {
     if (!userId) return;
@@ -340,7 +444,48 @@ export default function UserProfile() {
     }
   };
 
-  // Save handler
+  // Like handler for liked tab (updates likedPosts state)
+  const handleLikeInLikedTab = async (postId: string, isLiked: boolean) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อกดถูกใจ"
+      });
+      return;
+    }
+
+    try {
+      if (isLiked) {
+        // Unlike
+        await supabase
+          .from('community_likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', user.id);
+
+        // Remove from liked posts list or update state
+        setLikedPosts(likedPosts.map(post => 
+          post.id === postId 
+            ? { ...post, is_liked: false, likes_count: Math.max(0, post.likes_count - 1) }
+            : post
+        ));
+      } else {
+        // Like
+        await supabase
+          .from('community_likes')
+          .insert({ post_id: postId, user_id: user.id });
+
+        setLikedPosts(likedPosts.map(post => 
+          post.id === postId 
+            ? { ...post, is_liked: true, likes_count: post.likes_count + 1 }
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error('Error liking post:', error);
+    }
+  };
   const handleSave = async (postId: string) => {
     if (!user) {
       toast({
@@ -700,7 +845,7 @@ export default function UserProfile() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full max-w-md mx-auto grid grid-cols-2 mb-6">
+            <TabsList className="w-full max-w-lg mx-auto grid grid-cols-3 mb-6">
               <TabsTrigger value="portfolio" className="flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4" />
                 Portfolio
@@ -708,6 +853,10 @@ export default function UserProfile() {
               <TabsTrigger value="posts" className="flex items-center gap-2">
                 <Grid3X3 className="w-4 h-4" />
                 All Posts
+              </TabsTrigger>
+              <TabsTrigger value="likes" className="flex items-center gap-2">
+                <Heart className="w-4 h-4" />
+                Likes
               </TabsTrigger>
             </TabsList>
 
@@ -918,6 +1067,180 @@ export default function UserProfile() {
                   >
                     <Grid3X3 className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
                     <p className="text-muted-foreground">ยังไม่มีโพสต์</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </TabsContent>
+
+            {/* Likes Tab */}
+            <TabsContent value="likes">
+              <AnimatePresence mode="wait">
+                {likedPostsLoading ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-center py-16"
+                  >
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </motion.div>
+                ) : likedPosts.length > 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="max-w-2xl mx-auto space-y-6"
+                  >
+                    {likedPosts.map((post, index) => {
+                      const postDisplayName = post.artist_profile?.artist_name || post.user_profile?.full_name || 'ผู้ใช้';
+                      const postDisplayAvatar = post.user_profile?.avatar_url;
+                      
+                      return (
+                        <motion.article
+                          key={post.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="bg-card border border-border rounded-xl overflow-hidden"
+                        >
+                          {/* Post Header */}
+                          <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
+                            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                              <AvatarImage src={postDisplayAvatar || undefined} />
+                              <AvatarFallback>{postDisplayName.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground">{postDisplayName}</span>
+                                {post.artist_profile?.is_verified && (
+                                  <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">✓</Badge>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTimeAgo(post.created_at)}
+                              </span>
+                            </div>
+                          </Link>
+
+                          {/* Post Content */}
+                          <div className="px-4 pb-2">
+                            <p className="text-foreground">{post.title}</p>
+                            {post.description && (
+                              <p className="text-muted-foreground text-sm mt-1">{post.description}</p>
+                            )}
+                          </div>
+
+                          {/* Post Image */}
+                          <div className="relative bg-muted">
+                            <img
+                              src={post.image_url}
+                              alt={post.title}
+                              className="w-full object-contain max-h-[600px]"
+                              loading="lazy"
+                            />
+                          </div>
+
+                          {/* Actions */}
+                          <div className="px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10"
+                                onClick={() => handleLikeInLikedTab(post.id, post.is_liked || false)}
+                              >
+                                <Heart 
+                                  className={`h-6 w-6 transition-colors ${
+                                    post.is_liked 
+                                      ? "fill-red-500 text-red-500" 
+                                      : "text-foreground"
+                                  }`} 
+                                />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-10 w-10"
+                                onClick={() => handleOpenPost(post)}
+                              >
+                                <MessageCircle className="h-6 w-6" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10"
+                                onClick={() => user ? setRepostDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                              >
+                                <Repeat2 
+                                  className={`h-6 w-6 transition-colors ${
+                                    repostedPosts.has(post.id) ? "text-green-500" : ""
+                                  }`} 
+                                />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10"
+                                onClick={() => handleShare(post)}
+                              >
+                                <Share2 className="h-6 w-6" />
+                              </Button>
+                            </div>
+                            
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10"
+                              onClick={() => handleSave(post.id)}
+                            >
+                              <Bookmark 
+                                className={`h-6 w-6 transition-colors ${
+                                  savedPosts.has(post.id) ? "fill-foreground" : ""
+                                }`} 
+                              />
+                            </Button>
+                          </div>
+
+                          {/* Likes count */}
+                          <div className="px-4 pb-2">
+                            <span className="font-semibold text-sm">
+                              {post.likes_count.toLocaleString()} ถูกใจ
+                            </span>
+                          </div>
+
+                          {/* View comments */}
+                          {(post.comments_count || 0) > 0 && (
+                            <div className="px-4 pb-2">
+                              <button 
+                                className="text-muted-foreground text-sm hover:text-foreground transition-colors"
+                                onClick={() => handleOpenPost(post)}
+                              >
+                                ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Tools/Tags */}
+                          {post.tools_used && post.tools_used.length > 0 && (
+                            <div className="px-4 pb-3 flex flex-wrap gap-1">
+                              {post.tools_used.map((tool) => (
+                                <Badge key={tool} variant="secondary" className="text-xs">
+                                  {tool}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </motion.article>
+                      );
+                    })}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16"
+                  >
+                    <Heart className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">ยังไม่มีโพสต์ที่ถูกใจ</p>
                   </motion.div>
                 )}
               </AnimatePresence>
