@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings } from "lucide-react";
+import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,10 +43,27 @@ interface Artwork {
 interface CommunityPost {
   id: string;
   title: string;
+  description: string | null;
   image_url: string;
   likes_count: number;
   created_at: string;
+  category: string | null;
+  tools_used: string[] | null;
+  comments_count?: number;
+  is_liked?: boolean;
 }
+
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'เมื่อสักครู่';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} นาทีที่แล้ว`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} ชั่วโมงที่แล้ว`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} วันที่แล้ว`;
+  return date.toLocaleDateString('th-TH');
+};
 
 export default function UserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -103,14 +120,47 @@ export default function UserProfile() {
         setArtworks(artworksData || []);
       }
 
-      // Fetch community posts
+      // Fetch community posts with additional data
       const { data: postsData } = await supabase
         .from('community_posts')
-        .select('id, title, image_url, likes_count, created_at')
+        .select('id, title, description, image_url, likes_count, created_at, category, tools_used')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       
-      setPosts(postsData || []);
+      // Fetch comments count and likes status for each post
+      const postsWithDetails = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const { count: commentsCount } = await supabase
+            .from('community_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          let isLiked = false;
+          if (user) {
+            const { data: likeData } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!likeData;
+          }
+
+          return {
+            ...post,
+            likes_count: likesCount || 0,
+            comments_count: commentsCount || 0,
+            is_liked: isLiked
+          };
+        })
+      );
+      
+      setPosts(postsWithDetails);
 
       // Fetch followers count
       const { count: followers } = await supabase
@@ -385,7 +435,7 @@ export default function UserProfile() {
               </AnimatePresence>
             </TabsContent>
 
-            {/* All Posts Tab */}
+            {/* All Posts Tab - Feed Style */}
             <TabsContent value="posts">
               <AnimatePresence mode="wait">
                 {posts.length > 0 ? (
@@ -393,29 +443,86 @@ export default function UserProfile() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1"
+                    className="max-w-2xl mx-auto space-y-6"
                   >
-                    {posts.map((post) => (
-                      <Link key={post.id} to={`/community?post=${post.id}`}>
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="aspect-square relative group overflow-hidden bg-muted"
-                        >
+                    {posts.map((post, index) => (
+                      <motion.article
+                        key={post.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="bg-card border border-border rounded-xl overflow-hidden"
+                      >
+                        {/* Post Header */}
+                        <div className="flex items-center gap-3 p-4">
+                          <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                            <AvatarImage src={displayAvatar || undefined} />
+                            <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground">{displayName}</span>
+                              {artistProfile?.is_verified && (
+                                <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">✓</Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTimeAgo(post.created_at)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Post Content */}
+                        <div className="px-4 pb-2">
+                          <p className="text-foreground">{post.title}</p>
+                          {post.description && (
+                            <p className="text-muted-foreground text-sm mt-1">{post.description}</p>
+                          )}
+                        </div>
+
+                        {/* Post Image */}
+                        <div className="relative bg-muted">
                           <img
                             src={post.image_url}
                             alt={post.title}
-                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            className="w-full object-contain max-h-[600px]"
                             loading="lazy"
                           />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <div className="text-white text-center p-2">
-                              <p className="font-medium text-sm line-clamp-2">{post.title}</p>
-                              <p className="text-xs mt-1">❤️ {post.likes_count || 0}</p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="px-4 py-3 flex items-center justify-between border-t border-border">
+                          <div className="flex items-center gap-4">
+                            <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
+                              <MessageCircle className="h-5 w-5" />
+                              <span className="text-sm">{post.comments_count || 0}</span>
+                            </button>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
+                              <span className="text-sm">{post.likes_count || 0}</span>
                             </div>
                           </div>
-                        </motion.div>
-                      </Link>
+                          <div className="flex items-center gap-2">
+                            <button className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Bookmark className="h-5 w-5" />
+                            </button>
+                            <button className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Share2 className="h-5 w-5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tools/Tags */}
+                        {post.tools_used && post.tools_used.length > 0 && (
+                          <div className="px-4 pb-3 flex flex-wrap gap-1">
+                            {post.tools_used.map((tool) => (
+                              <Badge key={tool} variant="secondary" className="text-xs">
+                                {tool}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </motion.article>
                     ))}
                   </motion.div>
                 ) : (
