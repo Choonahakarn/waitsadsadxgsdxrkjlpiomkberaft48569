@@ -14,6 +14,7 @@ import { Camera, Save, Loader2, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import { ImagePositioner } from '@/components/ui/ImagePositioner';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 interface ArtistProfile {
   id: string;
@@ -41,6 +42,11 @@ const MyArtistProfile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  
+  // Cropper state
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropperFile, setCropperFile] = useState<File | null>(null);
+  const [cropperType, setCropperType] = useState<'avatar' | 'cover'>('avatar');
 
   // Form state
   const [artistName, setArtistName] = useState('');
@@ -90,19 +96,47 @@ const MyArtistProfile = () => {
     }
   }, [user, isArtist]);
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
+    
+    setCropperFile(file);
+    setCropperType('avatar');
+    setCropperOpen(true);
+    
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
 
-    setIsUploading(true);
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setCropperFile(file);
+    setCropperType('cover');
+    setCropperOpen(true);
+    
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
 
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    if (!user) return;
+    
+    const isAvatar = cropperType === 'avatar';
+    const setUploading = isAvatar ? setIsUploading : setIsUploadingCover;
+    
+    setUploading(true);
+    
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/avatar.${fileExt}`;
-
+      const fileName = `${user.id}/${isAvatar ? 'avatar' : 'cover'}.jpg`;
+      
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, croppedBlob, { 
+          upsert: true,
+          contentType: 'image/jpeg'
+        });
 
       if (uploadError) throw uploadError;
 
@@ -110,18 +144,21 @@ const MyArtistProfile = () => {
         .from('avatars')
         .getPublicUrl(fileName);
 
-      const avatarUrl = urlData.publicUrl;
+      const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`; // Add cache bust
 
+      const updateField = isAvatar ? 'avatar_url' : 'cover_url';
       const { error: updateError } = await supabase
         .from('artist_profiles')
-        .update({ avatar_url: avatarUrl })
+        .update({ [updateField]: imageUrl })
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
 
-      setProfile(prev => prev ? { ...prev, avatar_url: avatarUrl } : null);
+      setProfile(prev => prev ? { ...prev, [updateField]: imageUrl } : null);
       toast({
-        title: t('profile.avatarUpdated', 'อัปเดตรูปโปรไฟล์สำเร็จ'),
+        title: isAvatar 
+          ? t('profile.avatarUpdated', 'อัปเดตรูปโปรไฟล์สำเร็จ')
+          : t('profile.coverUpdated', 'อัปเดตรูปปกสำเร็จ'),
       });
     } catch (error: unknown) {
       console.error('Upload error:', error);
@@ -131,52 +168,8 @@ const MyArtistProfile = () => {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    setIsUploadingCover(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/cover.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      const coverUrl = urlData.publicUrl;
-
-      const { error: updateError } = await supabase
-        .from('artist_profiles')
-        .update({ cover_url: coverUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      setProfile(prev => prev ? { ...prev, cover_url: coverUrl } : null);
-      toast({
-        title: t('profile.coverUpdated', 'อัปเดตรูปปกสำเร็จ'),
-      });
-    } catch (error: unknown) {
-      console.error('Cover upload error:', error);
-      toast({
-        variant: 'destructive',
-        title: t('profile.uploadError', 'อัปโหลดไม่สำเร็จ'),
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setIsUploadingCover(false);
+      setUploading(false);
+      setCropperFile(null);
     }
   };
 
@@ -344,7 +337,7 @@ const MyArtistProfile = () => {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={handleCoverUpload}
+                    onChange={handleCoverSelect}
                     disabled={isUploadingCover}
                   />
                 </div>
@@ -400,7 +393,7 @@ const MyArtistProfile = () => {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleAvatarUpload}
+                      onChange={handleAvatarSelect}
                       disabled={isUploading}
                     />
                   </div>
@@ -490,6 +483,19 @@ const MyArtistProfile = () => {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* Image Cropper Dialog */}
+          <ImageCropper
+            imageFile={cropperFile}
+            open={cropperOpen}
+            onClose={() => {
+              setCropperOpen(false);
+              setCropperFile(null);
+            }}
+            onCropComplete={handleCropComplete}
+            aspectRatio={cropperType === 'avatar' ? 1 : 4}
+            title={cropperType === 'avatar' ? 'ครอปรูปโปรไฟล์' : 'ครอปรูปปก'}
+          />
         </div>
       </section>
     </Layout>
