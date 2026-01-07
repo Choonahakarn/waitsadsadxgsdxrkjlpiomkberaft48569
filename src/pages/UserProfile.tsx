@@ -141,6 +141,10 @@ export default function UserProfile() {
   const [repostCaption, setRepostCaption] = useState("");
   const [reposting, setReposting] = useState(false);
 
+  // Block/Mute state
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
   useEffect(() => {
     if (userId) {
       fetchUserData();
@@ -178,6 +182,32 @@ export default function UserProfile() {
     };
     fetchRepostedPosts();
   }, [user]);
+
+  // Fetch block/mute status
+  useEffect(() => {
+    const fetchBlockMuteStatus = async () => {
+      if (!user || !userId || user.id === userId) return;
+      
+      const [blockResult, muteResult] = await Promise.all([
+        supabase
+          .from('user_blocks')
+          .select('id')
+          .eq('blocker_id', user.id)
+          .eq('blocked_id', userId)
+          .maybeSingle(),
+        supabase
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', user.id)
+          .eq('muted_id', userId)
+          .maybeSingle()
+      ]);
+      
+      setIsBlocked(!!blockResult.data);
+      setIsMuted(!!muteResult.data);
+    };
+    fetchBlockMuteStatus();
+  }, [user, userId]);
 
   // Fetch liked posts when tab changes to likes
   useEffect(() => {
@@ -1094,34 +1124,102 @@ export default function UserProfile() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
-                              onClick={() => {
-                                toast({
-                                  title: "ปิดเสียง",
-                                  description: `ปิดเสียงการแจ้งเตือนจาก ${displayName} แล้ว`
-                                });
+                              onClick={async () => {
+                                if (!user || !userId) return;
+                                try {
+                                  if (isMuted) {
+                                    await supabase
+                                      .from('user_mutes')
+                                      .delete()
+                                      .eq('muter_id', user.id)
+                                      .eq('muted_id', userId);
+                                    setIsMuted(false);
+                                    toast({
+                                      title: "ยกเลิกปิดเสียง",
+                                      description: `ยกเลิกปิดเสียง ${displayName} แล้ว`
+                                    });
+                                  } else {
+                                    await supabase
+                                      .from('user_mutes')
+                                      .insert({ muter_id: user.id, muted_id: userId });
+                                    setIsMuted(true);
+                                    toast({
+                                      title: "ปิดเสียง",
+                                      description: `ปิดเสียงการแจ้งเตือนจาก ${displayName} แล้ว`
+                                    });
+                                  }
+                                } catch (error) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "เกิดข้อผิดพลาด",
+                                    description: "ไม่สามารถดำเนินการได้"
+                                  });
+                                }
                               }}
                             >
                               <VolumeX className="w-4 h-4 mr-2" />
-                              ปิดเสียง
+                              {isMuted ? "ยกเลิกปิดเสียง" : "ปิดเสียง"}
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => {
-                                toast({
-                                  title: "บล็อกผู้ใช้",
-                                  description: `บล็อก ${displayName} แล้ว`
-                                });
+                              onClick={async () => {
+                                if (!user || !userId) return;
+                                try {
+                                  if (isBlocked) {
+                                    await supabase
+                                      .from('user_blocks')
+                                      .delete()
+                                      .eq('blocker_id', user.id)
+                                      .eq('blocked_id', userId);
+                                    setIsBlocked(false);
+                                    toast({
+                                      title: "ยกเลิกบล็อก",
+                                      description: `ยกเลิกบล็อก ${displayName} แล้ว`
+                                    });
+                                  } else {
+                                    await supabase
+                                      .from('user_blocks')
+                                      .insert({ blocker_id: user.id, blocked_id: userId });
+                                    setIsBlocked(true);
+                                    toast({
+                                      title: "บล็อกผู้ใช้",
+                                      description: `บล็อก ${displayName} แล้ว`
+                                    });
+                                  }
+                                } catch (error) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "เกิดข้อผิดพลาด",
+                                    description: "ไม่สามารถดำเนินการได้"
+                                  });
+                                }
                               }}
-                              className="text-destructive focus:text-destructive"
+                              className={isBlocked ? "" : "text-destructive focus:text-destructive"}
                             >
                               <Ban className="w-4 h-4 mr-2" />
-                              บล็อก
+                              {isBlocked ? "ยกเลิกบล็อก" : "บล็อก"}
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => {
-                                toast({
-                                  title: "รายงานผู้ใช้",
-                                  description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
-                                });
+                              onClick={async () => {
+                                if (!user || !userId) return;
+                                try {
+                                  await supabase
+                                    .from('user_reports')
+                                    .insert({ 
+                                      reporter_id: user.id, 
+                                      reported_id: userId,
+                                      reason: 'user_report'
+                                    });
+                                  toast({
+                                    title: "รายงานผู้ใช้",
+                                    description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
+                                  });
+                                } catch (error) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "เกิดข้อผิดพลาด",
+                                    description: "ไม่สามารถส่งรายงานได้"
+                                  });
+                                }
                               }}
                               className="text-destructive focus:text-destructive"
                             >
