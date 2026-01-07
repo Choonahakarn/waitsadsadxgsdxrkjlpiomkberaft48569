@@ -19,6 +19,7 @@ interface Notification {
   message: string;
   type: string;
   is_read: boolean;
+  is_clicked: boolean;
   reference_id: string | null;
   created_at: string;
   actor_id?: string | null;
@@ -31,8 +32,8 @@ interface AggregatedNotification {
   ids: string[];
   count: number;
   latestCreatedAt: string;
-  hasUnread: boolean;
-  // For display
+  hasUnread: boolean;      // For badge count (is_read = false)
+  hasNotClicked: boolean;  // For orange highlight (is_clicked = false)
   displayTitle: string;
   displayMessage: string;
 }
@@ -68,6 +69,7 @@ export function NotificationBell() {
           count: 1,
           latestCreatedAt: notif.created_at,
           hasUnread: !notif.is_read,
+          hasNotClicked: !notif.is_clicked,
           displayTitle: notif.title,
           displayMessage: notif.message,
         });
@@ -82,6 +84,7 @@ export function NotificationBell() {
       const latest = items[0];
       const count = items.length;
       const hasUnread = items.some(n => !n.is_read);
+      const hasNotClicked = items.some(n => !n.is_clicked);
       const ids = items.map(n => n.id);
 
       let displayTitle = latest.title;
@@ -110,6 +113,7 @@ export function NotificationBell() {
         count,
         latestCreatedAt: latest.created_at,
         hasUnread,
+        hasNotClicked,
         displayTitle,
         displayMessage,
       });
@@ -121,7 +125,8 @@ export function NotificationBell() {
     return result;
   }, [notifications]);
 
-  const unreadCount = aggregatedNotifications.filter((n) => n.hasUnread).length;
+  // Badge count based on is_read (unread notifications)
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     if (user) {
@@ -198,7 +203,27 @@ export function NotificationBell() {
     }
   }, [user]);
 
-  // Refresh when opening (and lightly poll while open)
+  // When opening the popover, mark all as read (for badge count)
+  // and refresh notifications
+  const handleOpenChange = async (isOpen: boolean) => {
+    setOpen(isOpen);
+    
+    if (isOpen && user) {
+      // Mark all unread as read when opening
+      const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+      if (unreadIds.length > 0) {
+        await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false);
+        
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      }
+    }
+  };
+
+  // Refresh while open
   useEffect(() => {
     if (!open) return;
 
@@ -210,30 +235,17 @@ export function NotificationBell() {
     };
   }, [open, fetchNotifications]);
 
-  const markAsRead = async (ids: string[]) => {
-    // Mark all IDs in the aggregated group as read
-    for (const id of ids) {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id);
-    }
-
-    setNotifications((prev) =>
-      prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n))
-    );
-  };
-
-  const markAllAsRead = async () => {
-    if (!user) return;
-
+  // Mark as clicked when user clicks on a notification item (for orange highlight)
+  const markAsClicked = async (ids: string[]) => {
+    // Mark all IDs in the aggregated group as clicked
     await supabase
       .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false);
+      .update({ is_clicked: true })
+      .in("id", ids);
 
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setNotifications((prev) =>
+      prev.map((n) => (ids.includes(n.id) ? { ...n, is_clicked: true } : n))
+    );
   };
 
   const getTypeColor = (type: string) => {
@@ -260,7 +272,7 @@ export function NotificationBell() {
   if (!user) return null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative rounded-full">
           <Bell className="h-5 w-5" />
@@ -277,16 +289,6 @@ export function NotificationBell() {
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="font-semibold">การแจ้งเตือน</h4>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-primary"
-              onClick={markAllAsRead}
-            >
-              อ่านทั้งหมด
-            </Button>
-          )}
         </div>
         <ScrollArea className="h-80">
           {aggregatedNotifications.length === 0 ? (
@@ -299,9 +301,9 @@ export function NotificationBell() {
                 <div
                   key={notif.key}
                   className={`cursor-pointer p-4 transition-colors hover:bg-muted/50 ${
-                    notif.hasUnread ? "bg-primary/5" : ""
+                    notif.hasNotClicked ? "bg-primary/5" : ""
                   }`}
-                  onClick={() => markAsRead(notif.ids)}
+                  onClick={() => markAsClicked(notif.ids)}
                 >
                   <div className="flex items-start gap-3">
                     <div className="relative mt-1">
@@ -328,7 +330,7 @@ export function NotificationBell() {
                         })}
                       </p>
                     </div>
-                    {notif.hasUnread && (
+                    {notif.hasNotClicked && (
                       <div className="h-2 w-2 rounded-full bg-primary" />
                     )}
                   </div>

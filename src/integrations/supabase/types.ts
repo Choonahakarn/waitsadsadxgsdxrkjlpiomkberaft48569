@@ -286,6 +286,7 @@ export type Database = {
           actor_id: string | null
           created_at: string
           id: string
+          is_clicked: boolean
           is_read: boolean
           message: string
           reference_id: string | null
@@ -297,6 +298,7 @@ export type Database = {
           actor_id?: string | null
           created_at?: string
           id?: string
+          is_clicked?: boolean
           is_read?: boolean
           message: string
           reference_id?: string | null
@@ -308,6 +310,7 @@ export type Database = {
           actor_id?: string | null
           created_at?: string
           id?: string
+          is_clicked?: boolean
           is_read?: boolean
           message?: string
           reference_id?: string | null
