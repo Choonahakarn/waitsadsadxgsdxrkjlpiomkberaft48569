@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -75,14 +75,14 @@ export function NotificationBell() {
         {
           event: 'DELETE',
           schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
+          table: 'notifications'
         },
         (payload) => {
-          const deletedNotification = payload.old as { id: string };
-          setNotifications(prev =>
-            prev.filter(n => n.id !== deletedNotification.id)
-          );
+          const deleted = payload.old as { id: string; user_id?: string };
+          // DELETE events don't always match server-side filters reliably, so filter client-side.
+          if (deleted.user_id && deleted.user_id !== user.id) return;
+
+          setNotifications(prev => prev.filter(n => n.id !== deleted.id));
         }
       )
       .subscribe();
@@ -92,7 +92,7 @@ export function NotificationBell() {
     };
   }, [user]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user) return;
 
     const { data, error } = await supabase
@@ -105,7 +105,19 @@ export function NotificationBell() {
     if (!error && data) {
       setNotifications(data);
     }
-  };
+  }, [user]);
+
+  // Refresh when opening (and lightly poll while open) so deleted notifications disappear quickly
+  useEffect(() => {
+    if (!open) return;
+
+    fetchNotifications();
+    const intervalId = window.setInterval(fetchNotifications, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [open, fetchNotifications]);
 
   const markAsRead = async (id: string) => {
     await supabase
