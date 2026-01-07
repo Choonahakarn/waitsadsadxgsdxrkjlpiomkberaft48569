@@ -939,8 +939,8 @@ export default function UserProfile() {
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Cover Image */}
-        <div className="relative w-full h-48 md:h-64 lg:h-80 bg-gradient-to-b from-muted to-background overflow-hidden">
+        {/* Cover Image - Taller */}
+        <div className="relative w-full h-64 md:h-80 lg:h-96 bg-gradient-to-b from-muted to-background overflow-hidden">
           {displayCover ? (
             <img
               src={displayCover}
@@ -951,117 +951,115 @@ export default function UserProfile() {
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
           )}
-          {/* Subtle bottom fade only for profile overlap - reduced opacity */}
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background to-transparent" />
         </div>
 
         <div className="max-w-6xl mx-auto px-4">
-          {/* Profile Header */}
+          {/* Profile Header - Horizontal Layout like Pixiv */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center text-center -mt-16 relative z-10 mb-8"
+            className="relative -mt-20 mb-6"
           >
-            <div className="w-24 h-24 mb-4 border-4 border-background shadow-lg rounded-full overflow-hidden bg-muted">
-              {displayAvatar ? (
-                <img
-                  src={displayAvatar}
-                  alt={displayName}
-                  className="w-full h-full object-cover"
-                  style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl bg-primary/10">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold">{displayName}</h1>
-              {artistProfile?.is_verified && <VerificationBadge />}
-            </div>
-
-            {displayBio && (
-              <p className="text-muted-foreground max-w-md mb-3">{displayBio}</p>
-            )}
-
-            {artistProfile?.specialty && (
-              <Badge variant="secondary" className="mb-3">
-                {artistProfile.specialty}
-              </Badge>
-            )}
-
-            {/* Stats */}
-            <div className="flex items-center gap-6 mb-4">
-              <div className="text-center">
-                <span className="font-bold">{followingCount}</span>
-                <span className="text-muted-foreground ml-1">Following</span>
-              </div>
-              <div className="text-center">
-                <span className="font-bold">{followersCount}</span>
-                <span className="text-muted-foreground ml-1">Followers</span>
-              </div>
-            </div>
-
-            {/* Edit Profile Button (for own profile) */}
-            {user && user.id === userId && (
-              <Link to="/artist/edit-profile">
-                <Button variant="outline" className="min-w-[120px]">
-                  <Settings className="w-4 h-4 mr-2" />
-                  แก้ไขโปรไฟล์
-                </Button>
-              </Link>
-            )}
-
-            {/* Follow Button */}
-            {user && user.id !== userId && (
-              <Button
-                onClick={handleFollow}
-                variant={isFollowing ? "outline" : "default"}
-                className="min-w-[120px]"
-              >
-                {isFollowing ? (
-                  <>
-                    <UserCheck className="w-4 h-4 mr-2" />
-                    Following
-                  </>
+            <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6">
+              {/* Large Avatar */}
+              <div className="w-32 h-32 md:w-36 md:h-36 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0">
+                {displayAvatar ? (
+                  <img
+                    src={displayAvatar}
+                    alt={displayName}
+                    className="w-full h-full object-cover"
+                    style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
+                  />
                 ) : (
-                  <>
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Follow
-                  </>
-                )}
-              </Button>
-            )}
-
-            {/* External Links */}
-            {(artistProfile?.portfolio_url || profile?.website) && (
-              <div className="flex items-center gap-2 mt-3">
-                {artistProfile?.portfolio_url && (
-                  <a 
-                    href={artistProfile.portfolio_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Portfolio
-                  </a>
-                )}
-                {profile?.website && (
-                  <a 
-                    href={profile.website} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Website
-                  </a>
+                  <div className="w-full h-full flex items-center justify-center text-4xl bg-primary/10 font-bold">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
                 )}
               </div>
-            )}
+
+              {/* Profile Info */}
+              <div className="flex-1 pb-2">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  {/* Left side - Name and stats */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
+                      {artistProfile?.is_verified && <VerificationBadge />}
+                    </div>
+                    
+                    {/* Stats inline */}
+                    <div className="flex items-center gap-4 text-sm">
+                      <Link 
+                        to={`/followers/${userId}?tab=following`}
+                        className="hover:underline"
+                      >
+                        <span className="font-semibold">{followingCount}</span>
+                        <span className="text-muted-foreground ml-1">Following</span>
+                      </Link>
+                      <Link 
+                        to={`/followers/${userId}?tab=followers`}
+                        className="hover:underline"
+                      >
+                        <span className="font-semibold">{followersCount}</span>
+                        <span className="text-muted-foreground ml-1">Followers</span>
+                      </Link>
+                    </div>
+
+                    {artistProfile?.specialty && (
+                      <Badge variant="secondary" className="w-fit">
+                        {artistProfile.specialty}
+                      </Badge>
+                    )}
+
+                    {displayBio && (
+                      <p className="text-muted-foreground max-w-lg text-sm">{displayBio}</p>
+                    )}
+
+                    {artistProfile?.portfolio_url && (
+                      <a 
+                        href={artistProfile.portfolio_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Portfolio
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Right side - Action buttons */}
+                  <div className="flex items-center gap-2">
+                    {user && user.id === userId ? (
+                      <Link to="/artist/edit-profile">
+                        <Button variant="outline" size="sm">
+                          <Settings className="w-4 h-4 mr-2" />
+                          แก้ไขโปรไฟล์
+                        </Button>
+                      </Link>
+                    ) : user && user.id !== userId ? (
+                      <Button
+                        onClick={handleFollow}
+                        variant={isFollowing ? "outline" : "default"}
+                        size="sm"
+                      >
+                        {isFollowing ? (
+                          <>
+                            <UserCheck className="w-4 h-4 mr-2" />
+                            Following
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Follow
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
 
           {/* Tabs */}
