@@ -24,6 +24,7 @@ interface UserProfileData {
   avatar_url: string | null;
   bio: string | null;
   website: string | null;
+  cover_url: string | null;
 }
 
 interface ArtistProfileData {
@@ -35,6 +36,7 @@ interface ArtistProfileData {
   is_verified: boolean;
   portfolio_url: string | null;
   tools_used: string[] | null;
+  cover_url: string | null;
 }
 
 interface Artwork {
@@ -923,15 +925,31 @@ export default function UserProfile() {
     );
   }
 
+  const displayCover = artistProfile?.cover_url || profile?.cover_url;
+
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Cover Image */}
+        <div className="relative w-full h-48 md:h-64 lg:h-80 bg-gradient-to-b from-muted to-background overflow-hidden">
+          {displayCover ? (
+            <img
+              src={displayCover}
+              alt="Cover"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+        </div>
+
+        <div className="max-w-6xl mx-auto px-4">
           {/* Profile Header */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center text-center mb-8"
+            className="flex flex-col items-center text-center -mt-16 relative z-10 mb-8"
           >
             <Avatar className="w-24 h-24 mb-4 border-4 border-background shadow-lg">
               <AvatarImage src={displayAvatar || undefined} alt={displayName} />

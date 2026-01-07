@@ -22,6 +22,7 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           bio: string | null
+          cover_url: string | null
           created_at: string
           id: string
           identity_verified: boolean | null
@@ -43,6 +44,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           bio?: string | null
+          cover_url?: string | null
           created_at?: string
           id?: string
           identity_verified?: boolean | null
@@ -64,6 +66,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           bio?: string | null
+          cover_url?: string | null
           created_at?: string
           id?: string
           identity_verified?: boolean | null
@@ -351,6 +354,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          cover_url: string | null
           created_at: string
           email: string
           full_name: string | null
@@ -361,6 +365,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          cover_url?: string | null
           created_at?: string
           email: string
           full_name?: string | null
@@ -371,6 +376,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          cover_url?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
