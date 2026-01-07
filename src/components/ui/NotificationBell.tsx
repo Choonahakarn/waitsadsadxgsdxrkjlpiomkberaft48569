@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ const AGGREGATABLE_TYPES = ['like', 'comment', 'share'];
 
 export function NotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -235,17 +237,40 @@ export function NotificationBell() {
     };
   }, [open, fetchNotifications]);
 
-  // Mark as clicked when user clicks on a notification item (for orange highlight)
-  const markAsClicked = async (ids: string[]) => {
-    // Mark all IDs in the aggregated group as clicked
+  // Navigate to the related post/profile based on notification type
+  const handleNotificationClick = async (notif: AggregatedNotification) => {
+    // Mark as clicked
     await supabase
       .from("notifications")
       .update({ is_clicked: true })
-      .in("id", ids);
+      .in("id", notif.ids);
 
     setNotifications((prev) =>
-      prev.map((n) => (ids.includes(n.id) ? { ...n, is_clicked: true } : n))
+      prev.map((n) => (notif.ids.includes(n.id) ? { ...n, is_clicked: true } : n))
     );
+
+    // Close the popover
+    setOpen(false);
+
+    // Navigate based on notification type
+    const { type, reference_id } = notif;
+    
+    if (type === 'like' || type === 'comment' || type === 'share') {
+      // These reference a post
+      if (reference_id) {
+        navigate(`/community?post=${reference_id}`);
+      }
+    } else if (type === 'follow') {
+      // Follow notifications reference the follower's user_id (actor_id)
+      // Find the actor_id from the original notification
+      const originalNotif = notifications.find(n => notif.ids.includes(n.id));
+      if (originalNotif?.actor_id) {
+        navigate(`/user/${originalNotif.actor_id}`);
+      }
+    } else if (reference_id) {
+      // Generic: try to navigate to community post
+      navigate(`/community?post=${reference_id}`);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -303,7 +328,7 @@ export function NotificationBell() {
                   className={`cursor-pointer p-4 transition-colors hover:bg-muted/50 ${
                     notif.hasNotClicked ? "bg-primary/5" : ""
                   }`}
-                  onClick={() => markAsClicked(notif.ids)}
+                  onClick={() => handleNotificationClick(notif)}
                 >
                   <div className="flex items-start gap-3">
                     <div className="relative mt-1">
