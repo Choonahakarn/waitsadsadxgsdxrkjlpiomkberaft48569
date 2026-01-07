@@ -106,6 +106,7 @@ export default function Community() {
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
+  const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set());
   const [shareDialogPost, setShareDialogPost] = useState<CommunityPost | null>(null);
   const [shareCaption, setShareCaption] = useState("");
   const [sharingPost, setSharingPost] = useState(false);
@@ -158,6 +159,22 @@ export default function Community() {
       }
     } catch (error) {
       console.error('Error fetching saved posts:', error);
+    }
+  }, [user]);
+
+  const fetchRepostedPosts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('shared_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
+      if (data) {
+        setRepostedPosts(new Set(data.map(s => s.post_id)));
+      }
+    } catch (error) {
+      console.error('Error fetching reposted posts:', error);
     }
   }, [user]);
 
@@ -355,7 +372,8 @@ export default function Community() {
   useEffect(() => {
     fetchFollowing();
     fetchSavedPosts();
-  }, [fetchFollowing, fetchSavedPosts]);
+    fetchRepostedPosts();
+  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -767,53 +785,89 @@ export default function Community() {
   const handleRepost = async () => {
     if (!user || !shareDialogPost) return;
     
+    const postId = shareDialogPost.original_post_id || shareDialogPost.id;
+    const alreadyReposted = repostedPosts.has(postId);
+    
     setSharingPost(true);
     try {
-      await supabase
-        .from('shared_posts')
-        .insert({
-          user_id: user.id,
-          post_id: shareDialogPost.id,
-          caption: shareCaption.trim() || null
+      if (alreadyReposted) {
+        // Remove repost
+        await supabase
+          .from('shared_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', postId);
+
+        setRepostedPosts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
         });
 
-      // Notify original poster
-      if (shareDialogPost.user_id !== user.id) {
-        const { data: sharerProfile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .maybeSingle();
-        
-        const { data: sharerArtist } = await supabase
-          .from('artist_profiles')
-          .select('artist_name')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
-        
-        await supabase.from('notifications').insert({
-          user_id: shareDialogPost.user_id,
-          title: 'โพสต์ของคุณถูกแชร์! 🔁',
-          message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
-          type: 'share',
-          reference_id: shareDialogPost.id
+        // Update shares count in UI
+        setPosts(posts.map(post => {
+          const actualId = post.original_post_id || post.id;
+          if (actualId === postId) {
+            return { ...post, shares_count: Math.max(0, (post.shares_count || 1) - 1) };
+          }
+          return post;
+        }));
+
+        toast({
+          title: "ยกเลิก Repost แล้ว",
+          description: "โพสต์ถูกลบออกจากโปรไฟล์ของคุณแล้ว"
+        });
+      } else {
+        // Create new repost
+        await supabase
+          .from('shared_posts')
+          .insert({
+            user_id: user.id,
+            post_id: postId,
+            caption: shareCaption.trim() || null
+          });
+
+        setRepostedPosts(prev => new Set(prev).add(postId));
+
+        // Notify original poster
+        if (shareDialogPost.user_id !== user.id) {
+          const { data: sharerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+          
+          const { data: sharerArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
+          
+          await supabase.from('notifications').insert({
+            user_id: shareDialogPost.user_id,
+            title: 'โพสต์ของคุณถูกแชร์! 🔁',
+            message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
+            type: 'share',
+            reference_id: postId
+          });
+        }
+
+        // Update shares count in UI
+        setPosts(posts.map(post => {
+          const actualId = post.original_post_id || post.id;
+          if (actualId === postId) {
+            return { ...post, shares_count: (post.shares_count || 0) + 1 };
+          }
+          return post;
+        }));
+
+        toast({
+          title: "แชร์โพสต์สำเร็จ! 🔁",
+          description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว"
         });
       }
-
-      // Update shares count in UI
-      setPosts(posts.map(post => {
-        if (post.id === shareDialogPost.id) {
-          return { ...post, shares_count: (post.shares_count || 0) + 1 };
-        }
-        return post;
-      }));
-
-      toast({
-        title: "แชร์โพสต์สำเร็จ! 🔁",
-        description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว"
-      });
 
       setShareDialogPost(null);
       setShareCaption("");
@@ -1590,7 +1644,9 @@ export default function Community() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Repeat2 className="h-5 w-5" />
-                แชร์โพสต์
+                {shareDialogPost && repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) 
+                  ? 'ยกเลิก Repost' 
+                  : 'แชร์โพสต์'}
               </DialogTitle>
             </DialogHeader>
             
@@ -1619,17 +1675,26 @@ export default function Community() {
                   </div>
                 </div>
 
-                {/* Caption input */}
-                <div>
-                  <Label htmlFor="shareCaption">เพิ่มข้อความ (ไม่บังคับ)</Label>
-                  <Input
-                    id="shareCaption"
-                    value={shareCaption}
-                    onChange={(e) => setShareCaption(e.target.value)}
-                    placeholder="พูดอะไรเกี่ยวกับโพสต์นี้..."
-                    className="mt-1"
-                  />
-                </div>
+                {/* Caption input - only show for new reposts */}
+                {!repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) && (
+                  <div>
+                    <Label htmlFor="shareCaption">เพิ่มข้อความ (ไม่บังคับ)</Label>
+                    <Input
+                      id="shareCaption"
+                      value={shareCaption}
+                      onChange={(e) => setShareCaption(e.target.value)}
+                      placeholder="พูดอะไรเกี่ยวกับโพสต์นี้..."
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+
+                {/* Info message for already reposted */}
+                {repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    คุณได้แชร์โพสต์นี้แล้ว กดปุ่มด้านล่างเพื่อยกเลิก
+                  </p>
+                )}
 
                 {/* Actions */}
                 <div className="flex gap-2">
@@ -1641,17 +1706,23 @@ export default function Community() {
                       setShareCaption("");
                     }}
                   >
-                    ยกเลิก
+                    ปิด
                   </Button>
                   <Button
                     className="flex-1"
+                    variant={repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) ? "destructive" : "default"}
                     onClick={handleRepost}
                     disabled={sharingPost}
                   >
                     {sharingPost ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        กำลังแชร์...
+                        กำลังดำเนินการ...
+                      </>
+                    ) : repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) ? (
+                      <>
+                        <X className="mr-2 h-4 w-4" />
+                        ยกเลิก Repost
                       </>
                     ) : (
                       <>
