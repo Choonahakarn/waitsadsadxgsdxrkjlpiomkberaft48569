@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Palette, ShieldCheck, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock, ArrowDownToLine } from 'lucide-react';
+import { Users, Palette, ShieldCheck, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock, ArrowDownToLine, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
@@ -15,6 +15,7 @@ interface Stats {
   pendingVerifications: number;
   pendingArtworks: number;
   pendingTopups: number;
+  pendingReports: number;
   totalSales: number;
   totalArtworks: number;
   soldArtworks: number;
@@ -38,6 +39,7 @@ const AdminDashboard = () => {
     pendingVerifications: 0,
     pendingArtworks: 0,
     pendingTopups: 0,
+    pendingReports: 0,
     totalSales: 0,
     totalArtworks: 0,
     soldArtworks: 0,
@@ -68,6 +70,7 @@ const AdminDashboard = () => {
         artworksRes,
         pendingArtworksRes,
         topupsRes,
+        reportsRes,
         ordersRes,
         recentOrdersRes,
       ] = await Promise.all([
@@ -77,6 +80,7 @@ const AdminDashboard = () => {
         supabase.from('artworks').select('id, is_sold', { count: 'exact' }),
         supabase.from('artworks').select('id', { count: 'exact', head: true }).eq('is_verified', false),
         supabase.from('topup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('user_reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('orders').select('amount'),
         supabase.from('orders').select('id, amount, created_at, artworks (title)').order('created_at', { ascending: false }).limit(5),
       ]);
@@ -90,6 +94,7 @@ const AdminDashboard = () => {
         pendingVerifications: verificationsRes.count || 0,
         pendingArtworks: pendingArtworksRes.count || 0,
         pendingTopups: topupsRes.count || 0,
+        pendingReports: reportsRes.count || 0,
         totalSales,
         totalArtworks: artworksRes.count || 0,
         soldArtworks,
@@ -173,6 +178,13 @@ const AdminDashboard = () => {
       icon: CreditCard,
       href: '/admin/topup-requests',
       color: 'bg-red-500',
+    },
+    {
+      title: 'รายงานรอดู',
+      value: stats.pendingReports,
+      icon: Flag,
+      href: '/admin/reports',
+      color: 'bg-purple-500',
     },
   ];
 
@@ -341,6 +353,21 @@ const AdminDashboard = () => {
                       <p className="font-medium">จัดการถอนเงิน</p>
                       <p className="text-sm text-muted-foreground">ตรวจสอบและอนุมัติคำขอถอนเงินศิลปิน</p>
                     </div>
+                  </Link>
+                  <Link
+                    to="/admin/reports"
+                    className="flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                  >
+                    <Flag className="h-5 w-5 text-primary" />
+                    <div className="flex-1">
+                      <p className="font-medium">รายงานผู้ใช้</p>
+                      <p className="text-sm text-muted-foreground">ดูและจัดการรายงานจากผู้ใช้</p>
+                    </div>
+                    {stats.pendingReports > 0 && (
+                      <span className="rounded-full bg-purple-500 px-2 py-1 text-xs text-white">
+                        {stats.pendingReports}
+                      </span>
+                    )}
                   </Link>
                 </CardContent>
               </Card>
