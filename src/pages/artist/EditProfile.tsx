@@ -311,23 +311,23 @@ const MyArtistProfile = () => {
                   {t('profile.coverHint', 'รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ (แนะนำ 1920x480 pixels)')}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pb-24">
                 {profile?.cover_url ? (
                   <ImagePositioner
                     imageUrl={profile.cover_url}
                     positionY={profile.cover_position_y ?? 50}
                     onPositionChange={handleCoverPositionChange}
                     aspectRatio="cover"
-                    className="w-full h-40 rounded-lg"
+                    className="w-full h-48 rounded-lg"
                   />
                 ) : (
-                  <div className="relative w-full h-40 rounded-lg overflow-hidden bg-muted">
+                  <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted">
                     <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background flex items-center justify-center">
                       <p className="text-muted-foreground text-sm">{t('profile.noCover', 'ยังไม่มีรูปปก')}</p>
                     </div>
                   </div>
                 )}
-                <div className="mt-3 flex justify-center">
+                <div className="mt-24 flex justify-center">
                   <label
                     htmlFor="cover-upload"
                     className="flex items-center gap-2 cursor-pointer text-sm text-primary hover:underline"
@@ -359,25 +359,27 @@ const MyArtistProfile = () => {
                   {t('profile.pictureHint', 'อัปโหลดและปรับตำแหน่งรูปโปรไฟล์')}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-6">
-                  {profile?.avatar_url ? (
-                    <ImagePositioner
-                      imageUrl={profile.avatar_url}
-                      positionY={profile.avatar_position_y ?? 50}
-                      positionX={profile.avatar_position_x ?? 50}
-                      onPositionChange={handleAvatarPositionChange}
-                      aspectRatio="avatar"
-                      className="h-32 w-32 rounded-full"
-                    />
-                  ) : (
-                    <Avatar className="h-32 w-32">
-                      <AvatarFallback className="text-3xl">
-                        {artistName?.[0]?.toUpperCase() || 'A'}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div className="flex-1 space-y-3">
+              <CardContent className="pb-28">
+                <div className="flex flex-col md:flex-row items-start gap-6">
+                  <div className="relative">
+                    {profile?.avatar_url ? (
+                      <ImagePositioner
+                        imageUrl={profile.avatar_url}
+                        positionY={profile.avatar_position_y ?? 50}
+                        positionX={profile.avatar_position_x ?? 50}
+                        onPositionChange={handleAvatarPositionChange}
+                        aspectRatio="avatar"
+                        className="h-40 w-40"
+                      />
+                    ) : (
+                      <Avatar className="h-40 w-40">
+                        <AvatarFallback className="text-4xl">
+                          {artistName?.[0]?.toUpperCase() || 'A'}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-3 mt-24 md:mt-0">
                     <div>
                       <p className="font-medium text-lg">{artistName || t('profile.noName', 'ยังไม่ได้ตั้งชื่อ')}</p>
                       <p className="text-sm text-muted-foreground">{user?.email}</p>

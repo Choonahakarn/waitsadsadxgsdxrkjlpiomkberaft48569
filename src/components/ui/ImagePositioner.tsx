@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Move, Check, X } from 'lucide-react';
+import { Move, Check, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 
 interface ImagePositionerProps {
   imageUrl: string;
@@ -23,7 +24,11 @@ export function ImagePositioner({
   const [tempPositionY, setTempPositionY] = useState(positionY);
   const [tempPositionX, setTempPositionX] = useState(positionX);
   const [isDragging, setIsDragging] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  
   const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const startYRef = useRef(0);
   const startXRef = useRef(0);
   const startPositionYRef = useRef(0);
@@ -34,49 +39,100 @@ export function ImagePositioner({
     setTempPositionX(positionX);
   }, [positionY, positionX]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Load image dimensions
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      setImageDimensions({ width: img.width, height: img.height });
+      setImageLoaded(true);
+    };
+    img.src = imageUrl;
+  }, [imageUrl]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!isEditing) return;
     e.preventDefault();
     setIsDragging(true);
-    startYRef.current = e.clientY;
-    startXRef.current = e.clientX;
+    
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    
+    startYRef.current = clientY;
+    startXRef.current = clientX;
     startPositionYRef.current = tempPositionY;
     startPositionXRef.current = tempPositionX;
-  };
+  }, [isEditing, tempPositionY, tempPositionX]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging || !isEditing) return;
     
-    const containerHeight = containerRef.current?.offsetHeight || 100;
-    const containerWidth = containerRef.current?.offsetWidth || 100;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     
-    // Calculate movement as percentage
-    const deltaY = e.clientY - startYRef.current;
-    const deltaX = e.clientX - startXRef.current;
+    // Use fixed sensitivity for smoother dragging
+    const sensitivity = 0.5;
     
-    // Invert the delta for natural dragging feel
-    const newPositionY = Math.max(0, Math.min(100, startPositionYRef.current - (deltaY / containerHeight) * 100));
+    const deltaY = clientY - startYRef.current;
+    const deltaX = clientX - startXRef.current;
     
+    // Invert for natural feel - drag down = show top of image (lower Y%)
+    const newPositionY = Math.max(0, Math.min(100, startPositionYRef.current + (deltaY * sensitivity)));
     setTempPositionY(newPositionY);
     
     if (aspectRatio === 'avatar') {
-      const newPositionX = Math.max(0, Math.min(100, startPositionXRef.current - (deltaX / containerWidth) * 100));
+      const newPositionX = Math.max(0, Math.min(100, startPositionXRef.current + (deltaX * sensitivity)));
       setTempPositionX(newPositionX);
     }
-  };
+  }, [isDragging, isEditing, aspectRatio]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
-    if (isDragging) {
+  // Global mouse/touch handlers for better drag experience
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDragging) return;
+      
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      
+      const sensitivity = 0.5;
+      const deltaY = clientY - startYRef.current;
+      const deltaX = clientX - startXRef.current;
+      
+      const newPositionY = Math.max(0, Math.min(100, startPositionYRef.current + (deltaY * sensitivity)));
+      setTempPositionY(newPositionY);
+      
+      if (aspectRatio === 'avatar') {
+        const newPositionX = Math.max(0, Math.min(100, startPositionXRef.current + (deltaX * sensitivity)));
+        setTempPositionX(newPositionX);
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
       setIsDragging(false);
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      window.addEventListener('touchmove', handleGlobalMouseMove);
+      window.addEventListener('touchend', handleGlobalMouseUp);
     }
-  };
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('touchmove', handleGlobalMouseMove);
+      window.removeEventListener('touchend', handleGlobalMouseUp);
+    };
+  }, [isDragging, isEditing, aspectRatio]);
 
   const handleSave = () => {
-    onPositionChange(tempPositionY, aspectRatio === 'avatar' ? tempPositionX : undefined);
+    onPositionChange(Math.round(tempPositionY), aspectRatio === 'avatar' ? Math.round(tempPositionX) : undefined);
     setIsEditing(false);
   };
 
@@ -92,53 +148,112 @@ export function ImagePositioner({
 
   return (
     <div className={`relative ${className}`}>
+      {/* Main preview container */}
       <div
         ref={containerRef}
-        className={`relative overflow-hidden ${isEditing ? 'cursor-move ring-2 ring-primary' : ''}`}
+        className={`relative overflow-hidden w-full h-full ${
+          isEditing 
+            ? 'cursor-grab ring-2 ring-primary active:cursor-grabbing' 
+            : ''
+        } ${aspectRatio === 'avatar' ? 'rounded-full' : 'rounded-lg'}`}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleMouseDown}
       >
         <img
+          ref={imageRef}
           src={imageUrl}
           alt="Positionable image"
-          className="w-full h-full object-cover transition-all select-none pointer-events-none"
+          className="w-full h-full object-cover transition-[object-position] duration-75 select-none"
           style={{ objectPosition }}
           draggable={false}
         />
         
         {isEditing && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-            <div className="bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow-lg">
-              <Move className="h-4 w-4" />
-              <span>ลากเพื่อปรับตำแหน่ง</span>
+          <div className="absolute inset-0 bg-black/40 pointer-events-none">
+            {/* Grid overlay for better positioning reference */}
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+              {[...Array(9)].map((_, i) => (
+                <div key={i} className="border border-white/20" />
+              ))}
+            </div>
+            
+            {/* Center crosshair */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8">
+              <div className="absolute top-1/2 left-0 right-0 h-px bg-white/60" />
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/60" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Control buttons */}
-      <div className="absolute bottom-3 right-3 flex gap-2">
-        {isEditing ? (
-          <>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleCancel}
-              className="h-8 w-8 p-0 rounded-full shadow-lg"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              className="h-8 w-8 p-0 rounded-full shadow-lg"
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
+      {/* Edit mode controls */}
+      {isEditing && (
+        <div className="absolute -bottom-20 left-0 right-0 bg-background/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
+          <div className="flex flex-col gap-3">
+            {/* Position indicator */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>ลากรูปภาพเพื่อปรับตำแหน่ง</span>
+              <span>
+                {aspectRatio === 'avatar' 
+                  ? `X: ${Math.round(tempPositionX)}% Y: ${Math.round(tempPositionY)}%`
+                  : `Y: ${Math.round(tempPositionY)}%`
+                }
+              </span>
+            </div>
+            
+            {/* Y Position Slider */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground w-12">บน-ล่าง</span>
+              <Slider
+                value={[tempPositionY]}
+                onValueChange={([value]) => setTempPositionY(value)}
+                min={0}
+                max={100}
+                step={1}
+                className="flex-1"
+              />
+            </div>
+            
+            {/* X Position Slider for avatar */}
+            {aspectRatio === 'avatar' && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-12">ซ้าย-ขวา</span>
+                <Slider
+                  value={[tempPositionX]}
+                  onValueChange={([value]) => setTempPositionX(value)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="flex-1"
+                />
+              </div>
+            )}
+            
+            {/* Action buttons */}
+            <div className="flex gap-2 justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCancel}
+              >
+                <X className="h-4 w-4 mr-1" />
+                ยกเลิก
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+              >
+                <Check className="h-4 w-4 mr-1" />
+                บันทึก
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit button - only show when not editing */}
+      {!isEditing && (
+        <div className="absolute bottom-3 right-3">
           <Button
             size="sm"
             variant="secondary"
@@ -148,8 +263,15 @@ export function ImagePositioner({
             <Move className="h-4 w-4 mr-1" />
             ปรับตำแหน่ง
           </Button>
-        )}
-      </div>
+        </div>
+      )}
+      
+      {/* Image info badge */}
+      {imageLoaded && !isEditing && (
+        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+          {imageDimensions.width} × {imageDimensions.height}
+        </div>
+      )}
     </div>
   );
 }
