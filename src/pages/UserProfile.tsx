@@ -1054,37 +1054,33 @@ export default function UserProfile() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 md:px-8 pt-6">
-          {/* Tabs */}
+        <div className="max-w-6xl mx-auto px-4 md:px-8 pt-4">
+          {/* Tabs - Clean underline style */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full max-w-2xl mx-auto grid grid-cols-4 h-12 p-1 bg-muted/50 rounded-lg">
+            <TabsList className="w-full max-w-xl mx-auto flex justify-center gap-8 h-auto bg-transparent border-b border-border pb-0">
               <TabsTrigger 
                 value="portfolio" 
-                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
               >
-                <LayoutGrid className="w-4 h-4" />
-                <span className="hidden sm:inline">Portfolio</span>
+                Portfolio
               </TabsTrigger>
               <TabsTrigger 
                 value="posts" 
-                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
               >
-                <Grid3X3 className="w-4 h-4" />
-                <span className="hidden sm:inline">All Posts</span>
+                All posts
               </TabsTrigger>
               <TabsTrigger 
                 value="likes" 
-                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
               >
-                <Heart className="w-4 h-4" />
-                <span className="hidden sm:inline">Likes</span>
+                Likes
               </TabsTrigger>
               <TabsTrigger 
                 value="saved" 
-                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
               >
-                <Bookmark className="w-4 h-4" />
-                <span className="hidden sm:inline">Saved</span>
+                Saved
               </TabsTrigger>
             </TabsList>
 
