@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, TrendingUp, Hash, Palette, ChevronRight } from "lucide-react";
+import { MessageCircle, TrendingUp, Hash, Palette, ChevronRight, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,13 @@ interface TagCount {
   count: number;
 }
 
+interface CommunitySidebarProps {
+  selectedTag?: string | null;
+  selectedCategory?: string | null;
+  onTagSelect?: (tag: string | null) => void;
+  onCategorySelect?: (category: string | null) => void;
+}
+
 const categories = [
   { name: "ภาพวาดดิจิทัล", icon: "🎨", count: 0 },
   { name: "ภาพวาดสีน้ำมัน", icon: "🖼️", count: 0 },
@@ -38,7 +45,12 @@ const categories = [
   { name: "งานปั้น 3D", icon: "🎮", count: 0 },
 ];
 
-export function CommunitySidebar() {
+export function CommunitySidebar({ 
+  selectedTag, 
+  selectedCategory, 
+  onTagSelect, 
+  onCategorySelect 
+}: CommunitySidebarProps) {
   const [latestPosts, setLatestPosts] = useState<Post[]>([]);
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [trendingTags, setTrendingTags] = useState<TagCount[]>([]);
@@ -297,49 +309,78 @@ export function CommunitySidebar() {
 
       {/* Trending Tags */}
       <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Hash className="h-5 w-5 text-green-500" />
-          <h3 className="font-semibold">แท็กยอดนิยม</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Hash className="h-5 w-5 text-green-500" />
+            <h3 className="font-semibold">แท็กยอดนิยม</h3>
+          </div>
+          {selectedTag && (
+            <button
+              onClick={() => onTagSelect?.(null)}
+              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
+            >
+              <X className="h-3 w-3" />
+              ล้าง
+            </button>
+          )}
         </div>
         <div className="space-y-2">
-          {trendingTags.map((tag, index) => (
+          {trendingTags.map((tag) => (
             <button
               key={tag.tag}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between group"
+              onClick={() => onTagSelect?.(selectedTag === tag.tag ? null : tag.tag)}
+              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+                selectedTag === tag.tag 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted'
+              }`}
             >
-              <span className="text-sm group-hover:text-primary transition-colors">
+              <span className={`text-sm ${selectedTag !== tag.tag ? 'group-hover:text-primary' : ''} transition-colors`}>
                 #{tag.tag}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className={`text-xs ${selectedTag === tag.tag ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                 {tag.count} โพสต์
               </span>
             </button>
           ))}
         </div>
-        <button className="text-primary text-sm mt-3 hover:underline flex items-center gap-1">
-          ดูเพิ่มเติม <ChevronRight className="h-4 w-4" />
-        </button>
       </div>
 
       {/* Artwork Categories */}
       <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Palette className="h-5 w-5 text-purple-500" />
-          <h3 className="font-semibold">หมวดหมู่ผลงาน</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-purple-500" />
+            <h3 className="font-semibold">หมวดหมู่ผลงาน</h3>
+          </div>
+          {selectedCategory && (
+            <button
+              onClick={() => onCategorySelect?.(null)}
+              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
+            >
+              <X className="h-3 w-3" />
+              ล้าง
+            </button>
+          )}
         </div>
         <div className="space-y-1">
           {categories.map((cat) => (
             <button
               key={cat.name}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between group"
+              onClick={() => onCategorySelect?.(selectedCategory === cat.name ? null : cat.name)}
+              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+                selectedCategory === cat.name 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted'
+              }`}
             >
               <div className="flex items-center gap-2">
                 <span>{cat.icon}</span>
-                <span className="text-sm group-hover:text-primary transition-colors">
+                <span className={`text-sm ${selectedCategory !== cat.name ? 'group-hover:text-primary' : ''} transition-colors`}>
                   {cat.name}
                 </span>
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className={`text-xs ${selectedCategory === cat.name ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                 {categoryCounts[cat.name] || 0}
               </span>
             </button>

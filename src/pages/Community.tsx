@@ -122,6 +122,8 @@ export default function Community() {
   // Filters
   const [activeTab, setActiveTab] = useState<FeedTab>('discover');
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -356,7 +358,7 @@ export default function Community() {
 
   useEffect(() => {
     fetchPosts(true);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, selectedTag, selectedCategory]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -382,11 +384,24 @@ export default function Community() {
     };
   }, [loading, hasMore, loadingMore]);
 
-  // Filter posts by tab
+  // Filter posts by tab, tag, and category
   const filteredPosts = posts.filter(post => {
+    // Filter by tab
     if (activeTab === 'following') {
-      return followingUsers.has(post.user_id);
+      if (!followingUsers.has(post.user_id)) return false;
     }
+    
+    // Filter by tag (check tools_used and category)
+    if (selectedTag) {
+      const hasTag = post.tools_used?.includes(selectedTag) || post.category === selectedTag;
+      if (!hasTag) return false;
+    }
+    
+    // Filter by category
+    if (selectedCategory) {
+      if (post.category !== selectedCategory) return false;
+    }
+    
     return true;
   });
 
@@ -1188,7 +1203,43 @@ export default function Community() {
             {/* Sidebar */}
             <aside className="hidden lg:block w-80 shrink-0">
               <div className="sticky top-44">
-                <CommunitySidebar />
+                {/* Active Filters Display */}
+                {(selectedTag || selectedCategory) && (
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-primary">กำลังกรอง:</span>
+                      <button
+                        onClick={() => {
+                          setSelectedTag(null);
+                          setSelectedCategory(null);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-destructive"
+                      >
+                        ล้างทั้งหมด
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTag && (
+                        <Badge variant="secondary" className="gap-1">
+                          #{selectedTag}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedTag(null)} />
+                        </Badge>
+                      )}
+                      {selectedCategory && (
+                        <Badge variant="secondary" className="gap-1">
+                          {selectedCategory}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedCategory(null)} />
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <CommunitySidebar 
+                  selectedTag={selectedTag}
+                  selectedCategory={selectedCategory}
+                  onTagSelect={setSelectedTag}
+                  onCategorySelect={setSelectedCategory}
+                />
               </div>
             </aside>
           </div>
