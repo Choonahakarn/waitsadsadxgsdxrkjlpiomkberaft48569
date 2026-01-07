@@ -666,6 +666,48 @@ export default function Community() {
             }
             return post;
           }));
+
+          // Get the post owner
+          const { data: postData } = await supabase
+            .from('community_posts')
+            .select('user_id')
+            .eq('id', actualPostId)
+            .maybeSingle();
+
+          if (postData && postData.user_id !== user.id) {
+            // Check if liker is muted by post owner
+            const { data: isMuted } = await supabase
+              .from('user_mutes')
+              .select('id')
+              .eq('muter_id', postData.user_id)
+              .eq('muted_id', user.id)
+              .maybeSingle();
+
+            if (!isMuted) {
+              // Get liker's name
+              const { data: likerProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
+                .maybeSingle();
+
+              const { data: likerArtist } = await supabase
+                .from('artist_profiles')
+                .select('artist_name')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+              const likerName = likerArtist?.artist_name || likerProfile?.full_name || 'ผู้ใช้';
+
+              await supabase.from('notifications').insert({
+                user_id: postData.user_id,
+                title: 'มีคนถูกใจโพสต์ของคุณ ❤️',
+                message: `${likerName} ถูกใจโพสต์ของคุณ`,
+                type: 'like',
+                reference_id: actualPostId
+              });
+            }
+          }
         }
       }
     } catch (error) {
@@ -833,6 +875,27 @@ export default function Community() {
             title: 'คุณถูกแท็กในความคิดเห็น 💬',
             message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
             type: 'mention',
+            reference_id: actualPostId
+          });
+        }
+      }
+
+      // Send notification to post owner (if not the commenter)
+      if (selectedPost.user_id !== user.id) {
+        // Check if commenter is muted by post owner
+        const { data: isMuted } = await supabase
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', selectedPost.user_id)
+          .eq('muted_id', user.id)
+          .maybeSingle();
+
+        if (!isMuted) {
+          await supabase.from('notifications').insert({
+            user_id: selectedPost.user_id,
+            title: 'มีคนแสดงความคิดเห็น 💬',
+            message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+            type: 'comment',
             reference_id: actualPostId
           });
         }
