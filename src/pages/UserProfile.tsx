@@ -1046,6 +1046,30 @@ export default function UserProfile() {
                           )}
                         </Button>
                       ) : null}
+                      
+                      {/* Share Profile Button */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-full"
+                        onClick={() => {
+                          const url = window.location.href;
+                          if (navigator.share) {
+                            navigator.share({
+                              title: `${displayName} - Profile`,
+                              url: url
+                            });
+                          } else {
+                            navigator.clipboard.writeText(url);
+                            toast({
+                              title: "คัดลอกลิงก์แล้ว",
+                              description: "ลิงก์โปรไฟล์ถูกคัดลอกไปยังคลิปบอร์ด"
+                            });
+                          }
+                        }}
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
