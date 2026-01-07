@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
@@ -98,6 +98,7 @@ export default function Community() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -453,6 +454,102 @@ export default function Community() {
   useEffect(() => {
     fetchPosts(true);
   }, [searchQuery, activeTab, selectedTag, selectedCategory]);
+
+  // Handle opening post from query parameter (e.g., from notifications)
+  useEffect(() => {
+    const postIdFromUrl = searchParams.get('post');
+    if (postIdFromUrl && posts.length > 0 && !loading) {
+      // Try to find the post in loaded posts first
+      const existingPost = posts.find(p => 
+        p.id === postIdFromUrl || p.original_post_id === postIdFromUrl
+      );
+      
+      if (existingPost) {
+        handleOpenPost(existingPost);
+        // Clear the query param after opening
+        setSearchParams({}, { replace: true });
+      } else {
+        // Post not in current list, fetch it directly
+        const fetchAndOpenPost = async () => {
+          try {
+            const { data: postData, error } = await supabase
+              .from('community_posts')
+              .select('*')
+              .eq('id', postIdFromUrl)
+              .maybeSingle();
+
+            if (error || !postData) {
+              toast({
+                variant: "destructive",
+                title: "ไม่พบโพสต์",
+                description: "โพสต์นี้อาจถูกลบหรือไม่มีอยู่"
+              });
+              setSearchParams({}, { replace: true });
+              return;
+            }
+
+            // Fetch additional data for the post
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url')
+              .eq('id', postData.user_id)
+              .maybeSingle();
+
+            const { data: artistProfile } = await supabase
+              .from('artist_profiles')
+              .select('artist_name, is_verified')
+              .eq('user_id', postData.user_id)
+              .maybeSingle();
+
+            let isLiked = false;
+            if (user) {
+              const { data: like } = await supabase
+                .from('community_likes')
+                .select('id')
+                .eq('post_id', postData.id)
+                .eq('user_id', user.id)
+                .maybeSingle();
+              isLiked = !!like;
+            }
+
+            const { count: likesCount } = await supabase
+              .from('community_likes')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
+
+            const { count: commentsCount } = await supabase
+              .from('community_comments')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
+
+            const { count: sharesCount } = await supabase
+              .from('shared_posts')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
+
+            const fullPost: CommunityPost = {
+              ...postData,
+              likes_count: likesCount || 0,
+              user_profile: profile,
+              artist_profile: artistProfile,
+              is_liked: isLiked,
+              comments_count: commentsCount || 0,
+              shares_count: sharesCount || 0,
+              is_repost: false
+            };
+
+            handleOpenPost(fullPost);
+            setSearchParams({}, { replace: true });
+          } catch (error) {
+            console.error('Error fetching post from notification:', error);
+            setSearchParams({}, { replace: true });
+          }
+        };
+        
+        fetchAndOpenPost();
+      }
+    }
+  }, [searchParams, posts, loading]);
 
   // Real-time subscription for comments
   useEffect(() => {
