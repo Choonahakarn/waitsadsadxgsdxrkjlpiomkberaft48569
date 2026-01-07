@@ -435,6 +435,83 @@ export default function Community() {
     fetchPosts(true);
   }, [searchQuery, activeTab, selectedTag, selectedCategory]);
 
+  // Real-time subscription for comments
+  useEffect(() => {
+    const channel = supabase
+      .channel('community-comments-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'community_comments'
+        },
+        (payload) => {
+          const newComment = payload.new as { post_id: string };
+          
+          // Update comment count in posts
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === newComment.post_id) {
+              return { ...post, comments_count: (post.comments_count || 0) + 1 };
+            }
+            return post;
+          }));
+
+          // Update selectedPost if viewing that post
+          if (selectedPost) {
+            const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+            if (selectedActualId === newComment.post_id) {
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                comments_count: (prev.comments_count || 0) + 1
+              } : null);
+              // Refresh comments list
+              fetchComments(newComment.post_id);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'community_comments'
+        },
+        (payload) => {
+          const deletedComment = payload.old as { post_id: string };
+          
+          // Update comment count in posts
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === deletedComment.post_id) {
+              return { ...post, comments_count: Math.max(0, (post.comments_count || 1) - 1) };
+            }
+            return post;
+          }));
+
+          // Update selectedPost if viewing that post
+          if (selectedPost) {
+            const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+            if (selectedActualId === deletedComment.post_id) {
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                comments_count: Math.max(0, (prev.comments_count || 1) - 1)
+              } : null);
+              // Refresh comments list
+              fetchComments(deletedComment.post_id);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedPost]);
+
   // Infinite scroll observer
   useEffect(() => {
     if (loading) return;
