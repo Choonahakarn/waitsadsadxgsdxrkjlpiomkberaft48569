@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UserProfileData {
@@ -106,6 +107,7 @@ export default function UserProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { isUserHidden } = useBlockedUsers();
   
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfileData | null>(null);
@@ -877,7 +879,12 @@ export default function UserProfile() {
         })
       );
 
-      setComments(commentsWithProfiles);
+      // Filter out comments from blocked/muted users
+      const filteredComments = commentsWithProfiles.filter(
+        comment => !isUserHidden(comment.user_id)
+      );
+
+      setComments(filteredComments);
     } catch (error) {
       console.error('Error fetching comments:', error);
     } finally {
