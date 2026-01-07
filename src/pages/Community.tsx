@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
 import {
@@ -96,6 +97,7 @@ export default function Community() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isUserHidden } = useBlockedUsers();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -439,8 +441,14 @@ export default function Community() {
     };
   }, [loading, hasMore, loadingMore]);
 
-  // Filter posts by tab, tag, and category
+  // Filter posts by tab, tag, category, and blocked/muted users
   const filteredPosts = posts.filter(post => {
+    // Filter out posts from blocked/muted users
+    if (isUserHidden(post.user_id)) return false;
+    
+    // For reposts, also check the reposter
+    if (post.is_repost && post.repost_user_id && isUserHidden(post.repost_user_id)) return false;
+    
     // Filter by tab
     if (activeTab === 'following') {
       if (!followingUsers.has(post.user_id)) return false;
@@ -735,7 +743,12 @@ export default function Community() {
         })
       );
 
-      setComments(commentsWithProfiles);
+      // Filter out comments from blocked/muted users
+      const filteredComments = commentsWithProfiles.filter(
+        comment => !isUserHidden(comment.user_id)
+      );
+
+      setComments(filteredComments);
     } catch (error) {
       console.error('Error fetching comments:', error);
     } finally {
