@@ -711,15 +711,26 @@ export default function Community() {
 
         const followerName = artistProfile?.artist_name || followerProfile?.full_name || 'ผู้ใช้';
 
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: userId,
-            title: 'มีผู้ติดตามใหม่! 🎉',
-            message: `${followerName} เริ่มติดตามคุณแล้ว`,
-            type: 'follow',
-            reference_id: user.id
-          });
+        // Check if follower is muted by the user being followed
+        const { data: isMuted } = await supabase
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', userId)
+          .eq('muted_id', user.id)
+          .maybeSingle();
+
+        // Only send notification if not muted
+        if (!isMuted) {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              title: 'มีผู้ติดตามใหม่! 🎉',
+              message: `${followerName} เริ่มติดตามคุณแล้ว`,
+              type: 'follow',
+              reference_id: user.id
+            });
+        }
       }
 
       setPosts(posts.map(post => {
