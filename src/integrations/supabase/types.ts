@@ -17,11 +17,14 @@ export type Database = {
       artist_profiles: {
         Row: {
           artist_name: string
+          avatar_position_x: number | null
+          avatar_position_y: number | null
           avatar_url: string | null
           bank_account_name: string | null
           bank_account_number: string | null
           bank_name: string | null
           bio: string | null
+          cover_position_y: number | null
           cover_url: string | null
           created_at: string
           id: string
@@ -39,11 +42,14 @@ export type Database = {
         }
         Insert: {
           artist_name: string
+          avatar_position_x?: number | null
+          avatar_position_y?: number | null
           avatar_url?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
           bio?: string | null
+          cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
           id?: string
@@ -61,11 +67,14 @@ export type Database = {
         }
         Update: {
           artist_name?: string
+          avatar_position_x?: number | null
+          avatar_position_y?: number | null
           avatar_url?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
           bio?: string | null
+          cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
           id?: string
@@ -352,8 +361,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_position_x: number | null
+          avatar_position_y: number | null
           avatar_url: string | null
           bio: string | null
+          cover_position_y: number | null
           cover_url: string | null
           created_at: string
           email: string
@@ -363,8 +375,11 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          avatar_position_x?: number | null
+          avatar_position_y?: number | null
           avatar_url?: string | null
           bio?: string | null
+          cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
           email: string
@@ -374,8 +389,11 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          avatar_position_x?: number | null
+          avatar_position_y?: number | null
           avatar_url?: string | null
           bio?: string | null
+          cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
           email?: string

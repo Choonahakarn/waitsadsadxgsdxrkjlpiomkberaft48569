@@ -25,6 +25,9 @@ interface UserProfileData {
   bio: string | null;
   website: string | null;
   cover_url: string | null;
+  cover_position_y: number | null;
+  avatar_position_x: number | null;
+  avatar_position_y: number | null;
 }
 
 interface ArtistProfileData {
@@ -37,6 +40,9 @@ interface ArtistProfileData {
   portfolio_url: string | null;
   tools_used: string[] | null;
   cover_url: string | null;
+  cover_position_y: number | null;
+  avatar_position_x: number | null;
+  avatar_position_y: number | null;
 }
 
 interface Artwork {
@@ -926,6 +932,9 @@ export default function UserProfile() {
   }
 
   const displayCover = artistProfile?.cover_url || profile?.cover_url;
+  const displayCoverPositionY = artistProfile?.cover_position_y ?? profile?.cover_position_y ?? 50;
+  const displayAvatarPositionX = artistProfile?.avatar_position_x ?? profile?.avatar_position_x ?? 50;
+  const displayAvatarPositionY = artistProfile?.avatar_position_y ?? profile?.avatar_position_y ?? 50;
 
   return (
     <Layout>
@@ -937,6 +946,7 @@ export default function UserProfile() {
               src={displayCover}
               alt="Cover"
               className="w-full h-full object-cover"
+              style={{ objectPosition: `center ${displayCoverPositionY}%` }}
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
@@ -951,12 +961,20 @@ export default function UserProfile() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center text-center -mt-16 relative z-10 mb-8"
           >
-            <Avatar className="w-24 h-24 mb-4 border-4 border-background shadow-lg">
-              <AvatarImage src={displayAvatar || undefined} alt={displayName} />
-              <AvatarFallback className="text-2xl bg-primary/10">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="w-24 h-24 mb-4 border-4 border-background shadow-lg rounded-full overflow-hidden bg-muted">
+              {displayAvatar ? (
+                <img
+                  src={displayAvatar}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                  style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl bg-primary/10">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold">{displayName}</h1>
