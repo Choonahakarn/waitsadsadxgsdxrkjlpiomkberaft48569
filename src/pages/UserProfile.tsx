@@ -953,133 +953,138 @@ export default function UserProfile() {
           )}
         </div>
 
-        <div className="max-w-6xl mx-auto px-4">
-          {/* Profile Header - Horizontal Layout like Pixiv */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative -mt-20 mb-6"
-          >
-            <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6">
-              {/* Large Avatar */}
-              <div className="w-32 h-32 md:w-36 md:h-36 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0">
-                {displayAvatar ? (
-                  <img
-                    src={displayAvatar}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                    style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-4xl bg-primary/10 font-bold">
-                    {displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
+        {/* Profile Section with background */}
+        <div className="bg-background border-b">
+          <div className="max-w-6xl mx-auto px-4 md:px-8">
+            {/* Profile Header - Horizontal Layout like Pixiv */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative -mt-16 md:-mt-20 pb-6"
+            >
+              <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                {/* Large Avatar */}
+                <div className="w-28 h-28 md:w-32 md:h-32 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0">
+                  {displayAvatar ? (
+                    <img
+                      src={displayAvatar}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                      style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-3xl bg-primary/10 font-bold">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
 
-              {/* Profile Info */}
-              <div className="flex-1 pb-2">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  {/* Left side - Name and stats */}
-                  <div className="space-y-2">
+                {/* Profile Info - Aligned properly */}
+                <div className="flex-1 pt-2 md:pt-8">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    {/* Left side - Name and stats */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-xl md:text-2xl font-bold">{displayName}</h1>
+                        {artistProfile?.is_verified && <VerificationBadge />}
+                      </div>
+                      
+                      {/* Stats inline */}
+                      <div className="flex items-center gap-3 text-sm">
+                        <Link 
+                          to={`/followers/${userId}?tab=following`}
+                          className="hover:text-primary transition-colors"
+                        >
+                          <span className="font-semibold">{followingCount}</span>
+                          <span className="text-muted-foreground ml-1">Following</span>
+                        </Link>
+                        <Link 
+                          to={`/followers/${userId}?tab=followers`}
+                          className="hover:text-primary transition-colors"
+                        >
+                          <span className="font-semibold">{followersCount}</span>
+                          <span className="text-muted-foreground ml-1">Followers</span>
+                        </Link>
+                      </div>
+
+                      {displayBio && (
+                        <p className="text-muted-foreground max-w-md text-sm pt-2">{displayBio}</p>
+                      )}
+
+                      {artistProfile?.specialty && (
+                        <Badge variant="secondary" className="w-fit mt-2">
+                          {artistProfile.specialty}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Right side - Action buttons */}
                     <div className="flex items-center gap-2">
-                      <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
-                      {artistProfile?.is_verified && <VerificationBadge />}
-                    </div>
-                    
-                    {/* Stats inline */}
-                    <div className="flex items-center gap-4 text-sm">
-                      <Link 
-                        to={`/followers/${userId}?tab=following`}
-                        className="hover:underline"
-                      >
-                        <span className="font-semibold">{followingCount}</span>
-                        <span className="text-muted-foreground ml-1">Following</span>
-                      </Link>
-                      <Link 
-                        to={`/followers/${userId}?tab=followers`}
-                        className="hover:underline"
-                      >
-                        <span className="font-semibold">{followersCount}</span>
-                        <span className="text-muted-foreground ml-1">Followers</span>
-                      </Link>
-                    </div>
-
-                    {artistProfile?.specialty && (
-                      <Badge variant="secondary" className="w-fit">
-                        {artistProfile.specialty}
-                      </Badge>
-                    )}
-
-                    {displayBio && (
-                      <p className="text-muted-foreground max-w-lg text-sm">{displayBio}</p>
-                    )}
-
-                    {artistProfile?.portfolio_url && (
-                      <a 
-                        href={artistProfile.portfolio_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Portfolio
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Right side - Action buttons */}
-                  <div className="flex items-center gap-2">
-                    {user && user.id === userId ? (
-                      <Link to="/artist/edit-profile">
-                        <Button variant="outline" size="sm">
-                          <Settings className="w-4 h-4 mr-2" />
-                          แก้ไขโปรไฟล์
+                      {user && user.id === userId ? (
+                        <Link to="/artist/edit-profile">
+                          <Button variant="outline" className="rounded-full px-5">
+                            <Settings className="w-4 h-4 mr-2" />
+                            แก้ไขโปรไฟล์
+                          </Button>
+                        </Link>
+                      ) : user && user.id !== userId ? (
+                        <Button
+                          onClick={handleFollow}
+                          variant={isFollowing ? "outline" : "default"}
+                          className="rounded-full px-6"
+                        >
+                          {isFollowing ? (
+                            <>
+                              <UserCheck className="w-4 h-4 mr-2" />
+                              Following
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Follow
+                            </>
+                          )}
                         </Button>
-                      </Link>
-                    ) : user && user.id !== userId ? (
-                      <Button
-                        onClick={handleFollow}
-                        variant={isFollowing ? "outline" : "default"}
-                        size="sm"
-                      >
-                        {isFollowing ? (
-                          <>
-                            <UserCheck className="w-4 h-4 mr-2" />
-                            Following
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-4 h-4 mr-2" />
-                            Follow
-                          </>
-                        )}
-                      </Button>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
+        </div>
 
+        <div className="max-w-6xl mx-auto px-4 md:px-8 pt-6">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full max-w-2xl mx-auto grid grid-cols-4 mb-6">
-              <TabsTrigger value="portfolio" className="flex items-center gap-2">
+            <TabsList className="w-full max-w-2xl mx-auto grid grid-cols-4 h-12 p-1 bg-muted/50 rounded-lg">
+              <TabsTrigger 
+                value="portfolio" 
+                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              >
                 <LayoutGrid className="w-4 h-4" />
-                Portfolio
+                <span className="hidden sm:inline">Portfolio</span>
               </TabsTrigger>
-              <TabsTrigger value="posts" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="posts" 
+                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              >
                 <Grid3X3 className="w-4 h-4" />
-                All Posts
+                <span className="hidden sm:inline">All Posts</span>
               </TabsTrigger>
-              <TabsTrigger value="likes" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="likes" 
+                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              >
                 <Heart className="w-4 h-4" />
-                Likes
+                <span className="hidden sm:inline">Likes</span>
               </TabsTrigger>
-              <TabsTrigger value="saved" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="saved" 
+                className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              >
                 <Bookmark className="w-4 h-4" />
-                Saved
+                <span className="hidden sm:inline">Saved</span>
               </TabsTrigger>
             </TabsList>
 
