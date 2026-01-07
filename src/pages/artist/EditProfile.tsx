@@ -184,7 +184,7 @@ const MyArtistProfile = () => {
             transition={{ duration: 0.6 }}
           >
             <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-              {t('profile.myProfile', 'โปรไฟล์ของฉัน')}
+              {t('profile.editProfile', 'แก้ไขโปรไฟล์')}
             </h1>
             <p className="mt-2 text-muted-foreground">
               {t('profile.editDescription', 'แก้ไขข้อมูลโปรไฟล์ศิลปินของคุณ')}

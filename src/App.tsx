@@ -22,7 +22,7 @@ import AdminIdentityVerifications from "./pages/admin/IdentityVerifications";
 import AdminArtworkVerifications from "./pages/admin/ArtworkVerifications";
 import AdminTopupRequests from "./pages/admin/TopupRequests";
 import AdminWithdrawalRequests from "./pages/admin/WithdrawalRequests";
-import MyArtistProfile from "./pages/artist/MyProfile";
+import EditProfile from "./pages/artist/EditProfile";
 import VerificationSubmit from "./pages/artist/VerificationSubmit";
 import Earnings from "./pages/artist/Earnings";
 import Withdraw from "./pages/artist/Withdraw";
@@ -62,7 +62,7 @@ const App = () => (
             <Route path="/admin/artwork-verifications" element={<AdminArtworkVerifications />} />
             <Route path="/admin/topup-requests" element={<AdminTopupRequests />} />
             <Route path="/admin/withdrawal-requests" element={<AdminWithdrawalRequests />} />
-            <Route path="/artist/my-profile" element={<MyArtistProfile />} />
+            <Route path="/artist/edit-profile" element={<EditProfile />} />
             <Route path="/artist/verification" element={<VerificationSubmit />} />
             <Route path="/artist/earnings" element={<Earnings />} />
             <Route path="/artist/withdraw" element={<Withdraw />} />
