@@ -817,7 +817,7 @@ export default function Community() {
           }
         }
 
-        // Delete the like notification if exists
+        // Delete the like notification only if it was created within last 5 seconds
         const { data: postData } = await supabase
           .from('community_posts')
           .select('user_id')
@@ -825,12 +825,14 @@ export default function Community() {
           .maybeSingle();
 
         if (postData && postData.user_id !== user.id) {
+          const fiveSecondsAgo = new Date(Date.now() - 5 * 1000).toISOString();
           await supabase
             .from('notifications')
             .delete()
             .eq('user_id', postData.user_id)
             .eq('type', 'like')
-            .eq('reference_id', actualPostId);
+            .eq('reference_id', actualPostId)
+            .gte('created_at', fiveSecondsAgo);
         }
       } else {
         // Like - insert new like
