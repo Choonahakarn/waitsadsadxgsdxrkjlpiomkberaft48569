@@ -951,7 +951,8 @@ export default function UserProfile() {
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+          {/* Subtle bottom fade only for profile overlap - reduced opacity */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background to-transparent" />
         </div>
 
         <div className="max-w-6xl mx-auto px-4">
