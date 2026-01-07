@@ -964,7 +964,7 @@ export default function UserProfile() {
             >
               <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
                 {/* Large Avatar - Only this overlaps the cover */}
-                <div className="w-28 h-28 md:w-32 md:h-32 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-20">
+                <div className="w-32 h-32 md:w-40 md:h-40 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-24">
                   {displayAvatar ? (
                     <img
                       src={displayAvatar}
@@ -973,7 +973,7 @@ export default function UserProfile() {
                       style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-3xl bg-primary/10 font-bold">
+                    <div className="w-full h-full flex items-center justify-center text-4xl bg-primary/10 font-bold">
                       {displayName.charAt(0).toUpperCase()}
                     </div>
                   )}
