@@ -147,6 +147,22 @@ export default function UserProfile() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
+  // Report dialog state
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
+
+  const reportReasons = [
+    { value: "spam", label: "สแปมหรือโฆษณา" },
+    { value: "harassment", label: "คุกคามหรือรังแก" },
+    { value: "inappropriate_content", label: "เนื้อหาไม่เหมาะสม" },
+    { value: "impersonation", label: "แอบอ้างตัวตน" },
+    { value: "copyright", label: "ละเมิดลิขสิทธิ์" },
+    { value: "scam", label: "หลอกลวง/ฉ้อโกง" },
+    { value: "other", label: "อื่นๆ" }
+  ];
+
   useEffect(() => {
     if (userId) {
       fetchUserData();
@@ -1206,28 +1222,7 @@ export default function UserProfile() {
                               {isBlocked ? "ยกเลิกบล็อก" : "บล็อก"}
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={async () => {
-                                if (!user || !userId) return;
-                                try {
-                                  await supabase
-                                    .from('user_reports')
-                                    .insert({ 
-                                      reporter_id: user.id, 
-                                      reported_id: userId,
-                                      reason: 'user_report'
-                                    });
-                                  toast({
-                                    title: "รายงานผู้ใช้",
-                                    description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
-                                  });
-                                } catch (error) {
-                                  toast({
-                                    variant: "destructive",
-                                    title: "เกิดข้อผิดพลาด",
-                                    description: "ไม่สามารถส่งรายงานได้"
-                                  });
-                                }
-                              }}
+                              onClick={() => setReportDialogOpen(true)}
                               className="text-destructive focus:text-destructive"
                             >
                               <Flag className="w-4 h-4 mr-2" />
@@ -1243,6 +1238,98 @@ export default function UserProfile() {
             </motion.div>
           </div>
         </div>
+
+        {/* Report Dialog */}
+        <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>รายงานผู้ใช้</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>เหตุผลในการรายงาน</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {reportReasons.map((reason) => (
+                    <button
+                      key={reason.value}
+                      type="button"
+                      onClick={() => setReportReason(reason.value)}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors ${
+                        reportReason === reason.value 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {reason.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="report-description">รายละเอียดเพิ่มเติม (ไม่บังคับ)</Label>
+                <Textarea
+                  id="report-description"
+                  placeholder="อธิบายเพิ่มเติมว่าเกิดอะไรขึ้น..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setReportDialogOpen(false);
+                    setReportReason("");
+                    setReportDescription("");
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!reportReason || submittingReport}
+                  onClick={async () => {
+                    if (!user || !userId || !reportReason) return;
+                    setSubmittingReport(true);
+                    try {
+                      await supabase
+                        .from('user_reports')
+                        .insert({ 
+                          reporter_id: user.id, 
+                          reported_id: userId,
+                          reason: reportReason,
+                          description: reportDescription.trim() || null
+                        });
+                      toast({
+                        title: "รายงานผู้ใช้",
+                        description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
+                      });
+                      setReportDialogOpen(false);
+                      setReportReason("");
+                      setReportDescription("");
+                    } catch (error) {
+                      toast({
+                        variant: "destructive",
+                        title: "เกิดข้อผิดพลาด",
+                        description: "ไม่สามารถส่งรายงานได้"
+                      });
+                    } finally {
+                      setSubmittingReport(false);
+                    }
+                  }}
+                >
+                  {submittingReport ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  ส่งรายงาน
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="max-w-6xl mx-auto px-4 md:px-8 pt-4">
           {/* Tabs - Clean underline style */}
