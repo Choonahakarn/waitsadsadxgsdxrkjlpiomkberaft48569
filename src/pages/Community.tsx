@@ -648,6 +648,18 @@ export default function Community() {
           }
           return post;
         }));
+
+        // Also update selectedPost if it's the same post
+        if (selectedPost) {
+          const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+          if (selectedActualId === actualPostId) {
+            setSelectedPost({
+              ...selectedPost,
+              is_liked: false,
+              likes_count: Math.max(0, selectedPost.likes_count - 1)
+            });
+          }
+        }
       } else {
         // Like - insert new like
         const { error } = await supabase
@@ -666,6 +678,18 @@ export default function Community() {
             }
             return post;
           }));
+
+          // Also update selectedPost if it's the same post
+          if (selectedPost) {
+            const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+            if (selectedActualId === actualPostId) {
+              setSelectedPost({
+                ...selectedPost,
+                is_liked: true,
+                likes_count: selectedPost.likes_count + 1
+              });
+            }
+          }
 
           // Get the post owner
           const { data: postData } = await supabase
