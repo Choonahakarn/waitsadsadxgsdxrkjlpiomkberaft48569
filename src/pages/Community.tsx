@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
@@ -133,6 +134,23 @@ export default function Community() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Report state
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportingPost, setReportingPost] = useState<CommunityPost | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
+
+  const reportReasons = [
+    { value: "spam", label: "สแปมหรือโฆษณา" },
+    { value: "harassment", label: "คุกคามหรือรังแก" },
+    { value: "inappropriate_content", label: "เนื้อหาไม่เหมาะสม" },
+    { value: "impersonation", label: "แอบอ้างตัวตน" },
+    { value: "copyright", label: "ละเมิดลิขสิทธิ์" },
+    { value: "scam", label: "หลอกลวง/ฉ้อโกง" },
+    { value: "other", label: "อื่นๆ" }
+  ];
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -1235,6 +1253,18 @@ export default function Community() {
                               <Bookmark className="h-4 w-4 mr-2" />
                               {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
                             </DropdownMenuItem>
+                            {user && user.id !== post.user_id && (
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setReportingPost(post);
+                                  setReportDialogOpen(true);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Flag className="h-4 w-4 mr-2" />
+                                รายงานโพสต์
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1894,6 +1924,107 @@ export default function Community() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Report Post Dialog */}
+        <Dialog open={reportDialogOpen} onOpenChange={(open) => {
+          setReportDialogOpen(open);
+          if (!open) {
+            setReportingPost(null);
+            setReportReason("");
+            setReportDescription("");
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>รายงานโพสต์</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>เหตุผลในการรายงาน</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {reportReasons.map((reason) => (
+                    <button
+                      key={reason.value}
+                      type="button"
+                      onClick={() => setReportReason(reason.value)}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors ${
+                        reportReason === reason.value 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {reason.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="post-report-description">รายละเอียดเพิ่มเติม (ไม่บังคับ)</Label>
+                <Textarea
+                  id="post-report-description"
+                  placeholder="อธิบายเพิ่มเติมว่าเกิดอะไรขึ้น..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setReportDialogOpen(false);
+                    setReportingPost(null);
+                    setReportReason("");
+                    setReportDescription("");
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!reportReason || submittingReport}
+                  onClick={async () => {
+                    if (!user || !reportingPost || !reportReason) return;
+                    setSubmittingReport(true);
+                    try {
+                      await supabase
+                        .from('user_reports')
+                        .insert({ 
+                          reporter_id: user.id, 
+                          reported_id: reportingPost.user_id,
+                          reason: `post_${reportReason}`,
+                          description: `โพสต์: "${reportingPost.title}"\n${reportDescription.trim() || ""}`
+                        });
+                      toast({
+                        title: "รายงานโพสต์",
+                        description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
+                      });
+                      setReportDialogOpen(false);
+                      setReportingPost(null);
+                      setReportReason("");
+                      setReportDescription("");
+                    } catch (error) {
+                      toast({
+                        variant: "destructive",
+                        title: "เกิดข้อผิดพลาด",
+                        description: "ไม่สามารถส่งรายงานได้"
+                      });
+                    } finally {
+                      setSubmittingReport(false);
+                    }
+                  }}
+                >
+                  {submittingReport ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  ส่งรายงาน
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
