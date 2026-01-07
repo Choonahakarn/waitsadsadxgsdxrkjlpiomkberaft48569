@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { Button } from "@/components/ui/button";
@@ -141,6 +141,19 @@ export default function Community() {
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+
+  // Edit/Delete state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editToolsUsed, setEditToolsUsed] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState<CommunityPost | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const reportReasons = [
     { value: "spam", label: "สแปมหรือโฆษณา" },
@@ -1352,6 +1365,127 @@ export default function Community() {
     }
   };
 
+  // Handle edit post
+  const openEditDialog = (post: CommunityPost) => {
+    setEditingPost(post);
+    setEditTitle(post.title);
+    setEditDescription(post.description || "");
+    setEditCategory(post.category || "");
+    setEditToolsUsed((post.tools_used || []).join(", "));
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!user || !editingPost) return;
+    
+    setSavingEdit(true);
+    try {
+      const toolsArray = editToolsUsed
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+
+      const { error } = await supabase
+        .from('community_posts')
+        .update({
+          title: editTitle,
+          description: editDescription || null,
+          category: editCategory || null,
+          tools_used: toolsArray,
+        })
+        .eq('id', editingPost.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setPosts(posts.map(p => 
+        p.id === editingPost.id 
+          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: toolsArray }
+          : p
+      ));
+
+      // Update selected post if it's the same
+      if (selectedPost && selectedPost.id === editingPost.id) {
+        setSelectedPost({
+          ...selectedPost,
+          title: editTitle,
+          description: editDescription,
+          category: editCategory,
+          tools_used: toolsArray
+        });
+      }
+
+      toast({
+        title: "แก้ไขโพสต์สำเร็จ ✓",
+        description: "โพสต์ของคุณถูกอัปเดตแล้ว"
+      });
+
+      setEditDialogOpen(false);
+      setEditingPost(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Handle delete post
+  const openDeleteDialog = (post: CommunityPost) => {
+    setDeletingPost(post);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!user || !deletingPost) return;
+    
+    setConfirmingDelete(true);
+    try {
+      // Delete related data first
+      await supabase.from('community_comments').delete().eq('post_id', deletingPost.id);
+      await supabase.from('community_likes').delete().eq('post_id', deletingPost.id);
+      await supabase.from('saved_posts').delete().eq('post_id', deletingPost.id);
+      await supabase.from('shared_posts').delete().eq('post_id', deletingPost.id);
+      
+      // Delete the post
+      const { error } = await supabase
+        .from('community_posts')
+        .delete()
+        .eq('id', deletingPost.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setPosts(posts.filter(p => p.id !== deletingPost.id && p.original_post_id !== deletingPost.id));
+
+      // Close post detail if viewing the deleted post
+      if (selectedPost && selectedPost.id === deletingPost.id) {
+        setSelectedPost(null);
+      }
+
+      toast({
+        title: "ลบโพสต์สำเร็จ",
+        description: "โพสต์ของคุณถูกลบแล้ว"
+      });
+
+      setDeleteDialogOpen(false);
+      setDeletingPost(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setConfirmingDelete(false);
+    }
+  };
+
   // Time ago formatter
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -1585,6 +1719,22 @@ export default function Community() {
                               <Bookmark className="h-4 w-4 mr-2" />
                               {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
                             </DropdownMenuItem>
+                            {/* Edit/Delete for own posts */}
+                            {user && user.id === post.user_id && !post.is_repost && (
+                              <>
+                                <DropdownMenuItem onClick={() => openEditDialog(post)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  แก้ไขโพสต์
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => openDeleteDialog(post)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  ลบโพสต์
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             {user && user.id !== post.user_id && (
                               <DropdownMenuItem 
                                 onClick={() => {
@@ -2364,6 +2514,135 @@ export default function Community() {
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : null}
                   ส่งรายงาน
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Post Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setEditingPost(null);
+            setEditTitle("");
+            setEditDescription("");
+            setEditCategory("");
+            setEditToolsUsed("");
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>แก้ไขโพสต์</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">ชื่อผลงาน *</Label>
+                <Input
+                  id="edit-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="ชื่อผลงานของคุณ"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">คำอธิบาย</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="อธิบายเกี่ยวกับผลงานของคุณ..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>หมวดหมู่</Label>
+                <Select value={editCategory} onValueChange={setEditCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="เลือกหมวดหมู่" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-tools">เครื่องมือที่ใช้</Label>
+                <Input
+                  id="edit-tools"
+                  value={editToolsUsed}
+                  onChange={(e) => setEditToolsUsed(e.target.value)}
+                  placeholder="เช่น Photoshop, Procreate (คั่นด้วยเครื่องหมายจุลภาค)"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setEditDialogOpen(false);
+                    setEditingPost(null);
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  disabled={!editTitle.trim() || savingEdit}
+                  onClick={handleSaveEdit}
+                >
+                  {savingEdit ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  บันทึกการแก้ไข
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Post Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setDeletingPost(null);
+          }
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>ยืนยันการลบโพสต์</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-muted-foreground">
+                คุณต้องการลบโพสต์ "{deletingPost?.title}" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setDeleteDialogOpen(false);
+                    setDeletingPost(null);
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={confirmingDelete}
+                  onClick={handleConfirmDelete}
+                >
+                  {confirmingDelete ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  ลบโพสต์
                 </Button>
               </div>
             </div>
