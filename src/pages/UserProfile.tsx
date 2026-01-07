@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2 } from "lucide-react";
+import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -491,25 +491,58 @@ export default function UserProfile() {
                         </div>
 
                         {/* Actions */}
-                        <div className="px-4 py-3 flex items-center justify-between border-t border-border">
-                          <div className="flex items-center gap-4">
-                            <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
-                              <MessageCircle className="h-5 w-5" />
-                              <span className="text-sm">{post.comments_count || 0}</span>
-                            </button>
-                            <div className="flex items-center gap-1.5 text-muted-foreground">
-                              <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
-                              <span className="text-sm">{post.likes_count || 0}</span>
-                            </div>
+                        <div className="px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10"
+                            >
+                              <Heart 
+                                className={`h-6 w-6 transition-colors ${
+                                  post.is_liked 
+                                    ? "fill-red-500 text-red-500" 
+                                    : "text-foreground"
+                                }`} 
+                              />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-10 w-10"
+                            >
+                              <MessageCircle className="h-6 w-6" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10"
+                            >
+                              <Repeat2 className="h-6 w-6" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10"
+                            >
+                              <Share2 className="h-6 w-6" />
+                            </Button>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button className="text-muted-foreground hover:text-foreground transition-colors">
-                              <Bookmark className="h-5 w-5" />
-                            </button>
-                            <button className="text-muted-foreground hover:text-foreground transition-colors">
-                              <Share2 className="h-5 w-5" />
-                            </button>
-                          </div>
+                          
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10"
+                          >
+                            <Bookmark className="h-6 w-6" />
+                          </Button>
+                        </div>
+
+                        {/* Likes count */}
+                        <div className="px-4 pb-2">
+                          <span className="font-semibold text-sm">
+                            {post.likes_count.toLocaleString()} ถูกใจ
+                          </span>
                         </div>
 
                         {/* Tools/Tags */}
