@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Camera, Save, Loader2, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
+import { ImagePositioner } from '@/components/ui/ImagePositioner';
 
 interface ArtistProfile {
   id: string;
@@ -21,6 +22,9 @@ interface ArtistProfile {
   bio: string | null;
   avatar_url: string | null;
   cover_url: string | null;
+  cover_position_y: number | null;
+  avatar_position_x: number | null;
+  avatar_position_y: number | null;
   specialty: string | null;
   portfolio_url: string | null;
   tools_used: string[] | null;
@@ -176,6 +180,61 @@ const MyArtistProfile = () => {
     }
   };
 
+  const handleCoverPositionChange = async (positionY: number) => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('artist_profiles')
+        .update({ cover_position_y: Math.round(positionY) })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProfile(prev => prev ? { ...prev, cover_position_y: Math.round(positionY) } : null);
+      toast({
+        title: t('profile.positionUpdated', 'อัปเดตตำแหน่งรูปสำเร็จ'),
+      });
+    } catch (error: unknown) {
+      console.error('Position update error:', error);
+      toast({
+        variant: 'destructive',
+        title: t('profile.updateError', 'อัปเดตไม่สำเร็จ'),
+      });
+    }
+  };
+
+  const handleAvatarPositionChange = async (positionY: number, positionX?: number) => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('artist_profiles')
+        .update({ 
+          avatar_position_y: Math.round(positionY),
+          avatar_position_x: positionX ? Math.round(positionX) : 50
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProfile(prev => prev ? { 
+        ...prev, 
+        avatar_position_y: Math.round(positionY),
+        avatar_position_x: positionX ? Math.round(positionX) : 50
+      } : null);
+      toast({
+        title: t('profile.positionUpdated', 'อัปเดตตำแหน่งรูปสำเร็จ'),
+      });
+    } catch (error: unknown) {
+      console.error('Position update error:', error);
+      toast({
+        variant: 'destructive',
+        title: t('profile.updateError', 'อัปเดตไม่สำเร็จ'),
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
 
@@ -253,27 +312,32 @@ const MyArtistProfile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="relative w-full h-40 rounded-lg overflow-hidden bg-muted">
-                  {profile?.cover_url ? (
-                    <img
-                      src={profile.cover_url}
-                      alt="Cover"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
+                {profile?.cover_url ? (
+                  <ImagePositioner
+                    imageUrl={profile.cover_url}
+                    positionY={profile.cover_position_y ?? 50}
+                    onPositionChange={handleCoverPositionChange}
+                    aspectRatio="cover"
+                    className="w-full h-40 rounded-lg"
+                  />
+                ) : (
+                  <div className="relative w-full h-40 rounded-lg overflow-hidden bg-muted">
                     <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background flex items-center justify-center">
                       <p className="text-muted-foreground text-sm">{t('profile.noCover', 'ยังไม่มีรูปปก')}</p>
                     </div>
-                  )}
+                  </div>
+                )}
+                <div className="mt-3 flex justify-center">
                   <label
                     htmlFor="cover-upload"
-                    className="absolute bottom-3 right-3 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+                    className="flex items-center gap-2 cursor-pointer text-sm text-primary hover:underline"
                   >
                     {isUploadingCover ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <ImagePlus className="h-5 w-5" />
+                      <ImagePlus className="h-4 w-4" />
                     )}
+                    {profile?.cover_url ? 'เปลี่ยนรูปปก' : 'อัปโหลดรูปปก'}
                   </label>
                   <input
                     id="cover-upload"
@@ -292,39 +356,52 @@ const MyArtistProfile = () => {
               <CardHeader>
                 <CardTitle>{t('profile.profilePicture', 'รูปโปรไฟล์')}</CardTitle>
                 <CardDescription>
-                  {t('profile.pictureHint', 'คลิกที่รูปเพื่อเปลี่ยนรูปโปรไฟล์')}
+                  {t('profile.pictureHint', 'อัปโหลดและปรับตำแหน่งรูปโปรไฟล์')}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center gap-6">
-                <div className="relative">
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={profile?.avatar_url || ''} />
-                    <AvatarFallback className="text-2xl">
-                      {artistName?.[0]?.toUpperCase() || 'A'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <label
-                    htmlFor="avatar-upload"
-                    className="absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
-                  >
-                    {isUploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
-                  </label>
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarUpload}
-                    disabled={isUploading}
-                  />
-                </div>
-                <div>
-                  <p className="font-medium">{artistName || t('profile.noName', 'ยังไม่ได้ตั้งชื่อ')}</p>
-                  <p className="text-sm text-muted-foreground">{user?.email}</p>
+              <CardContent>
+                <div className="flex items-start gap-6">
+                  {profile?.avatar_url ? (
+                    <ImagePositioner
+                      imageUrl={profile.avatar_url}
+                      positionY={profile.avatar_position_y ?? 50}
+                      positionX={profile.avatar_position_x ?? 50}
+                      onPositionChange={handleAvatarPositionChange}
+                      aspectRatio="avatar"
+                      className="h-32 w-32 rounded-full"
+                    />
+                  ) : (
+                    <Avatar className="h-32 w-32">
+                      <AvatarFallback className="text-3xl">
+                        {artistName?.[0]?.toUpperCase() || 'A'}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <p className="font-medium text-lg">{artistName || t('profile.noName', 'ยังไม่ได้ตั้งชื่อ')}</p>
+                      <p className="text-sm text-muted-foreground">{user?.email}</p>
+                    </div>
+                    <label
+                      htmlFor="avatar-upload"
+                      className="inline-flex items-center gap-2 cursor-pointer text-sm text-primary hover:underline"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                      {profile?.avatar_url ? 'เปลี่ยนรูปโปรไฟล์' : 'อัปโหลดรูปโปรไฟล์'}
+                    </label>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={isUploading}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
