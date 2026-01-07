@@ -832,6 +832,7 @@ export default function Community() {
             .eq('user_id', postData.user_id)
             .eq('type', 'like')
             .eq('reference_id', actualPostId)
+            .eq('actor_id', user.id)
             .gte('created_at', fiveSecondsAgo);
         }
       } else {
@@ -915,7 +916,8 @@ export default function Community() {
                   title: 'มีคนถูกใจโพสต์ของคุณ ❤️',
                   message: `${likerName} ถูกใจโพสต์ของคุณ`,
                   type: 'like',
-                  reference_id: actualPostId
+                  reference_id: actualPostId,
+                  actor_id: user.id
                 });
               }
             }
