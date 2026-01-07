@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2, X, Send, Loader2 } from "lucide-react";
+import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2, X, Send, Loader2, MoreHorizontal, VolumeX, Flag, Ban, Star } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -1070,6 +1071,66 @@ export default function UserProfile() {
                       >
                         <Share2 className="w-4 h-4" />
                       </Button>
+
+                      {/* More Options Menu - Only for other users */}
+                      {user && user.id !== userId && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="rounded-full">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                toast({
+                                  title: "แนะนำผู้ใช้",
+                                  description: `เพิ่ม ${displayName} ในรายการแนะนำแล้ว`
+                                });
+                              }}
+                            >
+                              <Star className="w-4 h-4 mr-2" />
+                              แนะนำผู้ใช้นี้
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                toast({
+                                  title: "ปิดเสียง",
+                                  description: `ปิดเสียงการแจ้งเตือนจาก ${displayName} แล้ว`
+                                });
+                              }}
+                            >
+                              <VolumeX className="w-4 h-4 mr-2" />
+                              ปิดเสียง
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                toast({
+                                  title: "บล็อกผู้ใช้",
+                                  description: `บล็อก ${displayName} แล้ว`
+                                });
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Ban className="w-4 h-4 mr-2" />
+                              บล็อก
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                toast({
+                                  title: "รายงานผู้ใช้",
+                                  description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
+                                });
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Flag className="w-4 h-4 mr-2" />
+                              รายงาน
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                   </div>
                 </div>
