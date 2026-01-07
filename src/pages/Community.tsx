@@ -512,6 +512,85 @@ export default function Community() {
     };
   }, [selectedPost]);
 
+  // Real-time subscription for likes
+  useEffect(() => {
+    const channel = supabase
+      .channel('community-likes-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'community_likes'
+        },
+        (payload) => {
+          const newLike = payload.new as { post_id: string; user_id: string };
+          
+          // Don't update if it's from the current user (already handled locally)
+          if (user && newLike.user_id === user.id) return;
+          
+          // Update like count in posts
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === newLike.post_id) {
+              return { ...post, likes_count: post.likes_count + 1 };
+            }
+            return post;
+          }));
+
+          // Update selectedPost if viewing that post
+          if (selectedPost) {
+            const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+            if (selectedActualId === newLike.post_id) {
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                likes_count: prev.likes_count + 1
+              } : null);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'community_likes'
+        },
+        (payload) => {
+          const deletedLike = payload.old as { post_id: string; user_id: string };
+          
+          // Don't update if it's from the current user (already handled locally)
+          if (user && deletedLike.user_id === user.id) return;
+          
+          // Update like count in posts
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === deletedLike.post_id) {
+              return { ...post, likes_count: Math.max(0, post.likes_count - 1) };
+            }
+            return post;
+          }));
+
+          // Update selectedPost if viewing that post
+          if (selectedPost) {
+            const selectedActualId = selectedPost.original_post_id || selectedPost.id;
+            if (selectedActualId === deletedLike.post_id) {
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                likes_count: Math.max(0, prev.likes_count - 1)
+              } : null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, selectedPost]);
+
   // Infinite scroll observer
   useEffect(() => {
     if (loading) return;
