@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, Loader2 } from 'lucide-react';
+import { Camera, Save, Loader2, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -20,6 +20,7 @@ interface ArtistProfile {
   artist_name: string;
   bio: string | null;
   avatar_url: string | null;
+  cover_url: string | null;
   specialty: string | null;
   portfolio_url: string | null;
   tools_used: string[] | null;
@@ -35,6 +36,7 @@ const MyArtistProfile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   // Form state
   const [artistName, setArtistName] = useState('');
@@ -129,6 +131,51 @@ const MyArtistProfile = () => {
     }
   };
 
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploadingCover(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/cover.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const coverUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('artist_profiles')
+        .update({ cover_url: coverUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile(prev => prev ? { ...prev, cover_url: coverUrl } : null);
+      toast({
+        title: t('profile.coverUpdated', 'อัปเดตรูปปกสำเร็จ'),
+      });
+    } catch (error: unknown) {
+      console.error('Cover upload error:', error);
+      toast({
+        variant: 'destructive',
+        title: t('profile.uploadError', 'อัปโหลดไม่สำเร็จ'),
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
 
@@ -197,7 +244,51 @@ const MyArtistProfile = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="mt-8"
           >
+            {/* Cover Image Card */}
             <Card>
+              <CardHeader>
+                <CardTitle>{t('profile.coverImage', 'รูปปก')}</CardTitle>
+                <CardDescription>
+                  {t('profile.coverHint', 'รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ (แนะนำ 1920x480 pixels)')}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative w-full h-40 rounded-lg overflow-hidden bg-muted">
+                  {profile?.cover_url ? (
+                    <img
+                      src={profile.cover_url}
+                      alt="Cover"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background flex items-center justify-center">
+                      <p className="text-muted-foreground text-sm">{t('profile.noCover', 'ยังไม่มีรูปปก')}</p>
+                    </div>
+                  )}
+                  <label
+                    htmlFor="cover-upload"
+                    className="absolute bottom-3 right-3 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+                  >
+                    {isUploadingCover ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-5 w-5" />
+                    )}
+                  </label>
+                  <input
+                    id="cover-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleCoverUpload}
+                    disabled={isUploadingCover}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Avatar Card */}
+            <Card className="mt-6">
               <CardHeader>
                 <CardTitle>{t('profile.profilePicture', 'รูปโปรไฟล์')}</CardTitle>
                 <CardDescription>
@@ -238,7 +329,7 @@ const MyArtistProfile = () => {
               </CardContent>
             </Card>
 
-            <Card className="mt-6">
+            <Card className="mt-6" id="basic-info-card">
               <CardHeader>
                 <CardTitle>{t('profile.basicInfo', 'ข้อมูลพื้นฐาน')}</CardTitle>
               </CardHeader>
