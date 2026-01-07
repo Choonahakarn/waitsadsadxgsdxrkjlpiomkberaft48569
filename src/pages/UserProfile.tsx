@@ -12,6 +12,8 @@ import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,6 +108,12 @@ export default function UserProfile() {
   
   // Saved posts state
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
+  
+  // Repost state
+  const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set());
+  const [repostDialogPost, setRepostDialogPost] = useState<CommunityPost | null>(null);
+  const [repostCaption, setRepostCaption] = useState("");
+  const [reposting, setReposting] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -127,6 +135,22 @@ export default function UserProfile() {
       }
     };
     fetchSavedPosts();
+  }, [user]);
+
+  // Fetch reposted posts for current user
+  useEffect(() => {
+    const fetchRepostedPosts = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('shared_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
+      if (data) {
+        setRepostedPosts(new Set(data.map(s => s.post_id)));
+      }
+    };
+    fetchRepostedPosts();
   }, [user]);
 
   const fetchUserData = async () => {
@@ -376,6 +400,89 @@ export default function UserProfile() {
         title: "คัดลอกลิงก์แล้ว!",
         description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด"
       });
+    }
+  };
+
+  // Repost handler
+  const handleRepost = async () => {
+    if (!user || !repostDialogPost) return;
+    
+    const postId = repostDialogPost.id;
+    const alreadyReposted = repostedPosts.has(postId);
+    
+    setReposting(true);
+    try {
+      if (alreadyReposted) {
+        // Remove repost
+        await supabase
+          .from('shared_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', postId);
+
+        setRepostedPosts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
+
+        toast({
+          title: "ยกเลิก Repost แล้ว",
+          description: "โพสต์ถูกลบออกจากโปรไฟล์ของคุณแล้ว"
+        });
+      } else {
+        // Create new repost
+        await supabase
+          .from('shared_posts')
+          .insert({
+            user_id: user.id,
+            post_id: postId,
+            caption: repostCaption.trim() || null
+          });
+
+        setRepostedPosts(prev => new Set(prev).add(postId));
+
+        // Notify original poster
+        if (userId && userId !== user.id) {
+          const { data: sharerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+          
+          const { data: sharerArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
+          
+          await supabase.from('notifications').insert({
+            user_id: userId,
+            title: 'โพสต์ของคุณถูกแชร์! 🔁',
+            message: `${sharerName} แชร์ผลงาน "${repostDialogPost.title}" ของคุณ`,
+            type: 'share',
+            reference_id: postId
+          });
+        }
+
+        toast({
+          title: "แชร์โพสต์สำเร็จ! 🔁",
+          description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว"
+        });
+      }
+
+      setRepostDialogPost(null);
+      setRepostCaption("");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setReposting(false);
     }
   };
 
@@ -739,9 +846,13 @@ export default function UserProfile() {
                               variant="ghost"
                               size="icon"
                               className="h-10 w-10"
-                              onClick={() => navigate('/community')}
+                              onClick={() => user ? setRepostDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
                             >
-                              <Repeat2 className="h-6 w-6" />
+                              <Repeat2 
+                                className={`h-6 w-6 transition-colors ${
+                                  repostedPosts.has(post.id) ? "text-green-500" : ""
+                                }`} 
+                              />
                             </Button>
                             <Button
                               variant="ghost"
@@ -914,6 +1025,105 @@ export default function UserProfile() {
                   </Link>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Repost Dialog */}
+      <Dialog open={!!repostDialogPost} onOpenChange={(open) => !open && setRepostDialogPost(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Repeat2 className="h-5 w-5" />
+              {repostDialogPost && repostedPosts.has(repostDialogPost.id) 
+                ? 'ยกเลิก Repost' 
+                : 'แชร์โพสต์'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {repostDialogPost && (
+            <div className="space-y-4">
+              {/* Preview of original post */}
+              <div className="border border-border rounded-lg p-3 flex gap-3">
+                <img
+                  src={repostDialogPost.image_url}
+                  alt={repostDialogPost.title}
+                  className="w-16 h-16 object-cover rounded"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={displayAvatar || undefined} />
+                      <AvatarFallback className="text-[10px]">
+                        {displayName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium truncate">
+                      {displayName}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold truncate">{repostDialogPost.title}</p>
+                </div>
+              </div>
+
+              {/* Caption input - only show for new reposts */}
+              {!repostedPosts.has(repostDialogPost.id) && (
+                <div>
+                  <Label htmlFor="repostCaption">เพิ่มข้อความ (ไม่บังคับ)</Label>
+                  <Input
+                    id="repostCaption"
+                    value={repostCaption}
+                    onChange={(e) => setRepostCaption(e.target.value)}
+                    placeholder="พูดอะไรเกี่ยวกับโพสต์นี้..."
+                    className="mt-1"
+                  />
+                </div>
+              )}
+
+              {/* Info message for already reposted */}
+              {repostedPosts.has(repostDialogPost.id) && (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  คุณได้แชร์โพสต์นี้แล้ว กดปุ่มด้านล่างเพื่อยกเลิก
+                </p>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setRepostDialogPost(null);
+                    setRepostCaption("");
+                  }}
+                >
+                  ปิด
+                </Button>
+                <Button
+                  className="flex-1"
+                  variant={repostedPosts.has(repostDialogPost.id) ? "destructive" : "default"}
+                  onClick={handleRepost}
+                  disabled={reposting}
+                >
+                  {reposting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      กำลังดำเนินการ...
+                    </>
+                  ) : repostedPosts.has(repostDialogPost.id) ? (
+                    <>
+                      <X className="mr-2 h-4 w-4" />
+                      ยกเลิก Repost
+                    </>
+                  ) : (
+                    <>
+                      <Repeat2 className="mr-2 h-4 w-4" />
+                      แชร์โพสต์
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
