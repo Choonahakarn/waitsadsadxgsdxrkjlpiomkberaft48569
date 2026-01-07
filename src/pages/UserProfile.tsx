@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2 } from "lucide-react";
+import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2, X, Send, Loader2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerificationBadge } from "@/components/ui/VerificationBadge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +54,19 @@ interface CommunityPost {
   tools_used: string[] | null;
   comments_count?: number;
   is_liked?: boolean;
+  is_saved?: boolean;
+}
+
+interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user_profile?: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
 }
 
 const formatTimeAgo = (dateString: string) => {
@@ -69,6 +85,7 @@ export default function UserProfile() {
   const { userId } = useParams<{ userId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfileData | null>(null);
@@ -79,12 +96,38 @@ export default function UserProfile() {
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState("portfolio");
+  
+  // Comment dialog state
+  const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+  
+  // Saved posts state
+  const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (userId) {
       fetchUserData();
     }
   }, [userId]);
+
+  // Fetch saved posts for current user
+  useEffect(() => {
+    const fetchSavedPosts = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('saved_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
+      if (data) {
+        setSavedPosts(new Set(data.map(s => s.post_id)));
+      }
+    };
+    fetchSavedPosts();
+  }, [user]);
 
   const fetchUserData = async () => {
     if (!userId) return;
@@ -228,6 +271,183 @@ export default function UserProfile() {
       }
     } catch (error) {
       console.error('Error following user:', error);
+    }
+  };
+
+  // Like handler
+  const handleLike = async (postId: string, isLiked: boolean) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อกดถูกใจ"
+      });
+      return;
+    }
+
+    try {
+      if (isLiked) {
+        // Unlike
+        await supabase
+          .from('community_likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', user.id);
+
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { ...post, is_liked: false, likes_count: Math.max(0, post.likes_count - 1) }
+            : post
+        ));
+      } else {
+        // Like
+        await supabase
+          .from('community_likes')
+          .insert({ post_id: postId, user_id: user.id });
+
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { ...post, is_liked: true, likes_count: post.likes_count + 1 }
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error('Error liking post:', error);
+    }
+  };
+
+  // Save handler
+  const handleSave = async (postId: string) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อบันทึก"
+      });
+      return;
+    }
+
+    const isSaved = savedPosts.has(postId);
+
+    try {
+      if (isSaved) {
+        await supabase
+          .from('saved_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', postId);
+
+        setSavedPosts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
+        toast({ title: "ยกเลิกการบันทึกแล้ว" });
+      } else {
+        await supabase
+          .from('saved_posts')
+          .insert({ user_id: user.id, post_id: postId });
+
+        setSavedPosts(prev => new Set(prev).add(postId));
+        toast({ title: "บันทึกแล้ว ✓" });
+      }
+    } catch (error) {
+      console.error('Error saving post:', error);
+    }
+  };
+
+  // Share handler
+  const handleShare = async (post: CommunityPost) => {
+    const url = `${window.location.origin}/community?post=${post.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: post.title,
+          text: `ดูผลงาน "${post.title}"`,
+          url: url
+        });
+      } catch (error) {
+        // User cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "คัดลอกลิงก์แล้ว!",
+        description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด"
+      });
+    }
+  };
+
+  // Fetch comments
+  const fetchComments = async (postId: string) => {
+    setCommentsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('community_comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const commentsWithProfiles = await Promise.all(
+        (data || []).map(async (comment) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', comment.user_id)
+            .maybeSingle();
+          return { ...comment, user_profile: profile };
+        })
+      );
+
+      setComments(commentsWithProfiles);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  // Open post dialog
+  const handleOpenPost = (post: CommunityPost) => {
+    setSelectedPost(post);
+    fetchComments(post.id);
+  };
+
+  // Submit comment
+  const handleSubmitComment = async () => {
+    if (!user || !selectedPost || !newComment.trim()) return;
+
+    setSubmittingComment(true);
+    try {
+      const { error } = await supabase
+        .from('community_comments')
+        .insert({
+          post_id: selectedPost.id,
+          user_id: user.id,
+          content: newComment.trim()
+        });
+
+      if (error) throw error;
+
+      setNewComment("");
+      fetchComments(selectedPost.id);
+
+      setPosts(posts.map(post =>
+        post.id === selectedPost.id
+          ? { ...post, comments_count: (post.comments_count || 0) + 1 }
+          : post
+      ));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message
+      });
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -497,6 +717,7 @@ export default function UserProfile() {
                               variant="ghost"
                               size="icon"
                               className="h-10 w-10"
+                              onClick={() => handleLike(post.id, post.is_liked || false)}
                             >
                               <Heart 
                                 className={`h-6 w-6 transition-colors ${
@@ -510,6 +731,7 @@ export default function UserProfile() {
                               variant="ghost" 
                               size="icon" 
                               className="h-10 w-10"
+                              onClick={() => handleOpenPost(post)}
                             >
                               <MessageCircle className="h-6 w-6" />
                             </Button>
@@ -517,6 +739,7 @@ export default function UserProfile() {
                               variant="ghost"
                               size="icon"
                               className="h-10 w-10"
+                              onClick={() => navigate('/community')}
                             >
                               <Repeat2 className="h-6 w-6" />
                             </Button>
@@ -524,6 +747,7 @@ export default function UserProfile() {
                               variant="ghost"
                               size="icon"
                               className="h-10 w-10"
+                              onClick={() => handleShare(post)}
                             >
                               <Share2 className="h-6 w-6" />
                             </Button>
@@ -533,8 +757,13 @@ export default function UserProfile() {
                             variant="ghost"
                             size="icon"
                             className="h-10 w-10"
+                            onClick={() => handleSave(post.id)}
                           >
-                            <Bookmark className="h-6 w-6" />
+                            <Bookmark 
+                              className={`h-6 w-6 transition-colors ${
+                                savedPosts.has(post.id) ? "fill-foreground" : ""
+                              }`} 
+                            />
                           </Button>
                         </div>
 
@@ -544,6 +773,18 @@ export default function UserProfile() {
                             {post.likes_count.toLocaleString()} ถูกใจ
                           </span>
                         </div>
+
+                        {/* View comments */}
+                        {(post.comments_count || 0) > 0 && (
+                          <div className="px-4 pb-2">
+                            <button 
+                              className="text-muted-foreground text-sm hover:text-foreground transition-colors"
+                              onClick={() => handleOpenPost(post)}
+                            >
+                              ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
+                            </button>
+                          </div>
+                        )}
 
                         {/* Tools/Tags */}
                         {post.tools_used && post.tools_used.length > 0 && (
@@ -573,6 +814,110 @@ export default function UserProfile() {
           </Tabs>
         </div>
       </div>
+
+      {/* Comment Dialog */}
+      <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle>ความคิดเห็น</DialogTitle>
+          </DialogHeader>
+          
+          {selectedPost && (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Post preview */}
+              <div className="p-4 border-b bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={displayAvatar || undefined} />
+                    <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <span className="font-semibold text-sm">{displayName}</span>
+                    <p className="text-sm text-muted-foreground line-clamp-1">{selectedPost.title}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Comments list */}
+              <ScrollArea className="flex-1 p-4">
+                {commentsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : comments.length > 0 ? (
+                  <div className="space-y-4">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className="flex gap-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {(comment.user_profile?.full_name || "U")[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="bg-muted rounded-xl px-3 py-2">
+                            <span className="font-semibold text-sm">
+                              {comment.user_profile?.full_name || "ผู้ใช้"}
+                            </span>
+                            <p className="text-sm">{comment.content}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground ml-3">
+                            {formatTimeAgo(comment.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    ยังไม่มีความคิดเห็น
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Comment input */}
+              {user ? (
+                <div className="p-4 border-t flex gap-2">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback>{user.email?.[0].toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 flex gap-2">
+                    <Textarea
+                      placeholder="เขียนความคิดเห็น..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="min-h-[40px] max-h-[100px] resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmitComment();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      onClick={handleSubmitComment}
+                      disabled={!newComment.trim() || submittingComment}
+                    >
+                      {submittingComment ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 border-t text-center">
+                  <Link to="/auth">
+                    <Button variant="outline">เข้าสู่ระบบเพื่อแสดงความคิดเห็น</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
