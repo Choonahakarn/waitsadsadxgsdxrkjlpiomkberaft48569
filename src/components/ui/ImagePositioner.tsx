@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Move, Check, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
+import { Move, Check, X } from 'lucide-react';
 
 interface ImagePositionerProps {
   imageUrl: string;
@@ -186,68 +185,26 @@ export function ImagePositioner({
         )}
       </div>
 
-      {/* Edit mode controls - hide when dragging */}
-      {isEditing && !isDragging && (
-        <div className="absolute -bottom-20 left-0 right-0 bg-background/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border animate-fade-in">
-          <div className="flex flex-col gap-3">
-            {/* Position indicator */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>ลากรูปภาพเพื่อปรับตำแหน่ง</span>
-              <span>
-                {aspectRatio === 'avatar' 
-                  ? `X: ${Math.round(tempPositionX)}% Y: ${Math.round(tempPositionY)}%`
-                  : `Y: ${Math.round(tempPositionY)}%`
-                }
-              </span>
-            </div>
-            
-            {/* Y Position Slider */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-12">บน-ล่าง</span>
-              <Slider
-                value={[tempPositionY]}
-                onValueChange={([value]) => setTempPositionY(value)}
-                min={0}
-                max={100}
-                step={1}
-                className="flex-1"
-              />
-            </div>
-            
-            {/* X Position Slider for avatar */}
-            {aspectRatio === 'avatar' && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-12">ซ้าย-ขวา</span>
-                <Slider
-                  value={[tempPositionX]}
-                  onValueChange={([value]) => setTempPositionX(value)}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                />
-              </div>
-            )}
-            
-            {/* Action buttons */}
-            <div className="flex gap-2 justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCancel}
-              >
-                <X className="h-4 w-4 mr-1" />
-                ยกเลิก
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-              >
-                <Check className="h-4 w-4 mr-1" />
-                บันทึก
-              </Button>
-            </div>
-          </div>
+      {/* Edit mode floating action buttons */}
+      {isEditing && (
+        <div className={`absolute bottom-3 right-3 flex gap-2 transition-opacity duration-200 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleCancel}
+            className="h-8 px-3 rounded-full shadow-lg"
+          >
+            <X className="h-4 w-4 mr-1" />
+            ยกเลิก
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            className="h-8 px-3 rounded-full shadow-lg"
+          >
+            <Check className="h-4 w-4 mr-1" />
+            บันทึก
+          </Button>
         </div>
       )}
 
