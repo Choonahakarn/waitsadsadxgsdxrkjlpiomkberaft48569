@@ -960,11 +960,11 @@ export default function UserProfile() {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative -mt-16 md:-mt-20 pb-6"
+              className="relative pb-6"
             >
               <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
-                {/* Large Avatar */}
-                <div className="w-28 h-28 md:w-32 md:h-32 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0">
+                {/* Large Avatar - Only this overlaps the cover */}
+                <div className="w-28 h-28 md:w-32 md:h-32 border-4 border-background shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-20">
                   {displayAvatar ? (
                     <img
                       src={displayAvatar}
@@ -979,8 +979,8 @@ export default function UserProfile() {
                   )}
                 </div>
 
-                {/* Profile Info - Aligned properly */}
-                <div className="flex-1 pt-2 md:pt-8">
+                {/* Profile Info - On solid background, no overlap */}
+                <div className="flex-1 pt-2 md:pt-4">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     {/* Left side - Name and stats */}
                     <div className="space-y-1">
