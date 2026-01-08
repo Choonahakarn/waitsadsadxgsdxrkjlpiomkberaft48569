@@ -84,26 +84,29 @@ export function NotificationBell() {
       items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       const latest = items[0];
-      const count = items.length;
       const hasUnread = items.some(n => !n.is_read);
       const hasNotClicked = items.some(n => !n.is_clicked);
       const ids = items.map(n => n.id);
 
+      // Count unique actors (for "X คนถูกใจ" display)
+      const uniqueActors = new Set(items.map(n => n.actor_id).filter(Boolean));
+      const uniqueCount = uniqueActors.size || items.length;
+
       let displayTitle = latest.title;
       let displayMessage = latest.message;
 
-      if (count > 1) {
-        // Create aggregated display text
+      if (uniqueCount > 1) {
+        // Create aggregated display text based on unique users
         const type = latest.type;
         if (type === 'like') {
           displayTitle = `มีคนถูกใจโพสต์ของคุณ ❤️`;
-          displayMessage = `${count} คนถูกใจโพสต์ของคุณ`;
+          displayMessage = `${uniqueCount} คนถูกใจโพสต์ของคุณ`;
         } else if (type === 'comment') {
           displayTitle = `มีคนแสดงความคิดเห็น 💬`;
-          displayMessage = `${count} ความคิดเห็นใหม่`;
+          displayMessage = `${uniqueCount} ความคิดเห็นใหม่`;
         } else if (type === 'share') {
           displayTitle = `โพสต์ของคุณถูกแชร์! 🔁`;
-          displayMessage = `${count} คนแชร์โพสต์ของคุณ`;
+          displayMessage = `${uniqueCount} คนแชร์โพสต์ของคุณ`;
         }
       }
 
@@ -112,7 +115,7 @@ export function NotificationBell() {
         type: latest.type,
         reference_id: latest.reference_id,
         ids,
-        count,
+        count: uniqueCount,
         latestCreatedAt: latest.created_at,
         hasUnread,
         hasNotClicked,
