@@ -195,6 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    // Redirect to login page and refresh
+    window.location.href = '/auth';
   };
 
   const addRole = async (role: AppRole) => {
