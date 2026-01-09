@@ -2304,23 +2304,26 @@ export default function Community() {
                         />
                       </div>
 
-                      {/* Action Bar - Heart first like Pixiv */}
+                      {/* Action Bar - Like original layout */}
                       <div className="flex items-center justify-between mt-3 px-1">
-                        {/* Left side - Title and Heart */}
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-medium text-sm truncate max-w-[200px]">{post.title}</h3>
+                        {/* Left side - Heart, Comment, Repost, Share */}
+                        <div className="flex items-center gap-4 text-muted-foreground">
                           <button 
-                            className={`flex items-center gap-1 transition-colors ${
-                              post.is_liked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'
+                            className={`transition-colors ${
+                              post.is_liked ? 'text-red-500' : 'hover:text-red-500'
                             }`}
                             onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
                           >
                             <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
                           </button>
-                        </div>
-                        
-                        {/* Right side - Other actions */}
-                        <div className="flex items-center gap-3 text-muted-foreground">
+                          
+                          <button 
+                            className="hover:text-blue-500 transition-colors"
+                            onClick={() => handleOpenPost(post)}
+                          >
+                            <MessageCircle className="h-5 w-5" />
+                          </button>
+                          
                           <button 
                             className={`hover:text-green-500 transition-colors ${
                               repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
@@ -2331,38 +2334,30 @@ export default function Community() {
                           </button>
                           
                           <button 
-                            className={`hover:text-foreground transition-colors ${
-                              savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
-                            }`}
-                            onClick={() => handleSave(post.id, post.original_post_id)}
-                          >
-                            <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
-                          </button>
-                          
-                          <button 
                             className="hover:text-foreground transition-colors"
                             onClick={() => handleShare(post)}
                           >
                             <Share2 className="h-5 w-5" />
                           </button>
                         </div>
+                        
+                        {/* Right side - Bookmark */}
+                        <button 
+                          className={`text-muted-foreground hover:text-foreground transition-colors ${
+                            savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
+                          }`}
+                          onClick={() => handleSave(post.id, post.original_post_id)}
+                        >
+                          <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
+                        </button>
                       </div>
 
-                      {/* Comments Preview - Pixiv style */}
-                      <div 
-                        className="mt-3 bg-muted/30 rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => handleOpenPost(post)}
-                      >
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium">Comments</span>
-                          <span className="text-muted-foreground">{post.comments_count || 0}</span>
-                        </div>
-                        {(post.comments_count || 0) > 0 && (
-                          <p className="text-sm text-muted-foreground mt-1 truncate">
-                            คลิกเพื่อดูความคิดเห็น...
-                          </p>
-                        )}
-                      </div>
+                      {/* Likes count */}
+                      {(post.likes_count || 0) > 0 && (
+                        <p className="text-sm text-foreground mt-2 px-1">
+                          {post.likes_count} ถูกใจ
+                        </p>
+                      )}
                     </motion.article>
                   ))}
                 </div>
