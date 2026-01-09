@@ -36,7 +36,6 @@ const Auth = () => {
   const [signupRoles, setSignupRoles] = useState<AppRole[]>(['buyer']);
   const [signupRealName, setSignupRealName] = useState('');
   const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
-  const [signupArtistName, setSignupArtistName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Forgot password state
@@ -66,12 +65,10 @@ const Auth = () => {
     roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: t('validation.roleRequired') }),
     realName: z.string().optional(),
     phoneNumber: z.string().optional(),
-    artistName: z.string().optional(),
   }).refine((data) => {
     if (data.roles.includes('artist')) {
       return data.realName && data.realName.trim().length >= 2 && 
-             data.phoneNumber && data.phoneNumber.trim().length >= 9 &&
-             data.artistName && data.artistName.trim().length >= 2 && !/\s/.test(data.artistName);
+             data.phoneNumber && data.phoneNumber.trim().length >= 9;
     }
     return true;
   }, {
@@ -170,7 +167,6 @@ const Auth = () => {
       roles: signupRoles,
       realName: signupRealName,
       phoneNumber: signupPhoneNumber,
-      artistName: signupArtistName,
     });
     
     if (!result.success) {
@@ -187,7 +183,7 @@ const Auth = () => {
     setIsSubmitting(true);
     
     const artistVerification = signupRoles.includes('artist') 
-      ? { realName: signupRealName, phoneNumber: signupPhoneNumber, artistName: signupArtistName }
+      ? { realName: signupRealName, phoneNumber: signupPhoneNumber, artistName: signupDisplayName }
       : undefined;
     
     const { error } = await signUp(signupEmail, signupPassword, signupFirstName, signupLastName, signupDisplayId, signupDisplayName, signupRoles, artistVerification);
@@ -574,29 +570,6 @@ const Auth = () => {
                             className="pl-10"
                           />
                         </div>
-                      </div>
-
-                      {/* Artist Name Field */}
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-artistname">ชื่อศิลปิน <span className="text-destructive">*</span></Label>
-                        <div className="relative">
-                          <Palette className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            id="signup-artistname"
-                            type="text"
-                            placeholder="ชื่อที่จะแสดงในโปรไฟล์ศิลปิน"
-                            value={signupArtistName}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\s/g, '');
-                              setSignupArtistName(value);
-                            }}
-                            className="pl-10"
-                          />
-                        </div>
-                        {errors.signup_artistName && (
-                          <p className="text-sm text-destructive">{errors.signup_artistName}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้ (เปลี่ยนได้ทุก 30 วัน)</p>
                       </div>
                       
                       {errors.signup_artistVerification && (
