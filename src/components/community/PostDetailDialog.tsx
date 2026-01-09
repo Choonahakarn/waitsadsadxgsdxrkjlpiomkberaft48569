@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MentionInput, renderTextWithMentions } from "@/components/ui/MentionInput";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,12 @@ interface CommunityPost {
   title: string;
   description: string | null;
   image_url: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
   tools_used: string[];
   hashtags?: string[];
   category: string | null;
@@ -220,10 +227,18 @@ export function PostDetailDialog({
 
             {/* Main Image - Scrollable for tall images */}
             <div className="relative z-10 w-full h-full overflow-y-auto flex justify-center">
-              <img
+              <OptimizedImage
                 src={post.image_url}
+                variants={{
+                  blur: post.image_blur_url || undefined,
+                  small: post.image_small_url || undefined,
+                  medium: post.image_medium_url || undefined,
+                  large: post.image_large_url || undefined,
+                }}
                 alt={post.title}
-                className="w-auto max-w-full object-contain"
+                variant="fullscreen"
+                className="w-auto max-w-full"
+                priority
               />
             </div>
 
@@ -327,10 +342,18 @@ export function PostDetailDialog({
           <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative">
             {/* Semi-transparent dark overlay */}
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            <img
+            <OptimizedImage
               src={post.image_url}
+              variants={{
+                blur: post.image_blur_url || undefined,
+                small: post.image_small_url || undefined,
+                medium: post.image_medium_url || undefined,
+                large: post.image_large_url || undefined,
+              }}
               alt={post.title}
-              className="relative z-10 max-h-full max-w-full object-contain"
+              variant="fullscreen"
+              className="relative z-10 max-h-full max-w-full"
+              priority
             />
           </div>
 

@@ -18,12 +18,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
+import ImageUploader from "@/components/ui/ImageUploader";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +41,12 @@ interface CommunityPost {
   title: string;
   description: string | null;
   image_url: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
   tools_used: string[];
   hashtags?: string[];
   category: string | null;
@@ -111,12 +120,14 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user, isArtist, isBuyer } = useAuth();
+  const { user, isArtist, isBuyer, isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
+  const { settings: appSettings, loading: appSettingsLoading } = useAppSettings();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -145,6 +156,15 @@ export default function Community() {
   const [addToPortfolio, setAddToPortfolio] = useState(false);
   const [artistProfile, setArtistProfile] = useState<{ id: string; artist_name: string } | null>(null);
   const [price, setPrice] = useState("");
+  // Cloudinary upload state
+  const [uploadedImageData, setUploadedImageData] = useState<{
+    image_url: string;
+    image_blur_url?: string;
+    image_small_url?: string;
+    image_medium_url?: string;
+    image_large_url?: string;
+    image_asset_id?: string;
+  } | null>(null);
   
   // Filters
   const [activeTab, setActiveTab] = useState<FeedTab>('discover');
@@ -285,6 +305,64 @@ export default function Community() {
       }
     } catch (error) {
       console.error('Error fetching reposted posts:', error);
+    }
+  }, [user]);
+
+  // Fetch discover posts (mix of random + popular for new artists visibility)
+  const fetchRecommendedPosts = useCallback(async () => {
+    try {
+      // Fetch more posts to shuffle and include variety
+      const { data: postsData, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      // Shuffle posts but keep some popular ones prominent
+      const shuffled = [...(postsData || [])].sort(() => Math.random() - 0.5);
+      
+      // Take first 20 for display
+      const selectedPosts = shuffled.slice(0, 20);
+
+      const postsWithDetails = await Promise.all(
+        selectedPosts.map(async (post) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', post.user_id)
+            .maybeSingle();
+
+          const { data: artistProf } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', post.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          return {
+            ...post,
+            user_profile: profile,
+            artist_profile: artistProf,
+            is_liked: isLiked,
+          } as CommunityPost;
+        })
+      );
+
+      setRecommendedPosts(postsWithDetails);
+    } catch (error) {
+      console.error('Error fetching recommended posts:', error);
     }
   }, [user]);
 
@@ -514,7 +592,8 @@ export default function Community() {
     fetchSavedPosts();
     fetchRepostedPosts();
     fetchArtistProfile();
-  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile]);
+    fetchRecommendedPosts();
+  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile, fetchRecommendedPosts]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -819,8 +898,34 @@ export default function Community() {
     }
   };
 
+  // Handle Cloudinary upload result
+  const handleImageUploadComplete = (result: any) => {
+    if (result.success && result.variants) {
+      setUploadedImageData({
+        image_url: result.image_url || result.variants.url_medium,
+        image_blur_url: result.variants.url_blur,
+        image_small_url: result.variants.url_small,
+        image_medium_url: result.variants.url_medium,
+        image_large_url: result.variants.url_large,
+        image_asset_id: result.imageAsset?.id
+      });
+      setImagePreview(result.variants.url_medium);
+      // Set a dummy file object to indicate we have an image
+      setImageFile(new File([], 'cloudinary-upload'));
+    }
+  };
+
+  const handleClearUploadedImage = () => {
+    setUploadedImageData(null);
+    setImagePreview("");
+    setImageFile(null);
+  };
+
   const handleSubmitPost = async () => {
-    if (!user || !title || !imageFile) {
+    // Check if we have an uploaded image (either from Cloudinary or legacy)
+    const hasImage = uploadedImageData || imageFile;
+    
+    if (!user || !title || !hasImage) {
       toast({
         variant: "destructive",
         title: "ข้อมูลไม่ครบ",
@@ -841,17 +946,39 @@ export default function Community() {
 
     setSubmitting(true);
     try {
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from('artworks')
-        .upload(fileName, imageFile);
+      let imageUrl: string;
+      let imageBlurUrl: string | null = null;
+      let imageSmallUrl: string | null = null;
+      let imageMediumUrl: string | null = null;
+      let imageLargeUrl: string | null = null;
+      let imageAssetId: string | null = null;
 
-      if (uploadError) throw uploadError;
+      // If we have Cloudinary uploaded data, use it directly
+      if (uploadedImageData) {
+        imageUrl = uploadedImageData.image_url;
+        imageBlurUrl = uploadedImageData.image_blur_url || null;
+        imageSmallUrl = uploadedImageData.image_small_url || null;
+        imageMediumUrl = uploadedImageData.image_medium_url || null;
+        imageLargeUrl = uploadedImageData.image_large_url || null;
+        imageAssetId = uploadedImageData.image_asset_id || null;
+      } else if (imageFile && imageFile.name !== 'cloudinary-upload') {
+        // Legacy fallback: upload to Supabase storage
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('artworks')
+          .upload(fileName, imageFile);
 
-      const { data: urlData } = supabase.storage
-        .from('artworks')
-        .getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('artworks')
+          .getPublicUrl(fileName);
+        
+        imageUrl = urlData.publicUrl;
+      } else {
+        throw new Error('No image to upload');
+      }
 
       // Parse hashtags - extract tags from the hashtags field
       const parsedHashtags = hashtags
@@ -871,7 +998,12 @@ export default function Community() {
           user_id: user.id,
           title,
           description: description || null,
-          image_url: urlData.publicUrl,
+          image_url: imageUrl,
+          image_blur_url: imageBlurUrl,
+          image_small_url: imageSmallUrl,
+          image_medium_url: imageMediumUrl,
+          image_large_url: imageLargeUrl,
+          image_asset_id: imageAssetId,
           category: category || null,
           tools_used: parsedTools,
           hashtags: parsedHashtags
@@ -892,7 +1024,12 @@ export default function Community() {
             artist_id: artistProfile.id,
             title,
             description: description || null,
-            image_url: urlData.publicUrl,
+            image_url: imageUrl,
+            image_blur_url: imageBlurUrl,
+            image_small_url: imageSmallUrl,
+            image_medium_url: imageMediumUrl,
+            image_large_url: imageLargeUrl,
+            image_asset_id: imageAssetId,
             category: artworkCategory,
             tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
             price: price ? parseFloat(price) : 0,
@@ -927,6 +1064,7 @@ export default function Community() {
       setHashtags("");
       setImageFile(null);
       setImagePreview("");
+      setUploadedImageData(null);
       setAddToPortfolio(false);
       setPrice("");
       setIsCreateOpen(false);
@@ -1343,6 +1481,9 @@ export default function Community() {
       setNewComment("");
       fetchComments(actualPostId);
       
+      // Update posts and selectedPost comment count
+      const newCommentCount = (selectedPost.comments_count || 0) + 1;
+      
       setPosts(posts.map(post => {
         // Update both the repost and original post if they exist
         const postActualId = post.original_post_id || post.id;
@@ -1351,6 +1492,9 @@ export default function Community() {
         }
         return post;
       }));
+      
+      // Also update selectedPost state
+      setSelectedPost(prev => prev ? { ...prev, comments_count: newCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1447,6 +1591,9 @@ export default function Community() {
       setReplyingToComment(null);
       fetchComments(actualPostId);
       
+      // Update posts and selectedPost comment count for reply
+      const newReplyCommentCount = (selectedPost.comments_count || 0) + 1;
+      
       setPosts(posts.map(post => {
         const postActualId = post.original_post_id || post.id;
         if (postActualId === actualPostId) {
@@ -1454,6 +1601,9 @@ export default function Community() {
         }
         return post;
       }));
+      
+      // Also update selectedPost state
+      setSelectedPost(prev => prev ? { ...prev, comments_count: newReplyCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1931,59 +2081,38 @@ export default function Community() {
   }, [selectedPost]);
 
   const tabs = [
-    { id: 'discover' as FeedTab, label: 'Discover', icon: Sparkles },
-    { id: 'following' as FeedTab, label: 'Following', icon: Users },
-    { id: 'latest' as FeedTab, label: 'Latest', icon: Clock },
+    { id: 'discover' as FeedTab, label: 'Discover' },
+    { id: 'following' as FeedTab, label: 'Following' },
+    { id: 'latest' as FeedTab, label: 'Latest' },
   ];
+
+  // Check if Discover section should be shown
+  const showDiscoverSection = appSettings.community_enabled;
 
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Sticky Header */}
+        {/* Sticky Header - Cara style tabs */}
         <div className="border-b border-border bg-background/95 backdrop-blur sticky top-20 z-40">
-          <div className="container mx-auto max-w-6xl px-4">
-            <div className="max-w-2xl mx-auto lg:mx-0 lg:max-w-none lg:pr-[340px]">
-            {/* Search Bar */}
-            <div className="py-3">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="ค้นหาผลงาน..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-12 h-11 bg-muted/50 border-0 rounded-full"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex items-center justify-center gap-1 border-t border-border">
+          <div className="container mx-auto max-w-7xl px-4">
+            <div className="flex items-center justify-center">
+            {/* Tabs - Cara style */}
+            <div className="flex items-center justify-center gap-8">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${
+                  className={`relative py-3 text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <tab.icon className="h-4 w-4" />
                   {tab.label}
                   {activeTab === tab.id && (
                     <motion.div
                       layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground"
                     />
                   )}
                 </button>
@@ -1993,330 +2122,259 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Main Content with Sidebar */}
-        <div className="container mx-auto max-w-6xl px-4 py-4">
-          <div className="flex gap-6 items-stretch">
-            {/* Feed Content */}
-            <div ref={feedRef} className="flex-1 max-w-2xl">
-          {loading ? (
-            <div className="py-20 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-              <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
-            </div>
-          ) : filteredPosts.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
-                <Search className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
-              <p className="text-muted-foreground mb-4">
-                {activeTab === 'following' 
-                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
-                  : searchQuery ? 'ลองค้นหาด้วยคำอื่น' : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
-              </p>
-              {searchQuery && (
-                <Button variant="outline" onClick={() => setSearchQuery("")}>
-                  ล้างการค้นหา
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <AnimatePresence>
-                {filteredPosts.map((post, index) => (
-                  <motion.article
-                    key={post.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-card border border-border rounded-xl overflow-hidden"
+        {/* Recommended Works Section - Full Width Masonry like Cara */}
+        {showDiscoverSection && recommendedPosts.length > 0 && activeTab === 'discover' && (
+          <div className="bg-background">
+            <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
+              {recommendedPosts.map((post, index) => {
+                // Make posts with higher likes larger (span 2 rows visually by not constraining height)
+                const isPopular = (post.likes_count || 0) >= 3;
+                
+                return (
+                  <motion.div
+                    key={`rec-${post.id}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.015 }}
+                    className="group relative cursor-pointer break-inside-avoid"
+                    onClick={() => handleOpenPost(post)}
                   >
-                    {/* Repost Header */}
-                    {post.is_repost && post.repost_user_id && (
-                      <Link to={`/profile/${post.repost_user_id}`} className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <Repeat2 className="h-4 w-4" />
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium text-foreground">
-                          {getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
-                        </span>
-                        {isBuyerUser(post.repost_artist_profile) && (
-                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                            Buyer
-                          </Badge>
-                        )}
-                        <span>รีโพสต์</span>
-                        <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
-                      </Link>
-                    )}
+                    <div className="relative overflow-hidden">
+                      <OptimizedImage
+                        src={post.image_url}
+                        variants={{
+                          blur: post.image_blur_url || undefined,
+                          small: post.image_small_url || undefined,
+                          medium: post.image_medium_url || undefined,
+                          large: post.image_large_url || undefined,
+                        }}
+                        alt={post.title}
+                        variant="feed"
+                        className={`w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300 ${
+                          isPopular ? 'ring-2 ring-primary/50' : ''
+                        }`}
+                      />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200" />
+                      {/* Like button overlay */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLike(post.id, post.is_liked || false);
+                        }}
+                        className="absolute bottom-2 right-2 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                      </button>
+                      {/* Popular badge */}
+                      {isPopular && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          🔥 Popular
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-                    {/* Repost Caption */}
-                    {post.is_repost && post.repost_caption && (
-                      <div className="px-4 py-2 bg-muted/30">
-                        <p className="text-sm">{post.repost_caption}</p>
-                      </div>
-                    )}
-
-                    {/* Post Header */}
-                    <div className="flex items-center justify-between p-4">
-                      <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-foreground">
+        {/* Main Content */}
+        <div className="flex justify-center px-4 py-6">
+          <div className="flex gap-8 w-full max-w-[900px]">
+            {/* Feed Content - Vertical scrolling feed */}
+            <div ref={feedRef} className="flex-1 min-w-0 max-w-[560px]">
+              {loading ? (
+                <div className="py-20 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
+                </div>
+              ) : filteredPosts.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+                    <Search className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {activeTab === 'following' 
+                      ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
+                      : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-0 divide-y divide-border">
+                  {filteredPosts.map((post, index) => (
+                    <motion.article
+                      key={`${post.id}-${post.is_repost ? 'repost' : 'original'}-${index}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: index * 0.02 }}
+                      className="py-5 first:pt-0"
+                    >
+                      {/* Post Header */}
+                      <div className="flex items-start gap-3 mb-2">
+                        <Link to={`/profile/${post.user_id}`}>
+                          <Avatar className="h-10 w-10 border border-border">
+                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Link to={`/profile/${post.user_id}`} className="font-semibold text-foreground hover:underline">
                               {getDisplayName(post.user_profile, post.artist_profile)}
-                            </span>
+                            </Link>
                             {post.artist_profile?.is_verified && (
                               <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
                                 ✓
                               </Badge>
                             )}
-                            {isBuyerUser(post.artist_profile) && (
-                              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                                Buyer
-                              </Badge>
-                            )}
+                            <span className="text-muted-foreground text-sm">
+                              · {formatTimeAgo(post.created_at)}
+                            </span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto -mr-2">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setShareDialogPost(post)}>
+                                  <Repeat2 className="h-4 w-4 mr-2" />
+                                  แชร์โพสต์ภายใน
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleShare(post)}>
+                                  <Share2 className="h-4 w-4 mr-2" />
+                                  แชร์ลิงก์
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleSave(post.id, post.original_post_id)}>
+                                  <Bookmark className="h-4 w-4 mr-2" />
+                                  {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
+                                </DropdownMenuItem>
+                                {user && user.id === post.user_id && !post.is_repost && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => openEditDialog(post)}>
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      แก้ไขโพสต์
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => openDeleteDialog(post)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      ลบโพสต์
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {user && user.id !== post.user_id && (
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setReportingPost(post);
+                                      setReportDialogOpen(true);
+                                    }}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Flag className="h-4 w-4 mr-2" />
+                                    รายงานโพสต์
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimeAgo(post.created_at)}
-                          </span>
+                          
+                          {/* Title */}
+                          <h3 className="font-semibold text-foreground">{post.title}</h3>
+                          
+                          {/* Description */}
+                          {post.description && (
+                            <p className="text-muted-foreground text-sm mt-0.5">
+                              {renderTextWithMentions(post.description)}
+                            </p>
+                          )}
                         </div>
-                      </Link>
-                      
-                      <div className="flex items-center gap-2">
-                        {user && user.id !== post.user_id && (
-                          <Button
-                            variant={followingUsers.has(post.user_id) ? "secondary" : "default"}
-                            size="sm"
-                            className="h-8"
-                            onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
-                          >
-                            {followingUsers.has(post.user_id) ? (
-                              <>
-                                <UserCheck className="h-3.5 w-3.5 mr-1" />
-                                Following
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                                Follow
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setShareDialogPost(post)}>
-                              <Repeat2 className="h-4 w-4 mr-2" />
-                              แชร์โพสต์ภายใน
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleShare(post)}>
-                              <Share2 className="h-4 w-4 mr-2" />
-                              แชร์ลิงก์
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave(post.id, post.original_post_id)}>
-                              <Bookmark className="h-4 w-4 mr-2" />
-                              {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
-                            </DropdownMenuItem>
-                            {/* Edit/Delete for own posts */}
-                            {user && user.id === post.user_id && !post.is_repost && (
-                              <>
-                                <DropdownMenuItem onClick={() => openEditDialog(post)}>
-                                  <Pencil className="h-4 w-4 mr-2" />
-                                  แก้ไขโพสต์
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => openDeleteDialog(post)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  ลบโพสต์
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {user && user.id !== post.user_id && (
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  setReportingPost(post);
-                                  setReportDialogOpen(true);
-                                }}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Flag className="h-4 w-4 mr-2" />
-                                รายงานโพสต์
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
-                    </div>
 
-                    {/* Image */}
-                    <div 
-                      className="relative aspect-square bg-muted cursor-pointer"
-                      onClick={() => handleOpenPost(post)}
-                    >
-                      <img
-                        src={post.image_url}
-                        alt={post.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
+                      {/* Image */}
+                      <div 
+                        className="relative cursor-pointer rounded-2xl overflow-hidden mt-3 border border-border/50"
+                        onClick={() => handleOpenPost(post)}
+                      >
+                        <OptimizedImage
+                          src={post.image_url}
+                          variants={{
+                            blur: post.image_blur_url || undefined,
+                            small: post.image_small_url || undefined,
+                            medium: post.image_medium_url || undefined,
+                            large: post.image_large_url || undefined,
+                          }}
+                          alt={post.title}
+                          variant="feed"
+                          className="w-full"
+                        />
+                      </div>
 
-                    {/* Actions */}
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10"
-                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
-                        >
-                          <Heart 
-                            className={`h-6 w-6 transition-colors ${
-                              post.is_liked 
-                                ? "fill-red-500 text-red-500" 
-                                : "text-foreground"
-                            }`} 
-                          />
-                        </Button>
-                        <div className="flex items-center">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10"
+                      {/* Action Bar - Like original layout */}
+                      <div className="flex items-center justify-between mt-3 px-1">
+                        {/* Left side - Heart, Comment, Repost, Share */}
+                        <div className="flex items-center gap-4 text-muted-foreground">
+                          <button 
+                            className={`transition-colors ${
+                              post.is_liked ? 'text-red-500' : 'hover:text-red-500'
+                            }`}
+                            onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
+                          >
+                            <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
+                          </button>
+                          
+                          <button 
+                            className="hover:text-blue-500 transition-colors"
                             onClick={() => handleOpenPost(post)}
                           >
-                            <MessageCircle className="h-6 w-6" />
-                          </Button>
-                          {(post.comments_count || 0) > 0 && (
-                            <span className="text-sm text-muted-foreground -ml-1">{post.comments_count}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10"
+                            <MessageCircle className="h-5 w-5" />
+                          </button>
+                          
+                          <button 
+                            className={`hover:text-green-500 transition-colors ${
+                              repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
+                            }`}
                             onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
                           >
-                            <Repeat2 className="h-6 w-6" />
-                          </Button>
-                          {(post.shares_count || 0) > 0 && (
-                            <span className="text-sm text-muted-foreground -ml-1">{post.shares_count}</span>
-                          )}
+                            <Repeat2 className="h-5 w-5" />
+                          </button>
+                          
+                          <button 
+                            className="hover:text-foreground transition-colors"
+                            onClick={() => handleShare(post)}
+                          >
+                            <Share2 className="h-5 w-5" />
+                          </button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10"
-                          onClick={() => handleShare(post)}
-                        >
-                          <Share2 className="h-6 w-6" />
-                        </Button>
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={() => handleSave(post.id, post.original_post_id)}
-                      >
-                        <Bookmark 
-                          className={`h-6 w-6 transition-colors ${
-                            savedPosts.has(post.original_post_id || post.id) 
-                              ? "fill-foreground"
-                              : ""
-                          }`} 
-                        />
-                      </Button>
-                    </div>
-
-                    {/* Likes & Reposts count */}
-                    <div className="px-4 pb-2 flex items-center gap-4">
-                      <span className="font-semibold text-sm">
-                        {post.likes_count.toLocaleString()} ถูกใจ
-                      </span>
-                      {(post.shares_count || 0) > 0 && (
-                        <span className="text-muted-foreground text-sm flex items-center gap-1">
-                          <Repeat2 className="h-4 w-4" />
-                          {post.shares_count} รีโพสต์
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="px-4 pb-4 space-y-2">
-                      {/* Title & Description */}
-                      <div>
-                        <span className="font-semibold mr-2">
-                          {getDisplayName(post.user_profile, post.artist_profile)}
-                        </span>
-                        <span className="text-foreground">{post.title}</span>
-                        {post.description && (
-                          <p className="text-muted-foreground text-sm mt-1">
-                            {renderTextWithMentions(post.description)}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Category, Tools & Tags */}
-                      {(post.category || (post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
-                        <div className="flex flex-wrap gap-1">
-                          {post.category && (
-                            <Badge variant="secondary" className="text-xs">
-                              {post.category}
-                            </Badge>
-                          )}
-                          {post.tools_used?.slice(0, 3).map((tool, i) => (
-                            <Badge key={`tool-${i}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                              🛠 {tool}
-                            </Badge>
-                          ))}
-                          {post.hashtags?.slice(0, 5).map((tag, i) => (
-                            <button
-                              key={`tag-${i}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTag(tag);
-                              }}
-                              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
-                            >
-                              #{tag}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* View comments */}
-                      {(post.comments_count || 0) > 0 && (
+                        
+                        {/* Right side - Bookmark */}
                         <button 
-                          className="text-muted-foreground text-sm"
-                          onClick={() => handleOpenPost(post)}
+                          className={`text-muted-foreground hover:text-foreground transition-colors ${
+                            savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
+                          }`}
+                          onClick={() => handleSave(post.id, post.original_post_id)}
                         >
-                          ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
+                          <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
                         </button>
-                      )}
-                    </div>
-                  </motion.article>
-                ))}
-              </AnimatePresence>
+                      </div>
 
+                      {/* Likes count */}
+                      {(post.likes_count || 0) > 0 && (
+                        <p className="text-sm text-foreground mt-2 px-1">
+                          {post.likes_count} ถูกใจ
+                        </p>
+                      )}
+                    </motion.article>
+                  ))}
+                </div>
+              )}
+              
               {/* Load More Trigger */}
               <div ref={loadMoreRef} className="py-8 text-center">
                 {loadingMore && (
@@ -2332,16 +2390,14 @@ export default function Community() {
                 )}
               </div>
             </div>
-          )}
-            </div>
 
             {/* Sidebar (desktop): sticky + internal scroll (scrollbar hidden) */}
-            <aside className="hidden lg:block w-80 shrink-0">
+            <aside className="hidden lg:block w-72 shrink-0">
               <div
                 ref={sidebarScrollRef}
-                className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-hidden pr-1"
+                className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-hidden"
               >
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {/* Active Filters Display */}
                   {(selectedTag || selectedCategory) && (
                     <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
@@ -2573,44 +2629,23 @@ export default function Community() {
                 <div>
                   <Label htmlFor="image">รูปภาพ *</Label>
                   <div className="mt-2">
-                    {imagePreview ? (
-                      <div className="relative">
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="w-full rounded-lg object-cover max-h-64"
-                        />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute right-2 top-2"
-                          onClick={() => {
-                            setImageFile(null);
-                            setImagePreview("");
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <label className="flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 hover:border-primary transition-colors">
-                        <Image className="h-10 w-10 text-muted-foreground" />
-                        <span className="mt-2 text-sm text-muted-foreground">
-                          คลิกเพื่ออัปโหลดรูปภาพ
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageChange}
-                        />
-                      </label>
+                    <ImageUploader
+                      onUploadComplete={handleImageUploadComplete}
+                      folder="community"
+                      preview={imagePreview}
+                      onPreviewClear={handleClearUploadedImage}
+                    />
+                    {uploadedImageData && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        อัปโหลดสำเร็จ! รูปภาพถูก optimize เรียบร้อยแล้ว
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Add to Portfolio checkbox */}
-                {artistProfile && imageFile && (
+                {artistProfile && (imageFile || uploadedImageData) && (
                   <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/30">
                     <div className="flex items-center space-x-3">
                       <Checkbox
@@ -2647,7 +2682,7 @@ export default function Community() {
                 
                 <Button
                   onClick={handleSubmitPost}
-                  disabled={submitting || !title || !imageFile}
+                  disabled={submitting || !title || (!imageFile && !uploadedImageData)}
                   className="w-full"
                   size="lg"
                 >
