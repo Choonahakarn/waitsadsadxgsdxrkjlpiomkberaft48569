@@ -213,7 +213,7 @@ const Auth = () => {
       // Navigate to verify email page with email and artist flag
       navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}&artist=true`);
     } else {
-      // For buyers, auto-confirm via edge function
+      // For buyers, auto-confirm via edge function then login
       try {
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-buyer-email`, {
           method: 'POST',
@@ -226,20 +226,46 @@ const Auth = () => {
         
         const data = await response.json();
         
-        if (!response.ok) {
+        if (!response.ok || !data.success) {
           console.error('Auto-confirm error:', data);
+          setIsSubmitting(false);
+          toast({
+            variant: 'destructive',
+            title: 'เกิดข้อผิดพลาด',
+            description: 'ไม่สามารถยืนยันอีเมลได้ กรุณาลองอีกครั้ง',
+          });
+          return;
         }
+
+        // After confirming, login the buyer
+        const { error: loginError } = await signIn(signupEmail, signupPassword);
+        
+        if (loginError) {
+          console.error('Auto-login error:', loginError);
+          setIsSubmitting(false);
+          toast({
+            title: '✅ สมัครสมาชิกสำเร็จ',
+            description: 'กรุณาเข้าสู่ระบบเพื่อใช้งาน',
+          });
+          return;
+        }
+
+        setIsSubmitting(false);
+        toast({
+          title: '🎉 สมัครสมาชิกสำเร็จ!',
+          description: 'ยินดีต้อนรับสู่ The Human Canvas',
+          duration: 3000,
+        });
+        navigate('/');
       } catch (err) {
         console.error('Failed to auto-confirm buyer:', err);
+        setIsSubmitting(false);
+        toast({
+          variant: 'destructive',
+          title: 'เกิดข้อผิดพลาด',
+          description: 'กรุณาลองอีกครั้ง',
+        });
       }
-      
-      setIsSubmitting(false);
-      toast({
-        title: '🎉 สมัครสมาชิกสำเร็จ!',
-        description: 'ยินดีต้อนรับสู่ The Human Canvas',
-        duration: 3000,
-      });
-      navigate('/');
     }
   };
 
