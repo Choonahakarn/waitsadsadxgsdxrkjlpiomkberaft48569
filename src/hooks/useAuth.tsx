@@ -9,7 +9,15 @@ interface AuthContextType {
   session: Session | null;
   roles: AppRole[];
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, roles: AppRole[], artistVerification?: { realName: string; phoneNumber: string }) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string, 
+    password: string, 
+    firstName: string, 
+    lastName: string, 
+    displayId: string,
+    roles: AppRole[], 
+    artistVerification?: { realName: string; phoneNumber: string }
+  ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   addRole: (role: AppRole) => Promise<{ error: Error | null }>;
@@ -17,6 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isArtist: boolean;
   isBuyer: boolean;
+  checkDisplayIdAvailable: (displayId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,14 +84,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const checkDisplayIdAvailable = async (displayId: string): Promise<boolean> => {
+    if (!displayId.trim()) return true;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('display_id', displayId)
+      .maybeSingle();
+    
+    return !data && !error;
+  };
+
   const signUp = async (
     email: string, 
     password: string, 
-    fullName: string, 
+    firstName: string, 
+    lastName: string,
+    displayId: string,
     selectedRoles: AppRole[],
     artistVerification?: { realName: string; phoneNumber: string }
   ) => {
     const redirectUrl = `${window.location.origin}/`;
+    const fullName = `${firstName} ${lastName}`.trim();
     
     // If artist is selected, always include buyer role
     const rolesToAdd = selectedRoles.includes('artist') && !selectedRoles.includes('buyer')
@@ -100,9 +124,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           full_name: fullName,
           role: primaryRole,
+          display_id: displayId || undefined,
         },
       },
     });
+
+    // Update profile with display_id if provided
+    if (!error && data.user && displayId) {
+      await supabase
+        .from('profiles')
+        .update({ display_id: displayId })
+        .eq('id', data.user.id);
+    }
 
     // If signup successful and user has additional roles, add them
     if (!error && data.user && rolesToAdd.length > 1) {
@@ -117,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (roleToInsert === 'artist' && artistVerification) {
           await supabase.from('artist_profiles').insert({
             user_id: data.user.id,
-            artist_name: fullName || 'Artist',
+            artist_name: displayId || fullName || 'Artist',
             real_name: artistVerification.realName,
             phone_number: artistVerification.phoneNumber,
             verification_submitted_at: new Date().toISOString(),
@@ -130,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!error && data.user && primaryRole === 'artist' && artistVerification) {
       await supabase.from('artist_profiles')
         .update({
+          artist_name: displayId || fullName || 'Artist',
           real_name: artistVerification.realName,
           phone_number: artistVerification.phoneNumber,
           verification_submitted_at: new Date().toISOString(),
@@ -206,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: roles.includes('admin'),
     isArtist: roles.includes('artist'),
     isBuyer: roles.includes('buyer'),
+    checkDisplayIdAvailable,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
