@@ -303,4 +303,14 @@
   .border-terracotta {
     border-color: hsl(var(--terracotta));
   }
+
+  /* Hide scrollbars but keep scrolling enabled */
+  .scrollbar-hidden {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 }
