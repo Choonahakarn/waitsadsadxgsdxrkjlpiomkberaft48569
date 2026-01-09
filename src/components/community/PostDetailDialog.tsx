@@ -310,22 +310,24 @@ export function PostDetailDialog({
   // Cara-style layout for normal/wide images
   return (
     <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden gap-0 border-0 rounded-none">
+      <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden gap-0 border-0 rounded-none bg-transparent [&>button]:hidden">
         <div className="flex flex-col lg:flex-row h-full w-full">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            className="absolute top-4 left-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Section - Left - Full height and flexible width */}
-          <div className="flex-1 bg-black flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden">
+          {/* Image Section - Center - with blurred background showing through */}
+          <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative">
+            {/* Semi-transparent dark overlay */}
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <img
               src={post.image_url}
               alt={post.title}
-              className="h-full w-full object-contain"
+              className="relative z-10 max-h-full max-w-full object-contain"
             />
           </div>
 
