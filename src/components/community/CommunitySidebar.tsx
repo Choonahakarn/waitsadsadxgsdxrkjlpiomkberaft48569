@@ -221,7 +221,6 @@ export function CommunitySidebar({
       {/* Latest Discussions */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
-          <MessageCircle className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">โพสต์ล่าสุด</h3>
         </div>
         <div className="space-y-3">
@@ -266,7 +265,6 @@ export function CommunitySidebar({
       {/* Popular Posts */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-5 w-5 text-orange-500" />
           <h3 className="font-semibold">ยอดนิยม</h3>
         </div>
         <div className="space-y-3">
@@ -309,8 +307,7 @@ export function CommunitySidebar({
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-500" />
-            <h3 className="font-semibold">Trending Tags</h3>
+            <h3 className="font-semibold">แท็กยอดนิยม</h3>
           </div>
           {selectedTag && (
             <button
@@ -343,9 +340,9 @@ export function CommunitySidebar({
         {trendingTags.length > 5 && (
           <button 
             onClick={() => setShowAllTags(!showAllTags)}
-            className="text-muted-foreground text-sm mt-2 hover:text-foreground transition-colors"
+            className="text-primary text-sm mt-2 hover:underline transition-colors"
           >
-            {showAllTags ? 'แสดงน้อยลง' : 'View more'}
+            {showAllTags ? 'แสดงน้อยลง' : 'ดูเพิ่มเติม'}
           </button>
         )}
       </div>
@@ -354,7 +351,6 @@ export function CommunitySidebar({
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Palette className="h-5 w-5 text-purple-500" />
             <h3 className="font-semibold">หมวดหมู่ผลงาน</h3>
           </div>
           {selectedCategory && (
