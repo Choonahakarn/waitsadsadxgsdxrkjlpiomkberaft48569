@@ -322,36 +322,30 @@ export function CommunitySidebar({
             </button>
           )}
         </div>
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {trendingTags.slice(0, showAllTags ? 15 : 5).map((tag) => (
             <button
               key={tag.tag}
               onClick={() => onTagSelect?.(selectedTag === tag.tag ? null : tag.tag)}
-              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+              className={`w-full text-left py-1.5 transition-colors ${
                 selectedTag === tag.tag 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'hover:bg-muted'
+                  ? 'text-primary' 
+                  : 'text-foreground/80 hover:text-primary'
               }`}
             >
-              <span className={`text-sm ${selectedTag !== tag.tag ? 'group-hover:text-primary' : ''} transition-colors`}>
-                #{tag.tag}
-              </span>
-              <span className={`text-xs ${selectedTag === tag.tag ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                {tag.count}
-              </span>
+              <span className="text-sm">#{tag.tag}</span>
             </button>
           ))}
           {trendingTags.length === 0 && (
-            <p className="text-sm text-muted-foreground px-3 py-2">ยังไม่มี Tags</p>
+            <p className="text-sm text-muted-foreground py-1.5">ยังไม่มี Tags</p>
           )}
         </div>
         {trendingTags.length > 5 && (
           <button 
             onClick={() => setShowAllTags(!showAllTags)}
-            className="text-primary text-sm mt-3 hover:underline flex items-center gap-1 w-full justify-center"
+            className="text-muted-foreground text-sm mt-2 hover:text-foreground transition-colors"
           >
-            {showAllTags ? 'แสดงน้อยลง' : `ดูเพิ่มเติม (${Math.min(trendingTags.length - 5, 10)})`}
-            <ChevronRight className={`h-4 w-4 transition-transform ${showAllTags ? 'rotate-90' : ''}`} />
+            {showAllTags ? 'แสดงน้อยลง' : 'View more'}
           </button>
         )}
       </div>
