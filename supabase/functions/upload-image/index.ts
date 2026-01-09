@@ -61,33 +61,28 @@ serve(async (req) => {
     const timestamp = Math.floor(Date.now() / 1000)
     const folderPath = `${folder}/${user.id}`
     
-    // Build eager transformations for variants
-    const eagerTransformations = [
-      'w_50,h_50,c_limit,e_blur:1000,f_auto,q_10',    // blur placeholder
-      'w_400,c_limit,f_auto,q_auto:good',              // small (thumbnail)
-      'w_1200,c_limit,f_auto,q_auto:best',             // medium (feed)
-      'w_2400,c_limit,f_auto,q_auto:best'              // large (full view)
-    ].join('|')
+    // NOTE: We generate variant URLs via Cloudinary URL transformations (on-demand)
+    // instead of using `eager` transformations during upload. This avoids signature
+    // mismatches caused by transformation-string normalization.
 
     // Create signature - parameters MUST be sorted alphabetically
     // Include all parameters that will be sent (except file, api_key, signature)
     const paramsToSign: Record<string, string> = {
-      eager: eagerTransformations,
-      eager_async: 'false',
       folder: folderPath,
       timestamp: timestamp.toString(),
     }
-    
-    // Sort alphabetically and build signature string
+
     const sortedParams = Object.keys(paramsToSign).sort()
-    const signatureString = sortedParams.map(key => `${key}=${paramsToSign[key]}`).join('&') + apiSecret
-    
-    // Use SHA-1 for Cloudinary (not SHA-256)
+    const signatureString = sortedParams
+      .map((key) => `${key}=${paramsToSign[key]}`)
+      .join('&') + apiSecret
+
+    // Use SHA-1 for Cloudinary
     const encoder = new TextEncoder()
     const data = encoder.encode(signatureString)
     const hashBuffer = await crypto.subtle.digest('SHA-1', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    const signature = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
     // Upload to Cloudinary
     const cloudinaryFormData = new FormData()
@@ -96,8 +91,6 @@ serve(async (req) => {
     cloudinaryFormData.append('timestamp', timestamp.toString())
     cloudinaryFormData.append('signature', signature)
     cloudinaryFormData.append('folder', folderPath)
-    cloudinaryFormData.append('eager', eagerTransformations)
-    cloudinaryFormData.append('eager_async', 'false')
 
     const cloudinaryResponse = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
