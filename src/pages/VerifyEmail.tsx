@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Mail, CheckCircle, RefreshCw, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
+import { CheckCircle, RefreshCw, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
@@ -49,38 +49,39 @@ const VerifyEmail = () => {
     setIsVerifying(true);
 
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email,
-        token: otpCode,
-        type: 'signup',
+      const { data, error } = await supabase.functions.invoke('verify-otp', {
+        body: { email, otp: otpCode },
       });
 
       if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
         toast({
           variant: 'destructive',
           title: 'ยืนยันไม่สำเร็จ',
-          description: error.message === 'Token has expired or is invalid' 
-            ? 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่'
-            : error.message,
+          description: data.error,
         });
         setOtpCode('');
-      } else if (data.session) {
+      } else if (data?.success) {
         setVerifySuccess(true);
         toast({
           title: '🎉 ยืนยันอีเมลสำเร็จ!',
           description: 'บัญชีของคุณพร้อมใช้งานแล้ว',
         });
         
-        // Redirect to home after 2 seconds
+        // Redirect to auth page after 2 seconds
         setTimeout(() => {
-          navigate('/');
+          navigate('/auth');
         }, 2000);
       }
     } catch (error: any) {
+      console.error('Verify OTP error:', error);
       toast({
         variant: 'destructive',
         title: 'เกิดข้อผิดพลาด',
-        description: error.message,
+        description: error.message || 'ไม่สามารถยืนยันรหัส OTP ได้',
       });
       setOtpCode('');
     } finally {
@@ -108,16 +109,19 @@ const VerifyEmail = () => {
     setIsResending(true);
 
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
+      const { data, error } = await supabase.functions.invoke('send-otp', {
+        body: { email, type: 'resend' },
       });
 
       if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
         toast({
           variant: 'destructive',
           title: 'ส่งรหัสไม่สำเร็จ',
-          description: error.message,
+          description: data.error,
         });
       } else {
         toast({
@@ -138,10 +142,11 @@ const VerifyEmail = () => {
         }, 1000);
       }
     } catch (error: any) {
+      console.error('Resend OTP error:', error);
       toast({
         variant: 'destructive',
         title: 'เกิดข้อผิดพลาด',
-        description: error.message,
+        description: error.message || 'ไม่สามารถส่งรหัส OTP ได้',
       });
     } finally {
       setIsResending(false);
@@ -170,7 +175,7 @@ const VerifyEmail = () => {
                   </motion.div>
                   <h2 className="text-2xl font-bold text-foreground mb-2">ยืนยันอีเมลสำเร็จ!</h2>
                   <p className="text-muted-foreground mb-4">
-                    บัญชีของคุณพร้อมใช้งานแล้ว กำลังพาคุณไปหน้าหลัก...
+                    บัญชีของคุณพร้อมใช้งานแล้ว กำลังพาคุณไปหน้าเข้าสู่ระบบ...
                   </p>
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                 </CardContent>
