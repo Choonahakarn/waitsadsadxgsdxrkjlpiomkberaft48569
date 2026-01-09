@@ -150,6 +150,8 @@ export default function Community() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const feedRef = useRef<HTMLDivElement>(null);
 
   // Report state
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -1994,7 +1996,7 @@ export default function Community() {
         <div className="container mx-auto max-w-6xl px-4 py-4">
           <div className="flex gap-6 items-stretch">
             {/* Feed Content */}
-            <div className="flex-1 max-w-2xl">
+            <div ref={feedRef} className="flex-1 max-w-2xl">
           {loading ? (
             <div className="py-20 text-center">
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -2377,7 +2379,7 @@ export default function Community() {
         </div>
 
         {/* Mobile Sidebar Drawer */}
-        <Drawer>
+        <Drawer open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
           <DrawerTrigger asChild>
             <Button
               variant="outline"
@@ -2385,6 +2387,11 @@ export default function Community() {
               className="fixed bottom-6 left-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-40 lg:hidden bg-background border-2"
             >
               <SlidersHorizontal className="h-5 w-5" />
+              {(selectedTag || selectedCategory) && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                  {(selectedTag ? 1 : 0) + (selectedCategory ? 1 : 0)}
+                </span>
+              )}
             </Button>
           </DrawerTrigger>
           <DrawerContent className="max-h-[85vh]">
@@ -2429,8 +2436,20 @@ export default function Community() {
               <CommunitySidebar 
                 selectedTag={selectedTag}
                 selectedCategory={selectedCategory}
-                onTagSelect={setSelectedTag}
-                onCategorySelect={setSelectedCategory}
+                onTagSelect={(tag) => {
+                  setSelectedTag(tag);
+                  setMobileDrawerOpen(false);
+                  setTimeout(() => {
+                    feedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 150);
+                }}
+                onCategorySelect={(cat) => {
+                  setSelectedCategory(cat);
+                  setMobileDrawerOpen(false);
+                  setTimeout(() => {
+                    feedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 150);
+                }}
               />
             </div>
           </DrawerContent>
