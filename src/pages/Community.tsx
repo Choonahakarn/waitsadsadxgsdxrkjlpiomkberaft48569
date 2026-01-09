@@ -125,6 +125,7 @@ export default function Community() {
   const { isUserHidden } = useBlockedUsers();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -302,6 +303,57 @@ export default function Community() {
       }
     } catch (error) {
       console.error('Error fetching reposted posts:', error);
+    }
+  }, [user]);
+
+  // Fetch recommended posts (top liked posts)
+  const fetchRecommendedPosts = useCallback(async () => {
+    try {
+      const { data: postsData, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('likes_count', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      const postsWithDetails = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', post.user_id)
+            .maybeSingle();
+
+          const { data: artistProf } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', post.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          return {
+            ...post,
+            user_profile: profile,
+            artist_profile: artistProf,
+            is_liked: isLiked,
+          } as CommunityPost;
+        })
+      );
+
+      setRecommendedPosts(postsWithDetails);
+    } catch (error) {
+      console.error('Error fetching recommended posts:', error);
     }
   }, [user]);
 
@@ -531,7 +583,8 @@ export default function Community() {
     fetchSavedPosts();
     fetchRepostedPosts();
     fetchArtistProfile();
-  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile]);
+    fetchRecommendedPosts();
+  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile, fetchRecommendedPosts]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -2044,6 +2097,67 @@ export default function Community() {
             </div>
           </div>
         </div>
+
+        {/* Recommended Works Section */}
+        {recommendedPosts.length > 0 && activeTab === 'discover' && (
+          <div className="border-b border-border bg-background py-6">
+            <div className="flex justify-center px-4">
+              <div className="w-full max-w-[900px]">
+                <h2 className="text-lg font-semibold mb-4">Recommended works</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {recommendedPosts.slice(0, 10).map((post) => (
+                    <motion.div
+                      key={`rec-${post.id}`}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="group relative cursor-pointer"
+                      onClick={() => handleOpenPost(post)}
+                    >
+                      <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted">
+                        <OptimizedImage
+                          src={post.image_url}
+                          variants={{
+                            blur: post.image_blur_url || undefined,
+                            small: post.image_small_url || undefined,
+                            medium: post.image_medium_url || undefined,
+                          }}
+                          alt={post.title}
+                          variant="thumbnail"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                      {/* Like button overlay */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLike(post.id, post.is_liked || false);
+                        }}
+                        className="absolute bottom-14 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                      >
+                        <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                      </button>
+                      {/* Title & Artist */}
+                      <div className="mt-2">
+                        <p className="text-sm font-medium truncate">{post.title}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback className="text-[10px]">
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {getDisplayName(post.user_profile, post.artist_profile)}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="flex justify-center px-4 py-6">
