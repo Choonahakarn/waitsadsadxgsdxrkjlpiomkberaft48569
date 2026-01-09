@@ -37,6 +37,7 @@ import PrivacySettings from "./pages/PrivacySettings";
 import ChangePassword from "./pages/ChangePassword";
 import AccountSettings from "./pages/AccountSettings";
 import EditUserProfile from "./pages/EditUserProfile";
+import VerifyEmail from "./pages/VerifyEmail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/policy" element={<Policy />} />
             <Route path="/sell" element={<Sell />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/artists" element={<AdminArtists />} />
