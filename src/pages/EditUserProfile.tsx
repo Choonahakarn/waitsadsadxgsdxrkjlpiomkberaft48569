@@ -20,6 +20,7 @@ interface UserProfile {
   first_name: string | null;
   last_name: string | null;
   full_name: string | null;
+  display_name: string | null;
   bio: string | null;
   website: string | null;
   avatar_url: string | null;
@@ -48,6 +49,7 @@ const EditUserProfile = () => {
   // Form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
 
@@ -73,6 +75,7 @@ const EditUserProfile = () => {
         setProfile(data);
         setFirstName(data.first_name || '');
         setLastName(data.last_name || '');
+        setDisplayName(data.display_name || '');
         setBio(data.bio || '');
         setWebsite(data.website || '');
       }
@@ -205,6 +208,7 @@ const EditUserProfile = () => {
           first_name: firstName || null,
           last_name: lastName || null,
           full_name: fullName || null,
+          display_name: displayName || null,
           bio: bio || null,
           website: website || null,
         })
@@ -378,6 +382,19 @@ const EditUserProfile = () => {
                       placeholder="นามสกุลของคุณ"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">ชื่อที่แสดง (Display Name)</Label>
+                  <Input
+                    id="displayName"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="ชื่อที่จะแสดงในคอมมูนิตี้"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    ชื่อนี้จะแสดงแทนชื่อจริงในความคิดเห็นและการแชร์โพสต์
+                  </p>
                 </div>
 
                 <div className="space-y-2">

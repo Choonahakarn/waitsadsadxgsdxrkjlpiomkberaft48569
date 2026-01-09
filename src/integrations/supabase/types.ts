@@ -388,6 +388,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           display_id: string | null
+          display_name: string | null
           email: string
           first_name: string | null
           full_name: string | null
@@ -405,6 +406,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           display_id?: string | null
+          display_name?: string | null
           email: string
           first_name?: string | null
           full_name?: string | null
@@ -422,6 +424,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           display_id?: string | null
+          display_name?: string | null
           email?: string
           first_name?: string | null
           full_name?: string | null
