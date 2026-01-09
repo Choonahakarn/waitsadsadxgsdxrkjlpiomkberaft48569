@@ -205,18 +205,21 @@ export function PostDetailDialog({
   if (imgAspect === 'tall') {
     return (
       <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-hidden bg-black border-0">
-          <div className="relative w-full h-[95vh] flex items-center justify-center">
+        <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden bg-transparent border-0 rounded-none [&>button]:hidden">
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Semi-transparent dark overlay with blur */}
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            
             {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+              className="absolute top-4 left-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
             >
               <X className="h-6 w-6" />
             </button>
 
             {/* Main Image - Scrollable for tall images */}
-            <div className="w-full h-full overflow-y-auto flex justify-center">
+            <div className="relative z-10 w-full h-full overflow-y-auto flex justify-center">
               <img
                 src={post.image_url}
                 alt={post.title}
