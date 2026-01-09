@@ -29,6 +29,8 @@ interface UploadResult {
 
 interface ImageUploaderProps {
   onUploadComplete: (result: UploadResult) => void;
+  onUploadError?: (error: string) => void;
+  onRemove?: () => void;
   folder?: string;
   maxSizeMB?: number;
   accept?: string;
@@ -40,6 +42,8 @@ interface ImageUploaderProps {
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
   onUploadComplete,
+  onUploadError,
+  onRemove,
   folder = 'community',
   maxSizeMB = 20,
   accept = 'image/jpeg,image/png,image/webp,image/gif',

@@ -31,6 +31,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import ImageUploader from "@/components/ui/ImageUploader";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 
 interface ArtistProfile {
   id: string;
@@ -52,6 +54,12 @@ interface Artwork {
   is_verified: boolean | null;
   is_sold: boolean | null;
   created_at: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
 }
 
 export default function Sell() {
@@ -79,6 +87,14 @@ export default function Sell() {
   });
   const [artworkImage, setArtworkImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadedImageData, setUploadedImageData] = useState<{
+    image_url: string;
+    image_blur_url?: string;
+    image_small_url?: string;
+    image_medium_url?: string;
+    image_large_url?: string;
+    image_asset_id?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user && isArtist) {
@@ -133,8 +149,43 @@ export default function Sell() {
     }
   };
 
+  const handleImageUploadComplete = (result: {
+    success: boolean;
+    imageAsset?: {
+      id: string;
+      url_blur: string;
+      url_small: string;
+      url_medium: string;
+      url_large: string;
+    };
+    variants?: {
+      url_blur: string;
+      url_small: string;
+      url_medium: string;
+      url_large: string;
+    };
+    image_url?: string;
+    error?: string;
+  }) => {
+    if (result.success && result.image_url) {
+      setUploadedImageData({
+        image_url: result.image_url,
+        image_blur_url: result.variants?.url_blur || result.imageAsset?.url_blur,
+        image_small_url: result.variants?.url_small || result.imageAsset?.url_small,
+        image_medium_url: result.variants?.url_medium || result.imageAsset?.url_medium,
+        image_large_url: result.variants?.url_large || result.imageAsset?.url_large,
+        image_asset_id: result.imageAsset?.id,
+      });
+      setImagePreview(result.image_url);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!user || !artistProfile || !artworkImage) {
+    // Check if we have either Cloudinary upload or legacy file
+    const hasCloudinaryImage = !!uploadedImageData;
+    const hasLegacyImage = !!artworkImage;
+
+    if (!user || !artistProfile || (!hasCloudinaryImage && !hasLegacyImage)) {
       toast({
         title: "ข้อมูลไม่ครบ",
         description: "กรุณากรอกข้อมูลและอัพโหลดรูปภาพ",
@@ -157,31 +208,46 @@ export default function Sell() {
     let uploadedPath: string | null = null;
 
     try {
-      // Upload image
-      const fileExt = artworkImage.name.split(".").pop();
-      const fileName = `${artistProfile.id}/${Date.now()}.${fileExt}`;
-      uploadedPath = fileName;
+      let imageUrl = uploadedImageData?.image_url || '';
+      let imageBlurUrl = uploadedImageData?.image_blur_url || null;
+      let imageSmallUrl = uploadedImageData?.image_small_url || null;
+      let imageMediumUrl = uploadedImageData?.image_medium_url || null;
+      let imageLargeUrl = uploadedImageData?.image_large_url || null;
+      let imageAssetId = uploadedImageData?.image_asset_id || null;
 
-      const { error: uploadError } = await supabase.storage
-        .from("artworks")
-        .upload(fileName, artworkImage);
+      // Fallback to legacy Supabase Storage upload if no Cloudinary data
+      if (!hasCloudinaryImage && hasLegacyImage) {
+        const fileExt = artworkImage!.name.split(".").pop();
+        const fileName = `${artistProfile.id}/${Date.now()}.${fileExt}`;
+        uploadedPath = fileName;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from("artworks")
+          .upload(fileName, artworkImage!);
 
-      const { data: urlData } = supabase.storage.from("artworks").getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from("artworks").getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
 
       // Create artwork record
       const { error: insertError } = await supabase.from("artworks").insert({
         artist_id: artistProfile.id,
         title: formData.title,
         description: formData.description || null,
-        image_url: urlData.publicUrl,
+        image_url: imageUrl,
+        image_blur_url: imageBlurUrl,
+        image_small_url: imageSmallUrl,
+        image_medium_url: imageMediumUrl,
+        image_large_url: imageLargeUrl,
+        image_asset_id: imageAssetId,
         price,
         medium: formData.medium || null,
         dimensions: formData.dimensions || null,
         year: formData.year ? parseInt(formData.year) : null,
-        category: formData.category || null, // allowed: 'digital' | 'traditional'
-        type: "original", // allowed: 'original' | 'commission'
+        category: formData.category || null,
+        type: "original",
         tools_used: formData.tools_used
           ? formData.tools_used
               .split(",")
@@ -193,7 +259,7 @@ export default function Sell() {
       });
 
       if (insertError) {
-        // Best-effort cleanup of uploaded file to avoid orphans
+        // Best-effort cleanup of uploaded file to avoid orphans (legacy only)
         if (uploadedPath) {
           await supabase.storage.from("artworks").remove([uploadedPath]);
         }
@@ -218,6 +284,7 @@ export default function Sell() {
       });
       setArtworkImage(null);
       setImagePreview(null);
+      setUploadedImageData(null);
       setShowUploadDialog(false);
       fetchArtistData();
     } catch (error: any) {
@@ -383,17 +450,25 @@ export default function Sell() {
                 {artworks.map((artwork) => (
                   <Card key={artwork.id} className="overflow-hidden">
                     <div className="relative aspect-square">
-                      <img
+                      <OptimizedImage
                         src={artwork.image_url}
+                        variants={{
+                          blur: artwork.image_blur_url || undefined,
+                          small: artwork.image_small_url || undefined,
+                          medium: artwork.image_medium_url || undefined,
+                          large: artwork.image_large_url || undefined,
+                        }}
                         alt={artwork.title}
-                        className="w-full h-full object-cover"
+                        variant="feed"
+                        className="w-full h-full"
+                        aspectRatio="square"
                       />
                       {artwork.is_sold && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
                           <Badge className="text-lg py-2 px-4 bg-red-500">ขายแล้ว</Badge>
                         </div>
                       )}
-                      <div className="absolute top-2 right-2 flex gap-1">
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
                         {artwork.is_verified && (
                           <Badge className="bg-green-500">ยืนยันแล้ว</Badge>
                         )}
@@ -446,37 +521,22 @@ export default function Sell() {
               <div>
                 <Label>รูปภาพผลงาน *</Label>
                 <div className="mt-2">
-                  {imagePreview ? (
-                    <div className="relative">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={() => {
-                          setArtworkImage(null);
-                          setImagePreview(null);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors">
-                      <Upload className="h-10 w-10 text-muted-foreground mb-2" />
-                      <span className="text-muted-foreground">คลิกเพื่ออัพโหลดรูปภาพ</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageChange}
-                      />
-                    </label>
-                  )}
+                  <ImageUploader
+                    folder="artworks"
+                    onUploadComplete={handleImageUploadComplete}
+                    onUploadError={(error) => {
+                      toast({
+                        title: "อัพโหลดรูปไม่สำเร็จ",
+                        description: error,
+                        variant: "destructive",
+                      });
+                    }}
+                    onRemove={() => {
+                      setUploadedImageData(null);
+                      setImagePreview(null);
+                      setArtworkImage(null);
+                    }}
+                  />
                 </div>
               </div>
 
