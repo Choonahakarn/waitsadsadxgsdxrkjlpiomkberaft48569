@@ -204,19 +204,11 @@ const Auth = () => {
     } else {
       toast({
         title: '🎉 สมัครสมาชิกสำเร็จ!',
-        description: 'กรุณาตรวจสอบอีเมลของคุณเพื่อยืนยันบัญชี ก่อนเข้าสู่ระบบ',
-        duration: 10000,
+        description: 'กรุณาตรวจสอบอีเมลของคุณเพื่อยืนยันบัญชี',
+        duration: 5000,
       });
-      // Clear form
-      setSignupEmail('');
-      setSignupPassword('');
-      setSignupFirstName('');
-      setSignupLastName('');
-      setSignupDisplayId('');
-      setSignupDisplayName('');
-      setSignupRealName('');
-      setSignupPhoneNumber('');
-      setSignupArtistName('');
+      // Navigate to verify email page with email param
+      navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}`);
     }
   };
 
