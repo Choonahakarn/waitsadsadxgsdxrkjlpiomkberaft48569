@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield, AtSign } from 'lucide-react';
+import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield, AtSign, ArrowLeft, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 type AppRole = 'artist' | 'buyer';
 
@@ -34,6 +36,12 @@ const Auth = () => {
   const [signupRealName, setSignupRealName] = useState('');
   const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Forgot password state
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const loginSchema = z.object({
     email: z.string().trim().email({ message: t('validation.emailRequired') }),
@@ -193,6 +201,54 @@ const Auth = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!forgotPasswordEmail || !forgotPasswordEmail.includes('@')) {
+      toast({
+        variant: 'destructive',
+        title: 'กรุณากรอกอีเมลให้ถูกต้อง',
+      });
+      return;
+    }
+    
+    setIsSendingReset(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+        redirectTo: `${window.location.origin}/settings/change-password`,
+      });
+      
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'ไม่สามารถส่งอีเมลได้',
+          description: error.message,
+        });
+      } else {
+        setResetEmailSent(true);
+        toast({
+          title: 'ส่งอีเมลสำเร็จ',
+          description: 'กรุณาตรวจสอบอีเมลของคุณเพื่อรีเซ็ตรหัสผ่าน',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message,
+      });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  const handleCloseForgotPassword = () => {
+    setForgotPasswordOpen(false);
+    setForgotPasswordEmail('');
+    setResetEmailSent(false);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -274,6 +330,16 @@ const Auth = () => {
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
                     {isSubmitting ? t('auth.signingIn') : t('auth.loginButton')}
                   </Button>
+                  
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => setForgotPasswordOpen(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      ลืมรหัสผ่าน?
+                    </button>
+                  </div>
                 </form>
               </TabsContent>
 
@@ -491,6 +557,85 @@ const Auth = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotPasswordOpen} onOpenChange={handleCloseForgotPassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ลืมรหัสผ่าน</DialogTitle>
+            <DialogDescription>
+              กรอกอีเมลของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน
+            </DialogDescription>
+          </DialogHeader>
+          
+          {resetEmailSent ? (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-4 text-center">
+                <Mail className="mx-auto h-12 w-12 text-green-500 mb-3" />
+                <h3 className="font-medium text-green-800 dark:text-green-200">ส่งอีเมลสำเร็จ!</h3>
+                <p className="text-sm text-green-600 dark:text-green-300 mt-1">
+                  เราได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่
+                </p>
+                <p className="font-medium text-green-800 dark:text-green-200 mt-1">
+                  {forgotPasswordEmail}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-3">
+                  กรุณาตรวจสอบกล่องจดหมายของคุณ (อาจอยู่ใน Spam/Junk)
+                </p>
+              </div>
+              <Button
+                onClick={handleCloseForgotPassword}
+                className="w-full"
+              >
+                กลับไปหน้าเข้าสู่ระบบ
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email">อีเมล</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    className="pl-10"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseForgotPassword}
+                  className="flex-1"
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSendingReset}
+                  className="flex-1"
+                >
+                  {isSendingReset ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      กำลังส่ง...
+                    </>
+                  ) : (
+                    'ส่งลิงก์รีเซ็ต'
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
