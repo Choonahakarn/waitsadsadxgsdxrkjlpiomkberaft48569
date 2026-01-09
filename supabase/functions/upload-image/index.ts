@@ -69,11 +69,23 @@ serve(async (req) => {
       'w_2400,c_limit,f_auto,q_auto:best'              // large (full view)
     ].join('|')
 
-    // Create signature
-    const signatureString = `eager=${eagerTransformations}&folder=${folderPath}&timestamp=${timestamp}${apiSecret}`
+    // Create signature - parameters MUST be sorted alphabetically
+    // Include all parameters that will be sent (except file, api_key, signature)
+    const paramsToSign: Record<string, string> = {
+      eager: eagerTransformations,
+      eager_async: 'false',
+      folder: folderPath,
+      timestamp: timestamp.toString(),
+    }
+    
+    // Sort alphabetically and build signature string
+    const sortedParams = Object.keys(paramsToSign).sort()
+    const signatureString = sortedParams.map(key => `${key}=${paramsToSign[key]}`).join('&') + apiSecret
+    
+    // Use SHA-1 for Cloudinary (not SHA-256)
     const encoder = new TextEncoder()
     const data = encoder.encode(signatureString)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 
