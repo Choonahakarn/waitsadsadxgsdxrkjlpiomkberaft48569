@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
+import ImageUploader from "@/components/ui/ImageUploader";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -145,6 +146,15 @@ export default function Community() {
   const [addToPortfolio, setAddToPortfolio] = useState(false);
   const [artistProfile, setArtistProfile] = useState<{ id: string; artist_name: string } | null>(null);
   const [price, setPrice] = useState("");
+  // Cloudinary upload state
+  const [uploadedImageData, setUploadedImageData] = useState<{
+    image_url: string;
+    image_blur_url?: string;
+    image_small_url?: string;
+    image_medium_url?: string;
+    image_large_url?: string;
+    image_asset_id?: string;
+  } | null>(null);
   
   // Filters
   const [activeTab, setActiveTab] = useState<FeedTab>('discover');
@@ -819,8 +829,34 @@ export default function Community() {
     }
   };
 
+  // Handle Cloudinary upload result
+  const handleImageUploadComplete = (result: any) => {
+    if (result.success && result.variants) {
+      setUploadedImageData({
+        image_url: result.image_url || result.variants.url_medium,
+        image_blur_url: result.variants.url_blur,
+        image_small_url: result.variants.url_small,
+        image_medium_url: result.variants.url_medium,
+        image_large_url: result.variants.url_large,
+        image_asset_id: result.imageAsset?.id
+      });
+      setImagePreview(result.variants.url_medium);
+      // Set a dummy file object to indicate we have an image
+      setImageFile(new File([], 'cloudinary-upload'));
+    }
+  };
+
+  const handleClearUploadedImage = () => {
+    setUploadedImageData(null);
+    setImagePreview("");
+    setImageFile(null);
+  };
+
   const handleSubmitPost = async () => {
-    if (!user || !title || !imageFile) {
+    // Check if we have an uploaded image (either from Cloudinary or legacy)
+    const hasImage = uploadedImageData || imageFile;
+    
+    if (!user || !title || !hasImage) {
       toast({
         variant: "destructive",
         title: "ข้อมูลไม่ครบ",
@@ -841,17 +877,39 @@ export default function Community() {
 
     setSubmitting(true);
     try {
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from('artworks')
-        .upload(fileName, imageFile);
+      let imageUrl: string;
+      let imageBlurUrl: string | null = null;
+      let imageSmallUrl: string | null = null;
+      let imageMediumUrl: string | null = null;
+      let imageLargeUrl: string | null = null;
+      let imageAssetId: string | null = null;
 
-      if (uploadError) throw uploadError;
+      // If we have Cloudinary uploaded data, use it directly
+      if (uploadedImageData) {
+        imageUrl = uploadedImageData.image_url;
+        imageBlurUrl = uploadedImageData.image_blur_url || null;
+        imageSmallUrl = uploadedImageData.image_small_url || null;
+        imageMediumUrl = uploadedImageData.image_medium_url || null;
+        imageLargeUrl = uploadedImageData.image_large_url || null;
+        imageAssetId = uploadedImageData.image_asset_id || null;
+      } else if (imageFile && imageFile.name !== 'cloudinary-upload') {
+        // Legacy fallback: upload to Supabase storage
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('artworks')
+          .upload(fileName, imageFile);
 
-      const { data: urlData } = supabase.storage
-        .from('artworks')
-        .getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('artworks')
+          .getPublicUrl(fileName);
+        
+        imageUrl = urlData.publicUrl;
+      } else {
+        throw new Error('No image to upload');
+      }
 
       // Parse hashtags - extract tags from the hashtags field
       const parsedHashtags = hashtags
@@ -871,7 +929,12 @@ export default function Community() {
           user_id: user.id,
           title,
           description: description || null,
-          image_url: urlData.publicUrl,
+          image_url: imageUrl,
+          image_blur_url: imageBlurUrl,
+          image_small_url: imageSmallUrl,
+          image_medium_url: imageMediumUrl,
+          image_large_url: imageLargeUrl,
+          image_asset_id: imageAssetId,
           category: category || null,
           tools_used: parsedTools,
           hashtags: parsedHashtags
@@ -892,7 +955,12 @@ export default function Community() {
             artist_id: artistProfile.id,
             title,
             description: description || null,
-            image_url: urlData.publicUrl,
+            image_url: imageUrl,
+            image_blur_url: imageBlurUrl,
+            image_small_url: imageSmallUrl,
+            image_medium_url: imageMediumUrl,
+            image_large_url: imageLargeUrl,
+            image_asset_id: imageAssetId,
             category: artworkCategory,
             tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
             price: price ? parseFloat(price) : 0,
@@ -927,6 +995,7 @@ export default function Community() {
       setHashtags("");
       setImageFile(null);
       setImagePreview("");
+      setUploadedImageData(null);
       setAddToPortfolio(false);
       setPrice("");
       setIsCreateOpen(false);
@@ -2573,44 +2642,23 @@ export default function Community() {
                 <div>
                   <Label htmlFor="image">รูปภาพ *</Label>
                   <div className="mt-2">
-                    {imagePreview ? (
-                      <div className="relative">
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="w-full rounded-lg object-cover max-h-64"
-                        />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute right-2 top-2"
-                          onClick={() => {
-                            setImageFile(null);
-                            setImagePreview("");
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <label className="flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 hover:border-primary transition-colors">
-                        <Image className="h-10 w-10 text-muted-foreground" />
-                        <span className="mt-2 text-sm text-muted-foreground">
-                          คลิกเพื่ออัปโหลดรูปภาพ
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageChange}
-                        />
-                      </label>
+                    <ImageUploader
+                      onUploadComplete={handleImageUploadComplete}
+                      folder="community"
+                      preview={imagePreview}
+                      onPreviewClear={handleClearUploadedImage}
+                    />
+                    {uploadedImageData && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        อัปโหลดสำเร็จ! รูปภาพถูก optimize เรียบร้อยแล้ว
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Add to Portfolio checkbox */}
-                {artistProfile && imageFile && (
+                {artistProfile && (imageFile || uploadedImageData) && (
                   <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/30">
                     <div className="flex items-center space-x-3">
                       <Checkbox
@@ -2647,7 +2695,7 @@ export default function Community() {
                 
                 <Button
                   onClick={handleSubmitPost}
-                  disabled={submitting || !title || !imageFile}
+                  disabled={submitting || !title || (!imageFile && !uploadedImageData)}
                   className="w-full"
                   size="lg"
                 >
