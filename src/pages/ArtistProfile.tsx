@@ -7,7 +7,6 @@ import { getArtistById, getArtworksByArtist } from "@/data/mockData";
 import { ArtworkCard } from "@/components/artwork/ArtworkCard";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
-import OptimizedImage from "@/components/ui/OptimizedImage";
 
 export default function ArtistProfile() {
   const { id } = useParams<{ id: string }>();
@@ -55,12 +54,10 @@ export default function ArtistProfile() {
           >
             {/* Avatar */}
             <div className="h-32 w-32 overflow-hidden rounded-full border-4 border-background shadow-elevated">
-              <OptimizedImage
+              <img
                 src={artist.avatar}
                 alt={artist.name}
-                variant="thumbnail"
-                className="h-full w-full"
-                aspectRatio="square"
+                className="h-full w-full object-cover"
               />
             </div>
 

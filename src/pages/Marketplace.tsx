@@ -22,12 +22,6 @@ interface Artwork {
   is_verified: boolean | null;
   is_sold: boolean | null;
   artist_id: string;
-  // Cloudinary optimized image variants
-  image_blur_url?: string | null;
-  image_small_url?: string | null;
-  image_medium_url?: string | null;
-  image_large_url?: string | null;
-  image_asset_id?: string | null;
   artist_profiles?: {
     id: string;
     artist_name: string;
@@ -220,10 +214,6 @@ export default function Marketplace() {
                   price={artwork.price}
                   isVerified={artwork.is_verified || false}
                   medium={artwork.medium || ""}
-                  imageBlurUrl={artwork.image_blur_url || undefined}
-                  imageSmallUrl={artwork.image_small_url || undefined}
-                  imageMediumUrl={artwork.image_medium_url || undefined}
-                  imageLargeUrl={artwork.image_large_url || undefined}
                 />
               ))}
             </motion.div>

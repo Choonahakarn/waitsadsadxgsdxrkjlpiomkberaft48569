@@ -20,7 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ProfileTagFilter } from "@/components/profile/ProfileTagFilter";
 import { supabase } from "@/integrations/supabase/client";
-import OptimizedImage from "@/components/ui/OptimizedImage";
 
 interface UserProfileData {
   id: string;
@@ -1024,12 +1023,11 @@ export default function UserProfile() {
         {/* Cover Image - Taller */}
         <div className="relative w-full h-64 md:h-80 lg:h-96 bg-gradient-to-b from-muted to-background overflow-hidden">
           {displayCover ? (
-            <OptimizedImage
+            <img
               src={displayCover}
               alt="Cover"
-              variant="fullscreen"
-              className="w-full h-full"
-              containerClassName="w-full h-full"
+              className="w-full h-full object-cover"
+              style={{ objectPosition: `center ${displayCoverPositionY}%` }}
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
@@ -1049,12 +1047,11 @@ export default function UserProfile() {
                 {/* Large Avatar - Only this overlaps the cover */}
                 <div className="w-32 h-32 md:w-40 md:h-40 shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-24">
                   {displayAvatar ? (
-                    <OptimizedImage
+                    <img
                       src={displayAvatar}
                       alt={displayName}
-                      variant="thumbnail"
-                      className="w-full h-full"
-                      aspectRatio="square"
+                      className="w-full h-full object-cover"
+                      style={{ objectPosition: `${displayAvatarPositionX}% ${displayAvatarPositionY}%` }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-4xl bg-primary/10 font-bold">
@@ -1410,12 +1407,11 @@ export default function UserProfile() {
                           animate={{ opacity: 1, scale: 1 }}
                           className="aspect-square relative group overflow-hidden bg-muted"
                         >
-                          <OptimizedImage
+                          <img
                             src={artwork.image_url}
                             alt={artwork.title}
-                            variant="feed"
-                            className="w-full h-full transition-transform group-hover:scale-105"
-                            aspectRatio="square"
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            loading="lazy"
                           />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <div className="text-white text-center p-2">
@@ -1504,11 +1500,11 @@ export default function UserProfile() {
 
                         {/* Post Image */}
                         <div className="relative bg-muted">
-                          <OptimizedImage
+                          <img
                             src={post.image_url}
                             alt={post.title}
-                            variant="feed"
-                            className="w-full max-h-[600px]"
+                            className="w-full object-contain max-h-[600px]"
+                            loading="lazy"
                           />
                         </div>
 
@@ -1701,11 +1697,11 @@ export default function UserProfile() {
 
                           {/* Post Image */}
                           <div className="relative bg-muted">
-                            <OptimizedImage
+                            <img
                               src={post.image_url}
                               alt={post.title}
-                              variant="feed"
-                              className="w-full max-h-[600px]"
+                              className="w-full object-contain max-h-[600px]"
+                              loading="lazy"
                             />
                           </div>
 
@@ -1896,11 +1892,11 @@ export default function UserProfile() {
 
                           {/* Post Image */}
                           <div className="relative bg-muted">
-                            <OptimizedImage
+                            <img
                               src={post.image_url}
                               alt={post.title}
-                              variant="feed"
-                              className="w-full max-h-[600px]"
+                              className="w-full object-contain max-h-[600px]"
+                              loading="lazy"
                             />
                           </div>
 
@@ -2159,13 +2155,10 @@ export default function UserProfile() {
             <div className="space-y-4">
               {/* Preview of original post */}
               <div className="border border-border rounded-lg p-3 flex gap-3">
-                <OptimizedImage
+                <img
                   src={repostDialogPost.image_url}
                   alt={repostDialogPost.title}
-                  variant="thumbnail"
-                  className="rounded"
-                  containerClassName="w-16 h-16"
-                  aspectRatio="square"
+                  className="w-16 h-16 object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
