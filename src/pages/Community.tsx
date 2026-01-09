@@ -18,8 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,10 +120,11 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user, isArtist, isBuyer } = useAuth();
+  const { user, isArtist, isBuyer, isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
+  const { settings: appSettings, loading: appSettingsLoading } = useAppSettings();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
@@ -2072,6 +2074,9 @@ export default function Community() {
     { id: 'latest' as FeedTab, label: 'Latest' },
   ];
 
+  // Check if Discover section should be shown
+  const showDiscoverSection = appSettings.community_enabled;
+
   return (
     <Layout>
       <div className="min-h-screen bg-background">
@@ -2106,7 +2111,7 @@ export default function Community() {
         </div>
 
         {/* Recommended Works Section - Full Width Masonry like Cara */}
-        {recommendedPosts.length > 0 && activeTab === 'discover' && (
+        {showDiscoverSection && recommendedPosts.length > 0 && activeTab === 'discover' && (
           <div className="bg-background">
             <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
               {recommendedPosts.map((post, index) => {
