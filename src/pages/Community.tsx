@@ -2098,57 +2098,45 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Recommended Works Section - Full Width like Cara */}
+        {/* Recommended Works Section - Full Width Masonry like Cara */}
         {recommendedPosts.length > 0 && activeTab === 'discover' && (
-          <div className="border-b border-border bg-background py-8">
-            <div className="container mx-auto px-4">
-              <h2 className="text-xl font-semibold mb-6 text-center">Recommended works</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
-                {recommendedPosts.map((post) => (
+          <div className="bg-background">
+            <div className="px-1">
+              <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-1">
+                {recommendedPosts.map((post, index) => (
                   <motion.div
                     key={`rec-${post.id}`}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="group relative cursor-pointer"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.02 }}
+                    className="group relative cursor-pointer break-inside-avoid mb-1"
                     onClick={() => handleOpenPost(post)}
                   >
-                    <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted relative">
+                    <div className="relative overflow-hidden bg-muted">
                       <OptimizedImage
                         src={post.image_url}
                         variants={{
                           blur: post.image_blur_url || undefined,
                           small: post.image_small_url || undefined,
                           medium: post.image_medium_url || undefined,
+                          large: post.image_large_url || undefined,
                         }}
                         alt={post.title}
-                        variant="thumbnail"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        variant="feed"
+                        className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
                       />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
                       {/* Like button overlay */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleLike(post.id, post.is_liked || false);
                         }}
-                        className="absolute bottom-3 right-3 p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                        className="absolute bottom-2 right-2 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100"
                       >
                         <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
                       </button>
-                    </div>
-                    {/* Title & Artist */}
-                    <div className="mt-2">
-                      <p className="text-sm font-medium truncate">{post.title}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground truncate">
-                          {getDisplayName(post.user_profile, post.artist_profile)}
-                        </span>
-                      </div>
                     </div>
                   </motion.div>
                 ))}
