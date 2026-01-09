@@ -199,33 +199,42 @@ export default function Community() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+  const lastWindowScrollYRef = useRef<number>(0);
 
-  // Desktop: scroll wheel should scroll the sidebar first (until it reaches the end), then the feed.
+  // Desktop: keep sidebar "scrolling along" with the page (like cara.app).
+  // Page scroll stays normal, but the sidebar's internal content scrolls in parallel until it reaches the end.
   useEffect(() => {
     const el = sidebarScrollRef.current;
     if (!el) return;
 
     const isDesktop = () => window.matchMedia("(min-width: 1024px)").matches;
+    lastWindowScrollYRef.current = window.scrollY;
 
-    const onWheel = (e: WheelEvent) => {
-      if (!isDesktop()) return;
-
-      const target = e.target as HTMLElement | null;
-      // Don't hijack scrolling inside dialogs/drawers
-      if (target?.closest('[role="dialog"]')) return;
-
-      const dy = e.deltaY;
-      const atTop = el.scrollTop <= 0;
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-
-      if ((dy > 0 && !atBottom) || (dy < 0 && !atTop)) {
-        e.preventDefault();
-        el.scrollTop += dy;
+    const onScroll = () => {
+      if (!isDesktop()) {
+        lastWindowScrollYRef.current = window.scrollY;
+        return;
       }
+
+      const target = document.activeElement as HTMLElement | null;
+      // Don't interfere with dialogs/drawers
+      if (target?.closest('[role="dialog"]')) {
+        lastWindowScrollYRef.current = window.scrollY;
+        return;
+      }
+
+      const currentY = window.scrollY;
+      const delta = currentY - lastWindowScrollYRef.current;
+      lastWindowScrollYRef.current = currentY;
+      if (delta === 0) return;
+
+      const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      const next = Math.min(maxScrollTop, Math.max(0, el.scrollTop + delta));
+      el.scrollTop = next;
     };
 
-    window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const fetchFollowing = useCallback(async () => {
