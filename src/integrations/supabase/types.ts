@@ -103,6 +103,11 @@ export type Database = {
           description: string | null
           dimensions: string | null
           id: string
+          image_asset_id: string | null
+          image_blur_url: string | null
+          image_large_url: string | null
+          image_medium_url: string | null
+          image_small_url: string | null
           image_url: string
           is_sold: boolean | null
           is_verified: boolean | null
@@ -121,6 +126,11 @@ export type Database = {
           description?: string | null
           dimensions?: string | null
           id?: string
+          image_asset_id?: string | null
+          image_blur_url?: string | null
+          image_large_url?: string | null
+          image_medium_url?: string | null
+          image_small_url?: string | null
           image_url: string
           is_sold?: boolean | null
           is_verified?: boolean | null
@@ -139,6 +149,11 @@ export type Database = {
           description?: string | null
           dimensions?: string | null
           id?: string
+          image_asset_id?: string | null
+          image_blur_url?: string | null
+          image_large_url?: string | null
+          image_medium_url?: string | null
+          image_small_url?: string | null
           image_url?: string
           is_sold?: boolean | null
           is_verified?: boolean | null
@@ -156,6 +171,13 @@ export type Database = {
             columns: ["artist_id"]
             isOneToOne: false
             referencedRelation: "artist_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artworks_image_asset_id_fkey"
+            columns: ["image_asset_id"]
+            isOneToOne: false
+            referencedRelation: "image_assets"
             referencedColumns: ["id"]
           },
         ]
@@ -241,6 +263,11 @@ export type Database = {
           description: string | null
           hashtags: string[] | null
           id: string
+          image_asset_id: string | null
+          image_blur_url: string | null
+          image_large_url: string | null
+          image_medium_url: string | null
+          image_small_url: string | null
           image_url: string
           likes_count: number | null
           title: string
@@ -254,6 +281,11 @@ export type Database = {
           description?: string | null
           hashtags?: string[] | null
           id?: string
+          image_asset_id?: string | null
+          image_blur_url?: string | null
+          image_large_url?: string | null
+          image_medium_url?: string | null
+          image_small_url?: string | null
           image_url: string
           likes_count?: number | null
           title: string
@@ -267,6 +299,11 @@ export type Database = {
           description?: string | null
           hashtags?: string[] | null
           id?: string
+          image_asset_id?: string | null
+          image_blur_url?: string | null
+          image_large_url?: string | null
+          image_medium_url?: string | null
+          image_small_url?: string | null
           image_url?: string
           likes_count?: number | null
           title?: string
@@ -274,7 +311,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "community_posts_image_asset_id_fkey"
+            columns: ["image_asset_id"]
+            isOneToOne: false
+            referencedRelation: "image_assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_otps: {
         Row: {
@@ -321,6 +366,63 @@ export type Database = {
           follower_id?: string
           following_id?: string
           id?: string
+        }
+        Relationships: []
+      }
+      image_assets: {
+        Row: {
+          bytes: number
+          cloudinary_public_id: string
+          created_at: string | null
+          format: string
+          height: number
+          id: string
+          original_filename: string | null
+          original_private: boolean | null
+          owner_id: string
+          updated_at: string | null
+          url_blur: string
+          url_large: string
+          url_medium: string
+          url_small: string
+          visibility: string | null
+          width: number
+        }
+        Insert: {
+          bytes: number
+          cloudinary_public_id: string
+          created_at?: string | null
+          format: string
+          height: number
+          id?: string
+          original_filename?: string | null
+          original_private?: boolean | null
+          owner_id: string
+          updated_at?: string | null
+          url_blur: string
+          url_large: string
+          url_medium: string
+          url_small: string
+          visibility?: string | null
+          width: number
+        }
+        Update: {
+          bytes?: number
+          cloudinary_public_id?: string
+          created_at?: string | null
+          format?: string
+          height?: number
+          id?: string
+          original_filename?: string | null
+          original_private?: boolean | null
+          owner_id?: string
+          updated_at?: string | null
+          url_blur?: string
+          url_large?: string
+          url_medium?: string
+          url_small?: string
+          visibility?: string | null
+          width?: number
         }
         Relationships: []
       }
