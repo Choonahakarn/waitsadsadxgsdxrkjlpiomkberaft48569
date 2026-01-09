@@ -2633,31 +2633,31 @@ export default function Community() {
                                         ตอบกลับ
                                       </button>
                                     )}
-                                    {/* Edit/Delete buttons for own comments */}
+                                    {/* Edit button for own comments */}
                                     {user && user.id === comment.user_id && (
-                                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                        <button
-                                          onClick={() => {
-                                            setEditingComment(comment);
-                                            setEditCommentContent(comment.content);
-                                          }}
-                                          className="text-xs text-muted-foreground hover:text-foreground"
-                                        >
-                                          แก้ไข
-                                        </button>
-                                        <span className="text-muted-foreground">•</span>
-                                        <button
-                                          onClick={() => handleDeleteComment(comment.id)}
-                                          disabled={deletingCommentId === comment.id}
-                                          className="text-xs text-destructive hover:text-destructive/80"
-                                        >
-                                          {deletingCommentId === comment.id ? (
-                                            <Loader2 className="h-3 w-3 animate-spin inline" />
-                                          ) : (
-                                            "ลบ"
-                                          )}
-                                        </button>
-                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setEditingComment(comment);
+                                          setEditCommentContent(comment.content);
+                                        }}
+                                        className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        แก้ไข
+                                      </button>
+                                    )}
+                                    {/* Delete button for own comments OR post owner */}
+                                    {user && (user.id === comment.user_id || user.id === selectedPost?.user_id) && (
+                                      <button
+                                        onClick={() => handleDeleteComment(comment.id)}
+                                        disabled={deletingCommentId === comment.id}
+                                        className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        {deletingCommentId === comment.id ? (
+                                          <Loader2 className="h-3 w-3 animate-spin inline" />
+                                        ) : (
+                                          "ลบ"
+                                        )}
+                                      </button>
                                     )}
                                   </div>
                                 </>
@@ -2745,31 +2745,31 @@ export default function Community() {
                                                   ตอบกลับ
                                                 </button>
                                               )}
-                                              {/* Edit/Delete buttons for own replies */}
+                                              {/* Edit button for own replies */}
                                               {user && user.id === reply.user_id && (
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                  <button
-                                                    onClick={() => {
-                                                      setEditingComment(reply);
-                                                      setEditCommentContent(reply.content);
-                                                    }}
-                                                    className="text-xs text-muted-foreground hover:text-foreground"
-                                                  >
-                                                    แก้ไข
-                                                  </button>
-                                                  <span className="text-muted-foreground">•</span>
-                                                  <button
-                                                    onClick={() => handleDeleteComment(reply.id)}
-                                                    disabled={deletingCommentId === reply.id}
-                                                    className="text-xs text-destructive hover:text-destructive/80"
-                                                  >
-                                                    {deletingCommentId === reply.id ? (
-                                                      <Loader2 className="h-3 w-3 animate-spin inline" />
-                                                    ) : (
-                                                      "ลบ"
-                                                    )}
-                                                  </button>
-                                                </div>
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingComment(reply);
+                                                    setEditCommentContent(reply.content);
+                                                  }}
+                                                  className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  แก้ไข
+                                                </button>
+                                              )}
+                                              {/* Delete button for own replies OR post owner */}
+                                              {user && (user.id === reply.user_id || user.id === selectedPost?.user_id) && (
+                                                <button
+                                                  onClick={() => handleDeleteComment(reply.id)}
+                                                  disabled={deletingCommentId === reply.id}
+                                                  className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  {deletingCommentId === reply.id ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin inline" />
+                                                  ) : (
+                                                    "ลบ"
+                                                  )}
+                                                </button>
                                               )}
                                             </div>
                                           </>

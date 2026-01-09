@@ -38,9 +38,9 @@ export function MentionInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Extract mentions from text
+  // Extract mentions from text (supports Thai and other Unicode characters)
   const extractMentions = useCallback((text: string): string[] => {
-    const mentionRegex = /@(\w+)/g;
+    const mentionRegex = /@([\w\u0E00-\u0E7F_]+)/g;
     const matches = text.match(mentionRegex);
     return matches ? matches.map(m => m.slice(1)) : [];
   }, []);
@@ -109,9 +109,9 @@ export function MentionInput({
     onChange(newValue);
     setCursorPosition(newCursorPos);
 
-    // Check if we're typing a mention
+    // Check if we're typing a mention (supports Thai and other Unicode characters)
     const textBeforeCursor = newValue.slice(0, newCursorPos);
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    const mentionMatch = textBeforeCursor.match(/@([\w\u0E00-\u0E7F_]*)$/);
     
     if (mentionMatch) {
       setMentionQuery(mentionMatch[1]);
@@ -133,8 +133,8 @@ export function MentionInput({
     const textBeforeCursor = value.slice(0, cursorPosition);
     const textAfterCursor = value.slice(cursorPosition);
     
-    // Replace the @query with @username
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    // Replace the @query with @username (supports Thai and other Unicode characters)
+    const mentionMatch = textBeforeCursor.match(/@([\w\u0E00-\u0E7F_]*)$/);
     if (mentionMatch) {
       const newTextBefore = textBeforeCursor.slice(0, -mentionMatch[0].length);
       const mentionText = `@${user.name.replace(/\s/g, '_')} `;
@@ -253,11 +253,12 @@ export function MentionInput({
   );
 }
 
-// Utility to render text with highlighted mentions
+// Utility to render text with highlighted mentions (supports Thai and other Unicode characters)
 export function renderTextWithMentions(text: string, className?: string) {
   if (!text) return null;
   
-  const parts = text.split(/(@\w+)/g);
+  // Match @followed by word characters, Thai characters, or underscores
+  const parts = text.split(/(@[\w\u0E00-\u0E7F_]+)/g);
   
   return (
     <span className={className}>
@@ -278,9 +279,9 @@ export function renderTextWithMentions(text: string, className?: string) {
   );
 }
 
-// Extract user IDs from mentions (for notifications)
+// Extract user IDs from mentions (for notifications, supports Thai and other Unicode characters)
 export async function getMentionedUserIds(text: string): Promise<string[]> {
-  const mentionRegex = /@(\w+)/g;
+  const mentionRegex = /@([\w\u0E00-\u0E7F_]+)/g;
   const matches = text.match(mentionRegex);
   if (!matches) return [];
 
