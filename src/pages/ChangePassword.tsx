@@ -85,23 +85,40 @@ const ChangePassword = () => {
       });
       
       if (error) {
+        // Translate common error messages to Thai
+        let errorMessage = error.message;
+        if (error.message.includes('same password')) {
+          errorMessage = 'รหัสผ่านใหม่ต้องไม่เหมือนกับรหัสผ่านเดิม';
+        } else if (error.message.includes('weak')) {
+          errorMessage = 'รหัสผ่านไม่ปลอดภัยเพียงพอ กรุณาใช้รหัสผ่านที่แข็งแรงกว่านี้';
+        } else if (error.message.includes('session')) {
+          errorMessage = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่แล้วลองอีกครั้ง';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง';
+        }
+        
         toast({
           variant: 'destructive',
-          title: 'เปลี่ยนรหัสผ่านไม่สำเร็จ',
-          description: error.message,
+          title: '❌ เปลี่ยนรหัสผ่านไม่สำเร็จ',
+          description: errorMessage,
         });
       } else {
         toast({
-          title: 'เปลี่ยนรหัสผ่านสำเร็จ',
-          description: 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว',
+          title: '✅ เปลี่ยนรหัสผ่านสำเร็จ',
+          description: 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว คุณสามารถใช้รหัสผ่านใหม่ในการเข้าสู่ระบบครั้งต่อไป',
         });
-        navigate(-1);
+        // Clear form
+        setNewPassword('');
+        setConfirmPassword('');
+        // Navigate back after a short delay
+        setTimeout(() => navigate(-1), 1500);
       }
     } catch (error: any) {
+      console.error('Password change error:', error);
       toast({
         variant: 'destructive',
-        title: 'เกิดข้อผิดพลาด',
-        description: error.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้',
+        title: '❌ เกิดข้อผิดพลาด',
+        description: error.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองใหม่อีกครั้ง',
       });
     } finally {
       setIsSubmitting(false);
