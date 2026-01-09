@@ -38,15 +38,15 @@ serve(async (req) => {
       throw new Error('No file provided')
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    // Validate file type - JPG, PNG only
+    const allowedTypes = ['image/jpeg', 'image/png']
     if (!allowedTypes.includes(file.type)) {
-      throw new Error('Invalid file type. Allowed: JPEG, PNG, WebP, GIF')
+      throw new Error('Invalid file type. Allowed: JPG, PNG only')
     }
 
-    // Max 20MB
-    if (file.size > 20 * 1024 * 1024) {
-      throw new Error('File too large. Maximum size is 20MB')
+    // Max 25MB
+    if (file.size > 25 * 1024 * 1024) {
+      throw new Error('File too large. Maximum size is 25MB')
     }
 
     const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')?.trim()
@@ -125,11 +125,17 @@ serve(async (req) => {
     const baseUrl = `https://res.cloudinary.com/${cloudName}/image/upload`
     const publicId = cloudinaryData.public_id
 
+    // All variants include:
+    // - cs_srgb: Convert to sRGB color space
+    // - c_limit: Never upscale (only downscale)
+    // - f_auto: Auto format (WebP/AVIF based on browser)
+    // - fl_strip_profile: Strip EXIF metadata
     const variants = {
-      url_blur: `${baseUrl}/w_50,h_50,c_limit,e_blur:1000,f_auto,q_10/${publicId}`,
-      url_small: `${baseUrl}/w_400,c_limit,f_auto,q_auto:good/${publicId}`,
-      url_medium: `${baseUrl}/w_1200,c_limit,f_auto,q_auto:best/${publicId}`,
-      url_large: `${baseUrl}/w_2400,c_limit,f_auto,q_auto:best/${publicId}`,
+      url_blur: `${baseUrl}/w_50,h_50,c_limit,e_blur:1000,cs_srgb,fl_strip_profile,f_auto,q_10/${publicId}`,
+      url_small: `${baseUrl}/w_400,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:good/${publicId}`,
+      url_medium: `${baseUrl}/w_1200,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
+      url_large: `${baseUrl}/w_2400,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
+      url_original: `${baseUrl}/cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
     }
 
     // Store in database using service role
