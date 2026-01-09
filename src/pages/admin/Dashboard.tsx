@@ -250,10 +250,10 @@ const AdminDashboard = () => {
                     <MessageSquare className="h-5 w-5 text-primary" />
                     <div>
                       <Label htmlFor="community-toggle" className="font-medium cursor-pointer">
-                        หน้าคอมมูนิตี้
+                        Discover Section
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        {settings.community_enabled ? 'เปิดใช้งานอยู่' : 'ปิดใช้งานอยู่'}
+                        {settings.community_enabled ? 'แสดง Masonry Grid ใน Community' : 'ซ่อน Masonry Grid ใน Community'}
                       </p>
                     </div>
                   </div>
