@@ -5,12 +5,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, Loader2, ImagePlus } from 'lucide-react';
+import { Camera, Save, Loader2, ImagePlus, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import { ImagePositioner } from '@/components/ui/ImagePositioner';
@@ -62,6 +63,7 @@ const MyArtistProfile = () => {
   const [artistNameError, setArtistNameError] = useState('');
   const [originalArtistName, setOriginalArtistName] = useState('');
   const [artistNameChangedAt, setArtistNameChangedAt] = useState<string | null>(null);
+  const [showNameChangeConfirm, setShowNameChangeConfirm] = useState(false);
 
   const isArtist = roles.includes('artist');
 
@@ -267,19 +269,8 @@ const MyArtistProfile = () => {
     return Math.max(0, 30 - daysDiff);
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
     if (!user) return;
-
-    // Check if artist name is being changed while on cooldown
-    const isArtistNameChanged = artistName !== originalArtistName;
-    if (isArtistNameChanged && !canChangeArtistName()) {
-      toast({
-        variant: 'destructive',
-        title: 'ยังไม่สามารถเปลี่ยนชื่อศิลปินได้',
-        description: `กรุณารออีก ${getDaysUntilCanChange()} วัน`,
-      });
-      return;
-    }
 
     // Validate artist name - no spaces allowed
     if (/\s/.test(artistName)) {
@@ -291,6 +282,31 @@ const MyArtistProfile = () => {
       });
       return;
     }
+
+    // Check if artist name is being changed
+    const isArtistNameChanged = artistName !== originalArtistName;
+    
+    if (isArtistNameChanged && !canChangeArtistName()) {
+      toast({
+        variant: 'destructive',
+        title: 'ยังไม่สามารถเปลี่ยนชื่อศิลปินได้',
+        description: `กรุณารออีก ${getDaysUntilCanChange()} วัน`,
+      });
+      return;
+    }
+
+    // If artist name is being changed, show confirmation dialog
+    if (isArtistNameChanged && canChangeArtistName()) {
+      setShowNameChangeConfirm(true);
+      return;
+    }
+
+    // Otherwise, save directly
+    performSave(false);
+  };
+
+  const performSave = async (isArtistNameChanged: boolean) => {
+    if (!user) return;
 
     setArtistNameError('');
     setIsSaving(true);
@@ -338,6 +354,11 @@ const MyArtistProfile = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleConfirmNameChange = () => {
+    setShowNameChangeConfirm(false);
+    performSave(true);
   };
 
   if (authLoading || isLoading) {
@@ -604,7 +625,7 @@ const MyArtistProfile = () => {
                 </div>
 
                 <div className="pt-4">
-                  <Button onClick={handleSave} disabled={isSaving}>
+                  <Button onClick={handleSaveClick} disabled={isSaving}>
                     {isSaving ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -616,6 +637,28 @@ const MyArtistProfile = () => {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* Artist Name Change Confirmation Dialog */}
+          <AlertDialog open={showNameChangeConfirm} onOpenChange={setShowNameChangeConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  ยืนยันการเปลี่ยนชื่อศิลปิน
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <p>คุณกำลังจะเปลี่ยนชื่อศิลปินจาก <strong>"{originalArtistName}"</strong> เป็น <strong>"{artistName}"</strong></p>
+                  <p className="text-amber-600 font-medium">⚠️ หลังจากเปลี่ยนแล้ว คุณจะไม่สามารถเปลี่ยนชื่อศิลปินได้อีกเป็นเวลา 30 วัน</p>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmNameChange}>
+                  ยืนยันการเปลี่ยนชื่อ
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Image Cropper Dialog */}
           <ImageCropper
