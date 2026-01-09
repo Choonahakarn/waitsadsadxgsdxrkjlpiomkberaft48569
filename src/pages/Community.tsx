@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2 } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2, Hash } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,7 @@ export default function Community() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [toolsUsed, setToolsUsed] = useState("");
+  const [hashtags, setHashtags] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -161,6 +162,7 @@ export default function Community() {
   const [editDescription, setEditDescription] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editToolsUsed, setEditToolsUsed] = useState("");
+  const [editHashtags, setEditHashtags] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -807,6 +809,19 @@ export default function Community() {
         .from('artworks')
         .getPublicUrl(fileName);
 
+      // Parse hashtags - extract tags from the hashtags field
+      const parsedHashtags = hashtags
+        ? hashtags.split(/[,\s]+/)
+            .map(t => t.trim().replace(/^#/, ''))
+            .filter(t => t.length > 0)
+        : [];
+      
+      // Combine tools_used and hashtags for the tools_used field
+      const allTags = [
+        ...(toolsUsed ? toolsUsed.split(',').map(t => t.trim()).filter(t => t.length > 0) : []),
+        ...parsedHashtags
+      ];
+
       const { error: postError } = await supabase
         .from('community_posts')
         .insert({
@@ -815,7 +830,7 @@ export default function Community() {
           description: description || null,
           image_url: urlData.publicUrl,
           category: category || null,
-          tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : []
+          tools_used: allTags
         });
 
       if (postError) throw postError;
@@ -865,6 +880,7 @@ export default function Community() {
       setDescription("");
       setCategory("");
       setToolsUsed("");
+      setHashtags("");
       setImageFile(null);
       setImagePreview("");
       setAddToPortfolio(false);
@@ -1607,6 +1623,7 @@ export default function Community() {
     setEditDescription(post.description || "");
     setEditCategory(post.category || "");
     setEditToolsUsed((post.tools_used || []).join(", "));
+    setEditHashtags(""); // Start empty - user can add new tags
     setEditDialogOpen(true);
   };
 
@@ -1619,6 +1636,16 @@ export default function Community() {
         .split(',')
         .map(t => t.trim())
         .filter(t => t.length > 0);
+      
+      // Parse edit hashtags
+      const parsedEditHashtags = editHashtags
+        ? editHashtags.split(/[,\s]+/)
+            .map(t => t.trim().replace(/^#/, ''))
+            .filter(t => t.length > 0)
+        : [];
+      
+      // Combine tools_used and hashtags
+      const allEditTags = [...toolsArray, ...parsedEditHashtags];
 
       const { error } = await supabase
         .from('community_posts')
@@ -1626,7 +1653,7 @@ export default function Community() {
           title: editTitle,
           description: editDescription || null,
           category: editCategory || null,
-          tools_used: toolsArray,
+          tools_used: allEditTags,
         })
         .eq('id', editingPost.id)
         .eq('user_id', user.id);
@@ -1636,7 +1663,7 @@ export default function Community() {
       // Update local state
       setPosts(posts.map(p => 
         p.id === editingPost.id 
-          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: toolsArray }
+          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: allEditTags }
           : p
       ));
 
@@ -1647,7 +1674,7 @@ export default function Community() {
           title: editTitle,
           description: editDescription,
           category: editCategory,
-          tools_used: toolsArray
+          tools_used: allEditTags
         });
       }
 
@@ -2391,6 +2418,19 @@ export default function Community() {
                     onChange={(e) => setToolsUsed(e.target.value)}
                     placeholder="เช่น Procreate, Photoshop, สีน้ำ (คั่นด้วย ,)"
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="hashtags">Tags / แท็ก (#)</Label>
+                  <Input
+                    id="hashtags"
+                    value={hashtags}
+                    onChange={(e) => setHashtags(e.target.value)}
+                    placeholder="เช่น fanart, anime, portrait (คั่นด้วย , หรือ เว้นวรรค)"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
+                  </p>
                 </div>
                 
                 <div>
@@ -3248,6 +3288,19 @@ export default function Community() {
                   onChange={(e) => setEditToolsUsed(e.target.value)}
                   placeholder="เช่น Photoshop, Procreate (คั่นด้วยเครื่องหมายจุลภาค)"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-hashtags">Tags / แท็ก (#)</Label>
+                <Input
+                  id="edit-hashtags"
+                  value={editHashtags}
+                  onChange={(e) => setEditHashtags(e.target.value)}
+                  placeholder="เช่น fanart, anime, portrait (คั่นด้วย , หรือ เว้นวรรค)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
