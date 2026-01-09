@@ -2098,62 +2098,60 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Recommended Works Section */}
+        {/* Recommended Works Section - Full Width like Cara */}
         {recommendedPosts.length > 0 && activeTab === 'discover' && (
-          <div className="border-b border-border bg-background py-6">
-            <div className="flex justify-center px-4">
-              <div className="w-full max-w-[900px]">
-                <h2 className="text-lg font-semibold mb-4">Recommended works</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {recommendedPosts.slice(0, 10).map((post) => (
-                    <motion.div
-                      key={`rec-${post.id}`}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="group relative cursor-pointer"
-                      onClick={() => handleOpenPost(post)}
-                    >
-                      <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted">
-                        <OptimizedImage
-                          src={post.image_url}
-                          variants={{
-                            blur: post.image_blur_url || undefined,
-                            small: post.image_small_url || undefined,
-                            medium: post.image_medium_url || undefined,
-                          }}
-                          alt={post.title}
-                          variant="thumbnail"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
+          <div className="border-b border-border bg-background py-8">
+            <div className="container mx-auto px-4">
+              <h2 className="text-xl font-semibold mb-6 text-center">Recommended works</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
+                {recommendedPosts.map((post) => (
+                  <motion.div
+                    key={`rec-${post.id}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="group relative cursor-pointer"
+                    onClick={() => handleOpenPost(post)}
+                  >
+                    <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted relative">
+                      <OptimizedImage
+                        src={post.image_url}
+                        variants={{
+                          blur: post.image_blur_url || undefined,
+                          small: post.image_small_url || undefined,
+                          medium: post.image_medium_url || undefined,
+                        }}
+                        alt={post.title}
+                        variant="thumbnail"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
                       {/* Like button overlay */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleLike(post.id, post.is_liked || false);
                         }}
-                        className="absolute bottom-14 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                        className="absolute bottom-3 right-3 p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
                       >
                         <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
                       </button>
-                      {/* Title & Artist */}
-                      <div className="mt-2">
-                        <p className="text-sm font-medium truncate">{post.title}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                            <AvatarFallback className="text-[10px]">
-                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs text-muted-foreground truncate">
-                            {getDisplayName(post.user_profile, post.artist_profile)}
-                          </span>
-                        </div>
+                    </div>
+                    {/* Title & Artist */}
+                    <div className="mt-2">
+                      <p className="text-sm font-medium truncate">{post.title}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                          <AvatarFallback className="text-[10px]">
+                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {getDisplayName(post.user_profile, post.artist_profile)}
+                        </span>
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </div>
           </div>
