@@ -128,6 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: primaryRole,
           display_id: displayId || undefined,
           display_name: displayName || displayId || undefined,
+          // Include artist verification info in metadata for database trigger
+          real_name: artistVerification?.realName || undefined,
+          phone_number: artistVerification?.phoneNumber || undefined,
         },
       },
     });
