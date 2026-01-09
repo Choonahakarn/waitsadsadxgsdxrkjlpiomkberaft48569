@@ -198,30 +198,11 @@ const Auth = () => {
           : error.message,
       });
     } else {
-      // Send OTP email using our custom edge function
-      try {
-        const { data, error: otpError } = await supabase.functions.invoke('send-otp', {
-          body: { email: signupEmail, type: 'signup' },
-        });
-
-        if (otpError || data?.error) {
-          console.error('Send OTP error:', otpError || data?.error);
-          toast({
-            variant: 'destructive',
-            title: 'สมัครสมาชิกสำเร็จ แต่ส่งรหัส OTP ไม่ได้',
-            description: 'กรุณาลองส่งรหัสใหม่ในหน้ายืนยันอีเมล',
-          });
-        } else {
-          toast({
-            title: '🎉 สมัครสมาชิกสำเร็จ!',
-            description: 'กรุณากรอกรหัส OTP 6 หลักที่ส่งไปยังอีเมลของคุณ',
-            duration: 5000,
-          });
-        }
-      } catch (otpErr) {
-        console.error('Send OTP exception:', otpErr);
-      }
-      
+      toast({
+        title: '🎉 สมัครสมาชิกสำเร็จ!',
+        description: 'กรุณาตรวจสอบอีเมลของคุณและคลิกลิงก์ยืนยัน',
+        duration: 5000,
+      });
       // Navigate to verify email page with email param
       navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}`);
     }
