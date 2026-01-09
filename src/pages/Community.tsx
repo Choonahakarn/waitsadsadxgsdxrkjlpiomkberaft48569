@@ -2287,10 +2287,17 @@ export default function Community() {
                               🛠 {tool}
                             </Badge>
                           ))}
-                          {post.hashtags?.slice(0, 3).map((tag, i) => (
-                            <Badge key={`tag-${i}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                          {post.hashtags?.slice(0, 5).map((tag, i) => (
+                            <button
+                              key={`tag-${i}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTag(tag);
+                              }}
+                              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
+                            >
                               #{tag}
-                            </Badge>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -2725,9 +2732,16 @@ export default function Community() {
                           </Badge>
                         ))}
                         {selectedPost.hashtags?.map((tag) => (
-                          <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                          <button
+                            key={`tag-${tag}`}
+                            onClick={() => {
+                              setSelectedTag(tag);
+                              setSelectedPost(null);
+                            }}
+                            className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
+                          >
                             #{tag}
-                          </Badge>
+                          </button>
                         ))}
                       </div>
                     ) : null}
