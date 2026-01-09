@@ -105,7 +105,7 @@ const formatTimeAgo = (dateString: string) => {
 
 export default function UserProfile() {
   const { userId } = useParams<{ userId: string }>();
-  const { user } = useAuth();
+  const { user, isArtist } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isUserHidden } = useBlockedUsers();
@@ -1076,7 +1076,7 @@ export default function UserProfile() {
                     {/* Right side - Action buttons */}
                     <div className="flex items-center gap-2">
                       {user && user.id === userId ? (
-                        <Link to={artistProfile ? "/artist/edit-profile" : "/settings/edit-profile"}>
+                        <Link to={isArtist ? "/artist/edit-profile" : "/settings/edit-profile"}>
                           <Button variant="outline" className="rounded-full px-5">
                             <Settings className="w-4 h-4 mr-2" />
                             แก้ไขโปรไฟล์
