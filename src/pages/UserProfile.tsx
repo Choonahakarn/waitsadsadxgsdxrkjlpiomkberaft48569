@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface UserProfileData {
   id: string;
   full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   website: string | null;
@@ -949,7 +950,7 @@ export default function UserProfile() {
     }
   };
 
-  const displayName = artistProfile?.artist_name || profile?.full_name || 'ผู้ใช้';
+  const displayName = artistProfile?.artist_name || profile?.display_name || profile?.full_name || 'ผู้ใช้';
   const displayAvatar = artistProfile?.avatar_url || profile?.avatar_url;
   const displayBio = artistProfile?.bio || profile?.bio;
 
