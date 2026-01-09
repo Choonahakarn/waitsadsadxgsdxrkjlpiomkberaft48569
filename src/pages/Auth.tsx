@@ -458,7 +458,8 @@ const Auth = () => {
                         placeholder="ชื่อที่จะแสดงในโปรไฟล์"
                         value={signupDisplayName}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/[\s@]/g, '');
+                          // Remove spaces and @ symbol explicitly
+                          const value = e.target.value.split('').filter(char => char !== ' ' && char !== '@').join('');
                           setSignupDisplayName(value);
                         }}
                         className="pl-10"
