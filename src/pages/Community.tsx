@@ -2762,6 +2762,18 @@ export default function Community() {
                                           <span className="text-xs text-muted-foreground">
                                             {formatTimeAgo(reply.created_at)}
                                           </span>
+                                          {/* Reply button for nested reply - replies to parent comment */}
+                                          {user && (
+                                            <button
+                                              onClick={() => {
+                                                setReplyingToComment(comment);
+                                                setReplyContent(`@${reply.user_profile?.full_name || 'ผู้ใช้'} `);
+                                              }}
+                                              className="text-xs text-muted-foreground hover:text-foreground font-medium"
+                                            >
+                                              ตอบกลับ
+                                            </button>
+                                          )}
                                           {/* Edit/Delete buttons for own replies */}
                                           {user && user.id === reply.user_id && (
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
