@@ -2287,7 +2287,7 @@ export default function Community() {
             </div>
 
             {/* Sidebar - Sticky with bottom alignment like cara.app */}
-            <aside className="hidden lg:block w-80 shrink-0" style={{ position: 'sticky', top: '5rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
+            <aside className="hidden lg:block w-80 shrink-0 scroll-smooth scrollbar-thin scrollbar-thumb-muted/50 scrollbar-track-transparent hover:scrollbar-thumb-muted transition-all duration-300" style={{ position: 'sticky', top: '5rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
               <div className="space-y-4">
                 {/* Active Filters Display */}
                 {(selectedTag || selectedCategory) && (
