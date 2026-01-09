@@ -115,8 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? [...selectedRoles, 'buyer']
       : selectedRoles;
     
-    // Use the first role for the trigger
-    const primaryRole = rolesToAdd[0] || 'buyer';
+    // Use artist as primary role if selected, otherwise use the first role
+    const primaryRole = rolesToAdd.includes('artist') ? 'artist' : (rolesToAdd[0] || 'buyer');
     
     const { data, error } = await supabase.auth.signUp({
       email,
