@@ -186,10 +186,12 @@ const Auth = () => {
       ? { realName: signupRealName, phoneNumber: signupPhoneNumber, artistName: signupDisplayName }
       : undefined;
     
+    const isArtistSignup = signupRoles.includes('artist');
+    
     const { error } = await signUp(signupEmail, signupPassword, signupFirstName, signupLastName, signupDisplayId, signupDisplayName, signupRoles, artistVerification);
-    setIsSubmitting(false);
     
     if (error) {
+      setIsSubmitting(false);
       toast({
         variant: 'destructive',
         title: t('auth.signupFailed'),
@@ -197,14 +199,47 @@ const Auth = () => {
           ? t('auth.emailExists')
           : error.message,
       });
-    } else {
+      return;
+    }
+    
+    // For artists, send OTP for email verification
+    if (isArtistSignup) {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ email: signupEmail, type: 'signup' }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error('OTP send error:', data);
+        }
+      } catch (err) {
+        console.error('Failed to send OTP:', err);
+      }
+      
+      setIsSubmitting(false);
       toast({
         title: '🎉 สมัครสมาชิกสำเร็จ!',
-        description: 'กรุณาตรวจสอบอีเมลของคุณและคลิกลิงก์ยืนยัน',
+        description: 'กรุณายืนยันอีเมลของคุณด้วยรหัส OTP',
         duration: 5000,
       });
-      // Navigate to verify email page with email param
-      navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}`);
+      // Navigate to verify email page with email and artist flag
+      navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}&artist=true`);
+    } else {
+      // For buyers, no verification needed - direct login success
+      setIsSubmitting(false);
+      toast({
+        title: '🎉 สมัครสมาชิกสำเร็จ!',
+        description: 'ยินดีต้อนรับสู่ The Human Canvas',
+        duration: 3000,
+      });
+      navigate('/');
     }
   };
 

@@ -118,8 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Use artist as primary role if selected, otherwise use the first role
     const primaryRole = rolesToAdd.includes('artist') ? 'artist' : (rolesToAdd[0] || 'buyer');
     
-    console.log('SignUp Debug:', { selectedRoles, rolesToAdd, primaryRole });
-    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
