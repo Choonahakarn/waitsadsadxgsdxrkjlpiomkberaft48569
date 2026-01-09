@@ -39,6 +39,7 @@ const MyArtistProfile = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const [profile, setProfile] = useState<ArtistProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<{ display_id: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -73,6 +74,7 @@ const MyArtistProfile = () => {
     const fetchProfile = async () => {
       if (!user) return;
 
+      // Fetch artist profile
       const { data, error } = await supabase
         .from('artist_profiles')
         .select('*')
@@ -90,6 +92,17 @@ const MyArtistProfile = () => {
         setPortfolioUrl(data.portfolio_url || '');
         setToolsUsed(data.tools_used?.join(', ') || '');
         setYearsExperience(data.years_experience?.toString() || '');
+      }
+
+      // Fetch user profile for display_id
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileData) {
+        setUserProfile(profileData);
       }
 
       setIsLoading(false);
@@ -423,6 +436,20 @@ const MyArtistProfile = () => {
                 <CardTitle>{t('profile.basicInfo', 'ข้อมูลพื้นฐาน')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* User ID Display */}
+                <div className="space-y-2">
+                  <Label>User ID</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={userProfile?.display_id || 'กำลังโหลด...'}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed max-w-[200px]"
+                    />
+                    <span className="text-xs text-muted-foreground">ID สำหรับใช้อ้างอิง (ไม่สามารถเปลี่ยนได้)</span>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="artist-name">{t('profile.artistName', 'ชื่อศิลปิน')} <span className="text-destructive">*</span></Label>
                   <Input
