@@ -5,12 +5,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, Loader2, ArrowLeft, ImagePlus } from 'lucide-react';
+import { Camera, Save, Loader2, ArrowLeft, ImagePlus, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ImagePositioner } from '@/components/ui/ImagePositioner';
 import { ImageCropper } from '@/components/ui/ImageCropper';
@@ -53,6 +54,7 @@ const EditUserProfile = () => {
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
+  const [showDisplayNameConfirm, setShowDisplayNameConfirm] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -212,8 +214,18 @@ const EditUserProfile = () => {
     return Math.max(0, Math.ceil(30 - daysSinceChange));
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
     if (!user) return;
+
+    // Validate display name - no spaces allowed
+    if (/\s/.test(displayName)) {
+      toast({
+        variant: 'destructive',
+        title: 'ชื่อที่แสดงห้ามมีเว้นวรรค',
+        description: 'กรุณาใช้ขีดล่าง (_) หรือตัวเชื่อมอื่นแทน',
+      });
+      return;
+    }
 
     // Check if display name changed and if it's allowed
     const displayNameChanged = displayName !== (profile?.display_name || '');
@@ -225,6 +237,19 @@ const EditUserProfile = () => {
       });
       return;
     }
+
+    // If display name is being changed, show confirmation dialog
+    if (displayNameChanged && canChangeDisplayName()) {
+      setShowDisplayNameConfirm(true);
+      return;
+    }
+
+    // Otherwise, save directly
+    performSave(false);
+  };
+
+  const performSave = async (isDisplayNameChanged: boolean) => {
+    if (!user) return;
 
     setIsSaving(true);
 
@@ -241,7 +266,7 @@ const EditUserProfile = () => {
       };
 
       // Only update display_name and timestamp if it actually changed
-      if (displayNameChanged) {
+      if (isDisplayNameChanged) {
         updateData.display_name = displayName || null;
         updateData.display_name_changed_at = new Date().toISOString();
       }
@@ -254,7 +279,7 @@ const EditUserProfile = () => {
       if (error) throw error;
 
       // Update local profile state
-      if (displayNameChanged) {
+      if (isDisplayNameChanged) {
         setProfile(prev => prev ? {
           ...prev,
           display_name: displayName || null,
@@ -275,6 +300,11 @@ const EditUserProfile = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleConfirmDisplayNameChange = () => {
+    setShowDisplayNameConfirm(false);
+    performSave(true);
   };
 
   if (authLoading || isLoading) {
@@ -485,7 +515,7 @@ const EditUserProfile = () => {
                 </div>
 
                 <div className="pt-4">
-                  <Button onClick={handleSave} disabled={isSaving}>
+                  <Button onClick={handleSaveClick} disabled={isSaving}>
                     {isSaving ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -512,6 +542,30 @@ const EditUserProfile = () => {
           />
         </div>
       </section>
+
+      {/* Confirmation Dialog for Display Name Change */}
+      <AlertDialog open={showDisplayNameConfirm} onOpenChange={setShowDisplayNameConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              ยืนยันการเปลี่ยนชื่อที่แสดง
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>คุณต้องการเปลี่ยนชื่อที่แสดงเป็น <strong>"{displayName}"</strong> ใช่หรือไม่?</p>
+              <p className="text-amber-600 font-medium">
+                ⚠️ หลังจากเปลี่ยนแล้ว คุณจะต้องรอ 30 วัน ก่อนเปลี่ยนชื่อที่แสดงอีกครั้ง
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDisplayNameChange}>
+              ยืนยันเปลี่ยนชื่อ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
