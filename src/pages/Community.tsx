@@ -1954,7 +1954,7 @@ export default function Community() {
 
         {/* Main Content with Sidebar */}
         <div className="container mx-auto max-w-6xl px-4 py-4">
-          <div className="flex gap-6 items-start">
+          <div className="flex gap-6 items-stretch">
             {/* Feed Content */}
             <div className="flex-1 max-w-2xl">
           {loading ? (
@@ -2287,8 +2287,9 @@ export default function Community() {
           )}
             </div>
 
-            {/* Sidebar - Sticky, scrolls with page */}
-            <aside className="hidden lg:block w-80 shrink-0 sticky top-20">
+            {/* Sidebar - Scrolls with page, sticks at bottom */}
+            <aside className="hidden lg:block w-80 shrink-0">
+              <div className="sticky bottom-4 top-20">
               <div className="space-y-4">
                 {/* Active Filters Display */}
                 {(selectedTag || selectedCategory) && (
@@ -2327,6 +2328,7 @@ export default function Community() {
                   onTagSelect={setSelectedTag}
                   onCategorySelect={setSelectedCategory}
                 />
+              </div>
               </div>
             </aside>
           </div>
