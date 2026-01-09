@@ -310,27 +310,27 @@ export function PostDetailDialog({
   // Cara-style layout for normal/wide images
   return (
     <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[95vw] lg:max-w-6xl max-h-[95vh] p-0 overflow-hidden gap-0">
-        <div className="flex flex-col lg:flex-row h-full max-h-[95vh]">
+      <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden gap-0 border-0 rounded-none">
+        <div className="flex flex-col lg:flex-row h-full w-full">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 z-50 p-2 rounded-full bg-background/80 hover:bg-background text-foreground shadow-lg transition-colors lg:hidden"
+            className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Section - Left */}
-          <div className="lg:flex-1 bg-black flex items-center justify-center min-h-[40vh] lg:min-h-0">
+          {/* Image Section - Left - Full height and flexible width */}
+          <div className="flex-1 bg-black flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden">
             <img
               src={post.image_url}
               alt={post.title}
-              className="max-h-[45vh] lg:max-h-[95vh] w-full object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
 
-          {/* Content Section - Right */}
-          <div className="w-full lg:w-[380px] flex flex-col bg-background border-l border-border max-h-[55vh] lg:max-h-[95vh]">
+          {/* Content Section - Right - Fixed width panel */}
+          <div className="w-full lg:w-[420px] xl:w-[480px] flex flex-col bg-background border-l border-border max-h-[55vh] lg:max-h-full lg:h-full shrink-0">
             {/* Header with User Info */}
             <div className="p-4 border-b border-border shrink-0">
               <div className="flex items-center justify-between">
