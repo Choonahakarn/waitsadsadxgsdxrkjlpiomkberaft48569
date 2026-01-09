@@ -384,6 +384,7 @@ export type Database = {
           cover_position_y: number | null
           cover_url: string | null
           created_at: string
+          display_id: string | null
           email: string
           full_name: string | null
           id: string
@@ -398,6 +399,7 @@ export type Database = {
           cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
+          display_id?: string | null
           email: string
           full_name?: string | null
           id: string
@@ -412,6 +414,7 @@ export type Database = {
           cover_position_y?: number | null
           cover_url?: string | null
           created_at?: string
+          display_id?: string | null
           email?: string
           full_name?: string | null
           id?: string
@@ -829,6 +832,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_user_display_id: { Args: never; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
