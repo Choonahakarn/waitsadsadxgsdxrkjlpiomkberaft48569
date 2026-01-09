@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, TrendingUp, Hash, Palette, ChevronRight, X } from "lucide-react";
+import { MessageCircle, ChevronRight, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 
 interface Post {
   id: string;
@@ -36,13 +37,13 @@ interface CommunitySidebarProps {
 }
 
 const categories = [
-  { name: "ภาพวาดดิจิทัล", icon: "🎨", count: 0 },
-  { name: "ภาพวาดสีน้ำมัน", icon: "🖼️", count: 0 },
-  { name: "ภาพวาดสีน้ำ", icon: "💧", count: 0 },
-  { name: "ภาพประกอบ", icon: "✏️", count: 0 },
-  { name: "คาแรคเตอร์ดีไซน์", icon: "👤", count: 0 },
-  { name: "แฟนอาร์ต", icon: "⭐", count: 0 },
-  { name: "งานปั้น 3D", icon: "🎮", count: 0 },
+  { name: "ภาพวาดดิจิทัล" },
+  { name: "ภาพวาดสีน้ำมัน" },
+  { name: "ภาพวาดสีน้ำ" },
+  { name: "ภาพประกอบ" },
+  { name: "คาแรคเตอร์ดีไซน์" },
+  { name: "แฟนอาร์ต" },
+  { name: "งานปั้น 3D" },
 ];
 
 export function CommunitySidebar({ 
@@ -55,6 +56,7 @@ export function CommunitySidebar({
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [trendingTags, setTrendingTags] = useState<TagCount[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
+  const [showAllTags, setShowAllTags] = useState(false);
 
   useEffect(() => {
     fetchLatestPosts();
@@ -220,7 +222,6 @@ export function CommunitySidebar({
       {/* Latest Discussions */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
-          <MessageCircle className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">โพสต์ล่าสุด</h3>
         </div>
         <div className="space-y-3">
@@ -248,10 +249,13 @@ export function CommunitySidebar({
                 </div>
               </div>
               {post.image_url && (
-                <img
+                <OptimizedImage
                   src={post.image_url}
                   alt=""
-                  className="w-10 h-10 rounded object-cover shrink-0"
+                  variant="thumbnail"
+                  className="rounded"
+                  containerClassName="w-10 h-10 shrink-0"
+                  aspectRatio="square"
                 />
               )}
             </div>
@@ -265,7 +269,6 @@ export function CommunitySidebar({
       {/* Popular Posts */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-5 w-5 text-orange-500" />
           <h3 className="font-semibold">ยอดนิยม</h3>
         </div>
         <div className="space-y-3">
@@ -308,8 +311,7 @@ export function CommunitySidebar({
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-500" />
-            <h3 className="font-semibold">Trending Tags</h3>
+            <h3 className="font-semibold">แท็กยอดนิยม</h3>
           </div>
           {selectedTag && (
             <button
@@ -321,31 +323,38 @@ export function CommunitySidebar({
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {trendingTags.map((tag) => (
+        <div className="space-y-0.5">
+          {trendingTags.slice(0, showAllTags ? 15 : 5).map((tag) => (
             <button
               key={tag.tag}
               onClick={() => onTagSelect?.(selectedTag === tag.tag ? null : tag.tag)}
-              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+              className={`w-full text-left py-1.5 transition-colors ${
                 selectedTag === tag.tag 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted hover:bg-primary/10 hover:text-primary'
+                  ? 'text-primary' 
+                  : 'text-foreground/80 hover:text-primary'
               }`}
             >
-              #{tag.tag}
+              <span className="text-sm">#{tag.tag}</span>
             </button>
           ))}
           {trendingTags.length === 0 && (
-            <p className="text-sm text-muted-foreground">ยังไม่มี Tags</p>
+            <p className="text-sm text-muted-foreground py-1.5">ยังไม่มี Tags</p>
           )}
         </div>
+        {trendingTags.length > 5 && (
+          <button 
+            onClick={() => setShowAllTags(!showAllTags)}
+            className="text-primary text-sm mt-2 hover:underline transition-colors"
+          >
+            {showAllTags ? 'แสดงน้อยลง' : 'ดูเพิ่มเติม'}
+          </button>
+        )}
       </div>
 
       {/* Artwork Categories */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Palette className="h-5 w-5 text-purple-500" />
             <h3 className="font-semibold">หมวดหมู่ผลงาน</h3>
           </div>
           {selectedCategory && (
@@ -363,20 +372,14 @@ export function CommunitySidebar({
             <button
               key={cat.name}
               onClick={() => onCategorySelect?.(selectedCategory === cat.name ? null : cat.name)}
-              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center group ${
                 selectedCategory === cat.name 
                   ? 'bg-primary text-primary-foreground' 
                   : 'hover:bg-muted'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <span>{cat.icon}</span>
-                <span className={`text-sm ${selectedCategory !== cat.name ? 'group-hover:text-primary' : ''} transition-colors`}>
-                  {cat.name}
-                </span>
-              </div>
-              <span className={`text-xs ${selectedCategory === cat.name ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                {categoryCounts[cat.name] || 0}
+              <span className={`text-sm ${selectedCategory !== cat.name ? 'group-hover:text-primary' : ''} transition-colors`}>
+                {cat.name}
               </span>
             </button>
           ))}

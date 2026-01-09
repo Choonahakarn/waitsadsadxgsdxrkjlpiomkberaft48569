@@ -9,6 +9,7 @@ import { ArtworkReviews } from "@/components/artwork/ArtworkReviews";
 import { Button } from "@/components/ui/button";
 import { TranslateButton } from "@/components/ui/TranslateButton";
 import { Badge } from "@/components/ui/badge";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +35,12 @@ interface Artwork {
   is_verified: boolean | null;
   is_sold: boolean | null;
   artist_id: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
   artist_profiles?: {
     id: string;
     artist_name: string;
@@ -223,10 +230,18 @@ export default function ArtworkDetail() {
               transition={{ duration: 0.6 }}
             >
               <div className="overflow-hidden rounded-2xl shadow-elevated relative">
-                <img
+                <OptimizedImage
                   src={artwork.image_url}
+                  variants={{
+                    blur: artwork.image_blur_url || undefined,
+                    small: artwork.image_small_url || undefined,
+                    medium: artwork.image_medium_url || undefined,
+                    large: artwork.image_large_url || undefined,
+                  }}
                   alt={artwork.title}
-                  className="w-full object-cover"
+                  variant="fullscreen"
+                  className="w-full"
+                  priority
                 />
                 {artwork.is_sold && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -419,6 +434,10 @@ export default function ArtworkDetail() {
                   price={art.price}
                   isVerified={art.is_verified || false}
                   medium={art.medium || ""}
+                  imageBlurUrl={art.image_blur_url || undefined}
+                  imageSmallUrl={art.image_small_url || undefined}
+                  imageMediumUrl={art.image_medium_url || undefined}
+                  imageLargeUrl={art.image_large_url || undefined}
                 />
               ))}
             </div>

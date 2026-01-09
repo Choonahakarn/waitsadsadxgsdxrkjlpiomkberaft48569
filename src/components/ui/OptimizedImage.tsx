@@ -17,7 +17,7 @@ interface OptimizedImageProps {
   containerClassName?: string;
   onClick?: () => void;
   priority?: boolean; // Disable lazy loading for above-fold images
-  aspectRatio?: 'auto' | 'square' | '4/3' | '3/4' | '16/9';
+  aspectRatio?: 'auto' | 'square' | '4/3' | '3/4' | '16/9' | '4/5';
 }
 
 const OptimizedImage: React.FC<OptimizedImageProps> = ({
@@ -125,6 +125,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     '4/3': 'aspect-[4/3]',
     '3/4': 'aspect-[3/4]',
     '16/9': 'aspect-video',
+    '4/5': 'aspect-[4/5]',
   }[aspectRatio];
 
   return (

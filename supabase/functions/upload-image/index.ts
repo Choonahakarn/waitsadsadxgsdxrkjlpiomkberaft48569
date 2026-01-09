@@ -38,44 +38,63 @@ serve(async (req) => {
       throw new Error('No file provided')
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    // Validate file type - JPG, PNG only
+    const allowedTypes = ['image/jpeg', 'image/png']
     if (!allowedTypes.includes(file.type)) {
-      throw new Error('Invalid file type. Allowed: JPEG, PNG, WebP, GIF')
+      throw new Error('Invalid file type. Allowed: JPG, PNG only')
     }
 
-    // Max 20MB
-    if (file.size > 20 * 1024 * 1024) {
-      throw new Error('File too large. Maximum size is 20MB')
+    // Max 25MB
+    if (file.size > 25 * 1024 * 1024) {
+      throw new Error('File too large. Maximum size is 25MB')
     }
 
-    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')
-    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')
-    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')
+    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')?.trim()
+    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')?.trim()
+    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')?.trim()
+
+    console.log('Cloudinary env present:', {
+      cloudName: !!cloudName,
+      apiKeyLen: apiKey?.length ?? 0,
+      apiSecretLen: apiSecret?.length ?? 0,
+    })
 
     if (!cloudName || !apiKey || !apiSecret) {
       throw new Error('Cloudinary configuration missing')
+    }
+
+    // Quick sanity-check: Cloudinary API secret is usually much longer than 10 chars.
+    // If it's too short, it's almost certainly pasted incorrectly.
+    if (apiSecret.length < 20) {
+      throw new Error('Cloudinary API secret looks invalid (too short). Please update the CLOUDINARY_API_SECRET secret.')
     }
 
     // Create timestamp and signature for authenticated upload
     const timestamp = Math.floor(Date.now() / 1000)
     const folderPath = `${folder}/${user.id}`
     
-    // Build eager transformations for variants
-    const eagerTransformations = [
-      'w_50,h_50,c_limit,e_blur:1000,f_auto,q_10',    // blur placeholder
-      'w_400,c_limit,f_auto,q_auto:good',              // small (thumbnail)
-      'w_1200,c_limit,f_auto,q_auto:best',             // medium (feed)
-      'w_2400,c_limit,f_auto,q_auto:best'              // large (full view)
-    ].join('|')
+    // NOTE: We generate variant URLs via Cloudinary URL transformations (on-demand)
+    // instead of using `eager` transformations during upload. This avoids signature
+    // mismatches caused by transformation-string normalization.
 
-    // Create signature
-    const signatureString = `eager=${eagerTransformations}&folder=${folderPath}&timestamp=${timestamp}${apiSecret}`
+    // Create signature - parameters MUST be sorted alphabetically
+    // Include all parameters that will be sent (except file, api_key, signature)
+    const paramsToSign: Record<string, string> = {
+      folder: folderPath,
+      timestamp: timestamp.toString(),
+    }
+
+    const sortedParams = Object.keys(paramsToSign).sort()
+    const signatureString = sortedParams
+      .map((key) => `${key}=${paramsToSign[key]}`)
+      .join('&') + apiSecret
+
+    // Use SHA-1 for Cloudinary
     const encoder = new TextEncoder()
     const data = encoder.encode(signatureString)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    const signature = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
     // Upload to Cloudinary
     const cloudinaryFormData = new FormData()
@@ -84,8 +103,6 @@ serve(async (req) => {
     cloudinaryFormData.append('timestamp', timestamp.toString())
     cloudinaryFormData.append('signature', signature)
     cloudinaryFormData.append('folder', folderPath)
-    cloudinaryFormData.append('eager', eagerTransformations)
-    cloudinaryFormData.append('eager_async', 'false')
 
     const cloudinaryResponse = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -108,11 +125,17 @@ serve(async (req) => {
     const baseUrl = `https://res.cloudinary.com/${cloudName}/image/upload`
     const publicId = cloudinaryData.public_id
 
+    // All variants include:
+    // - cs_srgb: Convert to sRGB color space
+    // - c_limit: Never upscale (only downscale)
+    // - f_auto: Auto format (WebP/AVIF based on browser)
+    // - fl_strip_profile: Strip EXIF metadata
     const variants = {
-      url_blur: `${baseUrl}/w_50,h_50,c_limit,e_blur:1000,f_auto,q_10/${publicId}`,
-      url_small: `${baseUrl}/w_400,c_limit,f_auto,q_auto:good/${publicId}`,
-      url_medium: `${baseUrl}/w_1200,c_limit,f_auto,q_auto:best/${publicId}`,
-      url_large: `${baseUrl}/w_2400,c_limit,f_auto,q_auto:best/${publicId}`,
+      url_blur: `${baseUrl}/w_50,h_50,c_limit,e_blur:1000,cs_srgb,fl_strip_profile,f_auto,q_10/${publicId}`,
+      url_small: `${baseUrl}/w_400,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:good/${publicId}`,
+      url_medium: `${baseUrl}/w_1200,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
+      url_large: `${baseUrl}/w_2400,c_limit,cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
+      url_original: `${baseUrl}/cs_srgb,fl_strip_profile,f_auto,q_auto:best/${publicId}`,
     }
 
     // Store in database using service role
