@@ -2662,49 +2662,6 @@ export default function Community() {
                             </div>
                           </div>
 
-                          {/* Reply Input for this comment */}
-                          {replyingToComment?.id === comment.id && (
-                            <div className="ml-11 space-y-2">
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>ตอบกลับ</span>
-                                <span className="font-medium text-foreground">
-                                  {comment.user_profile?.full_name || "ผู้ใช้"}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setReplyingToComment(null);
-                                    setReplyContent("");
-                                  }}
-                                  className="ml-auto text-muted-foreground hover:text-foreground"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                              <div className="flex gap-2 items-end">
-                                <div className="flex-1">
-                                  <MentionInput
-                                    value={replyContent}
-                                    onChange={setReplyContent}
-                                    placeholder="เขียนการตอบกลับ..."
-                                    rows={1}
-                                    className="min-h-[36px] resize-none text-sm"
-                                  />
-                                </div>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleSubmitReply(comment)}
-                                  disabled={!replyContent.trim() || submittingReply}
-                                >
-                                  {submittingReply ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Send className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
                           {/* Nested Replies */}
                           {comment.replies && comment.replies.length > 0 && (
                             <div className="ml-11 space-y-3 border-l-2 border-muted pl-3">
@@ -2806,6 +2763,67 @@ export default function Community() {
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          )}
+
+                          {/* Reply Input Box - Facebook style at bottom */}
+                          {replyingToComment?.id === comment.id && user && (
+                            <div className="ml-11 mt-2">
+                              <div className="bg-muted/50 rounded-lg p-2 border border-border">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                  <span>ตอบกลับ</span>
+                                  <span className="font-medium text-foreground">
+                                    {comment.user_profile?.full_name || "ผู้ใช้"}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setReplyingToComment(null);
+                                      setReplyContent("");
+                                    }}
+                                    className="ml-auto text-muted-foreground hover:text-foreground"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <div className="flex gap-2 items-center">
+                                  <Avatar className="h-6 w-6 shrink-0">
+                                    <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
+                                    <AvatarFallback className="text-[10px]">
+                                      {(user?.user_metadata?.full_name || user?.email || "U")[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="text"
+                                      value={replyContent}
+                                      onChange={(e) => setReplyContent(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey && replyContent.trim() && !submittingReply) {
+                                          e.preventDefault();
+                                          handleSubmitReply(comment);
+                                        }
+                                      }}
+                                      placeholder="เขียนการตอบกลับ..."
+                                      className="w-full bg-background border border-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                      autoFocus
+                                      disabled={submittingReply}
+                                    />
+                                  </div>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 shrink-0"
+                                    onClick={() => handleSubmitReply(comment)}
+                                    disabled={!replyContent.trim() || submittingReply}
+                                  >
+                                    {submittingReply ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Send className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
