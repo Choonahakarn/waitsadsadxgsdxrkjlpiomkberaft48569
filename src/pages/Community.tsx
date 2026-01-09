@@ -18,9 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
-import { useAppSettings } from "@/hooks/useAppSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,11 +119,10 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user, isArtist, isBuyer, isAdmin } = useAuth();
+  const { user, isArtist, isBuyer } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
-  const { settings: appSettings, loading: appSettingsLoading } = useAppSettings();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
@@ -1481,9 +1479,6 @@ export default function Community() {
       setNewComment("");
       fetchComments(actualPostId);
       
-      // Update posts and selectedPost comment count
-      const newCommentCount = (selectedPost.comments_count || 0) + 1;
-      
       setPosts(posts.map(post => {
         // Update both the repost and original post if they exist
         const postActualId = post.original_post_id || post.id;
@@ -1492,9 +1487,6 @@ export default function Community() {
         }
         return post;
       }));
-      
-      // Also update selectedPost state
-      setSelectedPost(prev => prev ? { ...prev, comments_count: newCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1591,9 +1583,6 @@ export default function Community() {
       setReplyingToComment(null);
       fetchComments(actualPostId);
       
-      // Update posts and selectedPost comment count for reply
-      const newReplyCommentCount = (selectedPost.comments_count || 0) + 1;
-      
       setPosts(posts.map(post => {
         const postActualId = post.original_post_id || post.id;
         if (postActualId === actualPostId) {
@@ -1601,9 +1590,6 @@ export default function Community() {
         }
         return post;
       }));
-      
-      // Also update selectedPost state
-      setSelectedPost(prev => prev ? { ...prev, comments_count: newReplyCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -2086,9 +2072,6 @@ export default function Community() {
     { id: 'latest' as FeedTab, label: 'Latest' },
   ];
 
-  // Check if Discover section should be shown
-  const showDiscoverSection = appSettings.community_enabled;
-
   return (
     <Layout>
       <div className="min-h-screen bg-background">
@@ -2123,7 +2106,7 @@ export default function Community() {
         </div>
 
         {/* Recommended Works Section - Full Width Masonry like Cara */}
-        {showDiscoverSection && recommendedPosts.length > 0 && activeTab === 'discover' && (
+        {recommendedPosts.length > 0 && activeTab === 'discover' && (
           <div className="bg-background">
             <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
               {recommendedPosts.map((post, index) => {
@@ -2206,7 +2189,7 @@ export default function Community() {
                 <div className="space-y-0 divide-y divide-border">
                   {filteredPosts.map((post, index) => (
                     <motion.article
-                      key={`${post.id}-${post.is_repost ? 'repost' : 'original'}-${index}`}
+                      key={post.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}
@@ -2215,10 +2198,10 @@ export default function Community() {
                       {/* Post Header */}
                       <div className="flex items-start gap-3 mb-2">
                         <Link to={`/profile/${post.user_id}`}>
-                          <Avatar className="h-10 w-10 border border-border">
+                          <Avatar className="h-10 w-10">
                             <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                              {getDisplayName(post.user_profile, post.artist_profile)[0]?.toUpperCase()}
+                            <AvatarFallback>
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
                             </AvatarFallback>
                           </Avatar>
                         </Link>
@@ -2316,60 +2299,52 @@ export default function Community() {
                         />
                       </div>
 
-                      {/* Action Bar - Like original layout */}
-                      <div className="flex items-center justify-between mt-3 px-1">
-                        {/* Left side - Heart, Comment, Repost, Share */}
-                        <div className="flex items-center gap-4 text-muted-foreground">
-                          <button 
-                            className={`transition-colors ${
-                              post.is_liked ? 'text-red-500' : 'hover:text-red-500'
-                            }`}
-                            onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
-                          >
-                            <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
-                          </button>
-                          
-                          <button 
-                            className="hover:text-blue-500 transition-colors"
-                            onClick={() => handleOpenPost(post)}
-                          >
-                            <MessageCircle className="h-5 w-5" />
-                          </button>
-                          
-                          <button 
-                            className={`hover:text-green-500 transition-colors ${
-                              repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
-                            }`}
-                            onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
-                          >
-                            <Repeat2 className="h-5 w-5" />
-                          </button>
-                          
-                          <button 
-                            className="hover:text-foreground transition-colors"
-                            onClick={() => handleShare(post)}
-                          >
-                            <Share2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                        
-                        {/* Right side - Bookmark */}
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between mt-3 px-1 text-muted-foreground">
                         <button 
-                          className={`text-muted-foreground hover:text-foreground transition-colors ${
+                          className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
+                          onClick={() => handleOpenPost(post)}
+                        >
+                          <MessageCircle className="h-5 w-5 group-hover:text-blue-500" />
+                          <span className="text-sm">{post.comments_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-green-500 transition-colors group ${
+                            repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
+                          }`}
+                          onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                        >
+                          <Repeat2 className="h-5 w-5" />
+                          <span className="text-sm">{post.shares_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-red-500 transition-colors group ${
+                            post.is_liked ? 'text-red-500' : ''
+                          }`}
+                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
+                        >
+                          <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
+                          <span className="text-sm">{post.likes_count}</span>
+                        </button>
+                        
+                        <button 
+                          className={`hover:text-foreground transition-colors ${
                             savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
                           }`}
                           onClick={() => handleSave(post.id, post.original_post_id)}
                         >
                           <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
                         </button>
+                        
+                        <button 
+                          className="hover:text-foreground transition-colors"
+                          onClick={() => handleShare(post)}
+                        >
+                          <Share2 className="h-5 w-5" />
+                        </button>
                       </div>
-
-                      {/* Likes count */}
-                      {(post.likes_count || 0) > 0 && (
-                        <p className="text-sm text-foreground mt-2 px-1">
-                          {post.likes_count} ถูกใจ
-                        </p>
-                      )}
                     </motion.article>
                   ))}
                 </div>
