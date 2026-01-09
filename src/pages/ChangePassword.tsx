@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/layout/Layout';
@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, EyeOff, Check, X, ArrowLeft } from 'lucide-react';
+import { Lock, Eye, EyeOff, Check, X, ArrowLeft, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const ChangePassword = () => {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ const ChangePassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Password requirements
   const passwordRequirements = [
@@ -78,6 +80,7 @@ const ChangePassword = () => {
     }
     
     setIsSubmitting(true);
+    setSubmitResult(null);
     
     try {
       const { error } = await supabase.auth.updateUser({
@@ -88,7 +91,7 @@ const ChangePassword = () => {
         // Translate common error messages to Thai
         let errorMessage = error.message;
         if (error.message.includes('same password')) {
-          errorMessage = 'รหัสผ่านใหม่ต้องไม่เหมือนกับรหัสผ่านเดิม';
+          errorMessage = 'รหัสผ่านใหม่ต้องไม่เหมือนกับรหัสผ่านเดิม กรุณาใช้รหัสผ่านที่ต่างจากเดิม';
         } else if (error.message.includes('weak')) {
           errorMessage = 'รหัสผ่านไม่ปลอดภัยเพียงพอ กรุณาใช้รหัสผ่านที่แข็งแรงกว่านี้';
         } else if (error.message.includes('session')) {
@@ -97,28 +100,35 @@ const ChangePassword = () => {
           errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง';
         }
         
+        setSubmitResult({ success: false, message: errorMessage });
         toast({
           variant: 'destructive',
           title: '❌ เปลี่ยนรหัสผ่านไม่สำเร็จ',
           description: errorMessage,
         });
       } else {
+        setSubmitResult({ 
+          success: true, 
+          message: 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว คุณสามารถใช้รหัสผ่านใหม่ในการเข้าสู่ระบบครั้งต่อไป' 
+        });
         toast({
           title: '✅ เปลี่ยนรหัสผ่านสำเร็จ',
-          description: 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว คุณสามารถใช้รหัสผ่านใหม่ในการเข้าสู่ระบบครั้งต่อไป',
+          description: 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว',
         });
         // Clear form
         setNewPassword('');
         setConfirmPassword('');
-        // Navigate back after a short delay
-        setTimeout(() => navigate(-1), 1500);
+        // Navigate back after a delay
+        setTimeout(() => navigate(-1), 3000);
       }
     } catch (error: any) {
       console.error('Password change error:', error);
+      const errorMessage = error.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองใหม่อีกครั้ง';
+      setSubmitResult({ success: false, message: errorMessage });
       toast({
         variant: 'destructive',
         title: '❌ เกิดข้อผิดพลาด',
-        description: error.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองใหม่อีกครั้ง',
+        description: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -172,6 +182,43 @@ const ChangePassword = () => {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Success/Error Result Banner */}
+                <AnimatePresence>
+                  {submitResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="mb-4"
+                    >
+                      <Alert variant={submitResult.success ? "default" : "destructive"} className={submitResult.success ? "border-green-500 bg-green-50 dark:bg-green-950" : ""}>
+                        {submitResult.success ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5" />
+                        )}
+                        <AlertTitle className={submitResult.success ? "text-green-800 dark:text-green-200" : ""}>
+                          {submitResult.success ? '✅ เปลี่ยนรหัสผ่านสำเร็จ!' : '❌ เปลี่ยนรหัสผ่านไม่สำเร็จ'}
+                        </AlertTitle>
+                        <AlertDescription className={submitResult.success ? "text-green-700 dark:text-green-300" : ""}>
+                          {submitResult.message}
+                          {submitResult.success && (
+                            <span className="block mt-1 text-sm">กำลังนำคุณกลับไปหน้าก่อนหน้า...</span>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Info about Reset Link Login */}
+                <Alert className="mb-4 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                    หากคุณมาจากลิงก์ "รีเซ็ตรหัสผ่าน" ในอีเมล ระบบจะ login ให้อัตโนมัติเพื่อให้คุณเปลี่ยนรหัสผ่านได้ทันที
+                  </AlertDescription>
+                </Alert>
+
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* New Password */}
                   <div className="space-y-2">
