@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Palette, ShieldCheck, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock, ArrowDownToLine, Flag } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Users, Palette, ShieldCheck, UserCheck, Image, CreditCard, Loader2, TrendingUp, Clock, ArrowDownToLine, Flag, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-
+import { useToast } from '@/hooks/use-toast';
 interface Stats {
   totalUsers: number;
   totalArtists: number;
@@ -33,6 +36,9 @@ interface RecentOrder {
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, loading, isAdmin } = useAuth();
+  const { toast } = useToast();
+  const { settings, updateSetting: updateAppSetting } = useAppSettings();
+  const [togglingCommunity, setTogglingCommunity] = useState(false);
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     totalArtists: 0,
@@ -46,6 +52,24 @@ const AdminDashboard = () => {
   });
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+
+  const handleToggleCommunity = async (enabled: boolean) => {
+    setTogglingCommunity(true);
+    const success = await updateAppSetting('community_enabled', enabled);
+    setTogglingCommunity(false);
+    if (success) {
+      toast({
+        title: enabled ? 'เปิดคอมมูนิตี้แล้ว' : 'ปิดคอมมูนิตี้แล้ว',
+        description: enabled ? 'ผู้ใช้สามารถเข้าถึงหน้าคอมมูนิตี้ได้' : 'หน้าคอมมูนิตี้ถูกปิดการใช้งานชั่วคราว',
+      });
+    } else {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถเปลี่ยนสถานะได้',
+        variant: 'destructive',
+      });
+    }
+  };
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -203,6 +227,45 @@ const AdminDashboard = () => {
             <p className="mt-2 text-muted-foreground">
               ภาพรวมและจัดการระบบทั้งหมด
             </p>
+          </motion.div>
+
+          {/* Feature Toggles */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="mt-8"
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  ตั้งค่าฟีเจอร์
+                </CardTitle>
+                <CardDescription>เปิด/ปิดฟีเจอร์ต่างๆ ของระบบ</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                    <div>
+                      <Label htmlFor="community-toggle" className="font-medium cursor-pointer">
+                        หน้าคอมมูนิตี้
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        {settings.community_enabled ? 'เปิดใช้งานอยู่' : 'ปิดใช้งานอยู่'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="community-toggle"
+                    checked={settings.community_enabled}
+                    onCheckedChange={handleToggleCommunity}
+                    disabled={togglingCommunity}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
 
           {/* Stats Cards */}

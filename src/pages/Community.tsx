@@ -18,8 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,10 +120,11 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user, isArtist, isBuyer } = useAuth();
+  const { user, isArtist, isBuyer, isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
+  const { settings: appSettings, loading: appSettingsLoading } = useAppSettings();
   
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
@@ -2071,6 +2073,28 @@ export default function Community() {
     { id: 'following' as FeedTab, label: 'Following' },
     { id: 'latest' as FeedTab, label: 'Latest' },
   ];
+
+  // Show disabled page for non-admins when community is disabled
+  if (!appSettingsLoading && !appSettings.community_enabled && !isAdmin) {
+    return (
+      <Layout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="mx-auto w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6">
+              <Lock className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h1 className="text-2xl font-bold mb-3">คอมมูนิตี้ปิดชั่วคราว</h1>
+            <p className="text-muted-foreground mb-6">
+              หน้าคอมมูนิตี้ถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ กรุณาลองเข้ามาใหม่ภายหลัง
+            </p>
+            <Button asChild>
+              <a href="/">กลับหน้าหลัก</a>
+            </Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
