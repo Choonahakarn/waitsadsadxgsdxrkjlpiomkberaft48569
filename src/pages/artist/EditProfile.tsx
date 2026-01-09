@@ -20,6 +20,7 @@ interface ArtistProfile {
   id: string;
   user_id: string;
   artist_name: string;
+  real_name: string | null;
   bio: string | null;
   avatar_url: string | null;
   cover_url: string | null;
@@ -50,11 +51,13 @@ const MyArtistProfile = () => {
 
   // Form state
   const [artistName, setArtistName] = useState('');
+  const [realName, setRealName] = useState('');
   const [bio, setBio] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [portfolioUrl, setPortfolioUrl] = useState('');
   const [toolsUsed, setToolsUsed] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
+  const [artistNameError, setArtistNameError] = useState('');
 
   const isArtist = roles.includes('artist');
 
@@ -81,6 +84,7 @@ const MyArtistProfile = () => {
       } else if (data) {
         setProfile(data);
         setArtistName(data.artist_name || '');
+        setRealName(data.real_name || '');
         setBio(data.bio || '');
         setSpecialty(data.specialty || '');
         setPortfolioUrl(data.portfolio_url || '');
@@ -231,6 +235,18 @@ const MyArtistProfile = () => {
   const handleSave = async () => {
     if (!user) return;
 
+    // Validate artist name - no spaces allowed
+    if (/\s/.test(artistName)) {
+      setArtistNameError('ชื่อศิลปินห้ามมีเว้นวรรค');
+      toast({
+        variant: 'destructive',
+        title: 'ชื่อศิลปินห้ามมีเว้นวรรค',
+        description: 'กรุณาใช้ขีดล่าง (_) หรือตัวเชื่อมอื่นแทน',
+      });
+      return;
+    }
+
+    setArtistNameError('');
     setIsSaving(true);
 
     try {
@@ -238,6 +254,7 @@ const MyArtistProfile = () => {
         .from('artist_profiles')
         .update({
           artist_name: artistName,
+          real_name: realName || null,
           bio,
           specialty,
           portfolio_url: portfolioUrl || null,
@@ -407,13 +424,33 @@ const MyArtistProfile = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="artist-name">{t('profile.artistName', 'ชื่อศิลปิน')}</Label>
+                  <Label htmlFor="artist-name">{t('profile.artistName', 'ชื่อศิลปิน')} <span className="text-destructive">*</span></Label>
                   <Input
                     id="artist-name"
                     value={artistName}
-                    onChange={(e) => setArtistName(e.target.value)}
-                    placeholder={t('profile.artistNamePlaceholder', 'ชื่อที่จะแสดงในโปรไฟล์')}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\s/g, ''); // Remove spaces
+                      setArtistName(value);
+                      setArtistNameError('');
+                    }}
+                    placeholder={t('profile.artistNamePlaceholder', 'ชื่อที่จะแสดงในโปรไฟล์ (ห้ามมีเว้นวรรค)')}
+                    className={artistNameError ? 'border-destructive' : ''}
                   />
+                  {artistNameError && (
+                    <p className="text-sm text-destructive">{artistNameError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="real-name">{t('profile.realName', 'ชื่อ-นามสกุล')}</Label>
+                  <Input
+                    id="real-name"
+                    value={realName}
+                    onChange={(e) => setRealName(e.target.value)}
+                    placeholder={t('profile.realNamePlaceholder', 'ชื่อจริง นามสกุลจริง')}
+                  />
+                  <p className="text-xs text-muted-foreground">ข้อมูลนี้จะไม่เปิดเผยต่อสาธารณะ ใช้สำหรับยืนยันตัวตนเท่านั้น</p>
                 </div>
 
                 <div className="space-y-2">
