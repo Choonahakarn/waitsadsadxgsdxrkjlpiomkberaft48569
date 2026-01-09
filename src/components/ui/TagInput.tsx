@@ -9,16 +9,18 @@ interface TagInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   maxTags?: number;
+  maxTagLength?: number;
 }
 
 const DEFAULT_MAX_TAGS = 20;
+const DEFAULT_MAX_TAG_LENGTH = 30;
 
 interface PopularTag {
   tag: string;
   count: number;
 }
 
-export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_TAGS }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_TAGS, maxTagLength = DEFAULT_MAX_TAG_LENGTH }: TagInputProps) {
   const [inputValue, setInputValue] = useState('');
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -108,11 +110,20 @@ export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_T
       return;
     }
 
+    // Check tag length limit
+    if (cleanTag.length > maxTagLength) {
+      return;
+    }
+
     const newTags = [...currentTags, cleanTag];
     onChange(newTags.join(', '));
     setInputValue('');
     inputRef.current?.focus();
   };
+
+  // Check if current input exceeds max length
+  const currentInputTag = inputValue.trim().replace(/^#/, '');
+  const isTagTooLong = currentInputTag.length > maxTagLength;
 
   const removeTag = (tagToRemove: string) => {
     const newTags = currentTags.filter(t => t !== tagToRemove);
@@ -183,10 +194,21 @@ export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_T
           onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
           placeholder={isAtMaxTags ? `ถึงขีดจำกัด ${maxTags} Tags แล้ว` : (placeholder || "พิมพ์แล้วกด Enter หรือ , เพื่อเพิ่ม Tag")}
-          className="pl-9"
+          className={`pl-9 ${isTagTooLong ? 'border-destructive focus-visible:ring-destructive' : ''}`}
           disabled={isAtMaxTags}
+          maxLength={maxTagLength + 1}
         />
+        {/* Character count when typing */}
+        {inputValue && (
+          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${isTagTooLong ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            {currentInputTag.length}/{maxTagLength}
+          </span>
+        )}
       </div>
+      {/* Error message for tag too long */}
+      {isTagTooLong && (
+        <p className="text-xs text-destructive mt-1">Tag ต้องไม่เกิน {maxTagLength} ตัวอักษร</p>
+      )}
 
       {/* Suggestions dropdown - hide when at max tags */}
       {showSuggestions && !isAtMaxTags && (
