@@ -33,13 +33,16 @@ const artistMenuItems: MenuItem[] = [
   },
 ];
 
-const commonMenuItems: MenuItem[] = [
+const buyerMenuItems: MenuItem[] = [
   {
     title: 'แก้ไขโปรไฟล์',
     description: 'แก้ไขข้อมูลโปรไฟล์ รูปภาพ และข้อมูลส่วนตัว',
     icon: User,
     href: '/settings/edit-profile',
   },
+];
+
+const commonMenuItems: MenuItem[] = [
   {
     title: 'ความเป็นส่วนตัว',
     description: 'จัดการผู้ใช้ที่บล็อกและปิดเสียง',
@@ -82,8 +85,10 @@ const AccountSettings = () => {
   }
 
   // Build menu items based on user role
+  // Artist: show artist edit profile only (no buyer edit profile)
+  // Buyer: show buyer edit profile only
   const menuItems: MenuItem[] = [
-    ...(isArtist ? artistMenuItems : []),
+    ...(isArtist ? artistMenuItems : buyerMenuItems),
     ...commonMenuItems,
   ];
 
