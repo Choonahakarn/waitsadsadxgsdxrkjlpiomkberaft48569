@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, TrendingUp, Hash, Palette, ChevronRight, X } from "lucide-react";
+import { MessageCircle, ChevronRight, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 
 interface Post {
   id: string;
@@ -248,10 +249,13 @@ export function CommunitySidebar({
                 </div>
               </div>
               {post.image_url && (
-                <img
+                <OptimizedImage
                   src={post.image_url}
                   alt=""
-                  className="w-10 h-10 rounded object-cover shrink-0"
+                  variant="thumbnail"
+                  className="rounded"
+                  containerClassName="w-10 h-10 shrink-0"
+                  aspectRatio="square"
                 />
               )}
             </div>
