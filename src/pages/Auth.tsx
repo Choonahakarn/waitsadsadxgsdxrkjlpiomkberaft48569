@@ -30,11 +30,13 @@ const Auth = () => {
   const [signupFirstName, setSignupFirstName] = useState('');
   const [signupLastName, setSignupLastName] = useState('');
   const [signupDisplayId, setSignupDisplayId] = useState('');
+  const [signupDisplayName, setSignupDisplayName] = useState('');
   const [displayIdAvailable, setDisplayIdAvailable] = useState<boolean | null>(null);
   const [checkingDisplayId, setCheckingDisplayId] = useState(false);
   const [signupRoles, setSignupRoles] = useState<AppRole[]>(['buyer']);
   const [signupRealName, setSignupRealName] = useState('');
   const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
+  const [signupArtistName, setSignupArtistName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Forgot password state
@@ -57,12 +59,19 @@ const Auth = () => {
       .min(3, { message: 'User ID ต้องมีอย่างน้อย 3 ตัวอักษร' })
       .max(20, { message: 'User ID ต้องไม่เกิน 20 ตัวอักษร' })
       .regex(/^[a-zA-Z0-9_]+$/, { message: 'User ID ใช้ได้เฉพาะ a-z, 0-9 และ _ เท่านั้น' }),
+    displayName: z.string().trim()
+      .min(2, { message: 'ชื่อที่แสดงต้องมีอย่างน้อย 2 ตัวอักษร' })
+      .max(30, { message: 'ชื่อที่แสดงต้องไม่เกิน 30 ตัวอักษร' })
+      .regex(/^\S+$/, { message: 'ชื่อที่แสดงห้ามมีเว้นวรรค' }),
     roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: t('validation.roleRequired') }),
     realName: z.string().optional(),
     phoneNumber: z.string().optional(),
+    artistName: z.string().optional(),
   }).refine((data) => {
     if (data.roles.includes('artist')) {
-      return data.realName && data.realName.trim().length >= 2 && data.phoneNumber && data.phoneNumber.trim().length >= 9;
+      return data.realName && data.realName.trim().length >= 2 && 
+             data.phoneNumber && data.phoneNumber.trim().length >= 9 &&
+             data.artistName && data.artistName.trim().length >= 2 && !/\s/.test(data.artistName);
     }
     return true;
   }, {
@@ -157,9 +166,11 @@ const Auth = () => {
       firstName: signupFirstName,
       lastName: signupLastName,
       displayId: signupDisplayId,
+      displayName: signupDisplayName,
       roles: signupRoles,
       realName: signupRealName,
       phoneNumber: signupPhoneNumber,
+      artistName: signupArtistName,
     });
     
     if (!result.success) {
@@ -176,10 +187,10 @@ const Auth = () => {
     setIsSubmitting(true);
     
     const artistVerification = signupRoles.includes('artist') 
-      ? { realName: signupRealName, phoneNumber: signupPhoneNumber }
+      ? { realName: signupRealName, phoneNumber: signupPhoneNumber, artistName: signupArtistName }
       : undefined;
     
-    const { error } = await signUp(signupEmail, signupPassword, signupFirstName, signupLastName, signupDisplayId, signupRoles, artistVerification);
+    const { error } = await signUp(signupEmail, signupPassword, signupFirstName, signupLastName, signupDisplayId, signupDisplayName, signupRoles, artistVerification);
     setIsSubmitting(false);
     
     if (error) {
@@ -376,7 +387,30 @@ const Auth = () => {
                     {displayIdAvailable === false && !errors.signup_displayId && (
                       <p className="text-sm text-destructive">User ID นี้ถูกใช้ไปแล้ว</p>
                     )}
-                    <p className="text-xs text-muted-foreground">ใช้ได้เฉพาะ a-z, 0-9 และ _ (ห้ามเว้นวรรค)</p>
+                    <p className="text-xs text-muted-foreground">ใช้ได้เฉพาะ a-z, 0-9 และ _ (ห้ามเว้นวรรค) - ใช้สำหรับอ้างอิงบัญชี</p>
+                  </div>
+
+                  {/* Display Name Field - For Buyers */}
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-displayname">ชื่อที่แสดง (Display Name) <span className="text-destructive">*</span></Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="signup-displayname"
+                        type="text"
+                        placeholder="ชื่อที่จะแสดงในคอมมูนิตี้"
+                        value={signupDisplayName}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\s/g, '');
+                          setSignupDisplayName(value);
+                        }}
+                        className="pl-10"
+                      />
+                    </div>
+                    {errors.signup_displayName && (
+                      <p className="text-sm text-destructive">{errors.signup_displayName}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">ชื่อนี้จะแสดงในโปรไฟล์และคอมมูนิตี้ (ห้ามเว้นวรรค, เปลี่ยนได้ทุก 30 วัน)</p>
                   </div>
 
                   {/* First Name and Last Name */}
@@ -540,6 +574,29 @@ const Auth = () => {
                             className="pl-10"
                           />
                         </div>
+                      </div>
+
+                      {/* Artist Name Field */}
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-artistname">ชื่อศิลปิน <span className="text-destructive">*</span></Label>
+                        <div className="relative">
+                          <Palette className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="signup-artistname"
+                            type="text"
+                            placeholder="ชื่อที่จะแสดงในโปรไฟล์ศิลปิน"
+                            value={signupArtistName}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\s/g, '');
+                              setSignupArtistName(value);
+                            }}
+                            className="pl-10"
+                          />
+                        </div>
+                        {errors.signup_artistName && (
+                          <p className="text-sm text-destructive">{errors.signup_artistName}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้ (เปลี่ยนได้ทุก 30 วัน)</p>
                       </div>
                       
                       {errors.signup_artistVerification && (
