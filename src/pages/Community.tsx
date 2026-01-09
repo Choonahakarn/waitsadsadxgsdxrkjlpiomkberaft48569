@@ -25,6 +25,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
 import ImageUploader from "@/components/ui/ImageUploader";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,12 @@ interface CommunityPost {
   title: string;
   description: string | null;
   image_url: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
   tools_used: string[];
   hashtags?: string[];
   category: string | null;
@@ -2236,14 +2243,21 @@ export default function Community() {
 
                     {/* Image */}
                     <div 
-                      className="relative aspect-square bg-muted cursor-pointer"
+                      className="relative aspect-square cursor-pointer overflow-hidden"
                       onClick={() => handleOpenPost(post)}
                     >
-                      <img
+                      <OptimizedImage
                         src={post.image_url}
+                        variants={{
+                          blur: post.image_blur_url || undefined,
+                          small: post.image_small_url || undefined,
+                          medium: post.image_medium_url || undefined,
+                          large: post.image_large_url || undefined,
+                        }}
                         alt={post.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
+                        variant="feed"
+                        className="w-full h-full"
+                        aspectRatio="square"
                       />
                     </div>
 
