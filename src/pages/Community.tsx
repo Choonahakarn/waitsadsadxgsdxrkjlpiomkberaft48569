@@ -1953,7 +1953,7 @@ export default function Community() {
 
         {/* Main Content with Sidebar */}
         <div className="container mx-auto max-w-6xl px-4 py-4">
-          <div className="flex gap-6">
+          <div className="flex gap-6 items-start">
             {/* Feed Content */}
             <div className="flex-1 max-w-2xl">
           {loading ? (
@@ -2286,8 +2286,9 @@ export default function Community() {
           )}
             </div>
 
-            {/* Sidebar */}
-            <aside className="hidden lg:block w-80 shrink-0 self-start sticky top-20">
+            {/* Sidebar - Sticky with bottom alignment like cara.app */}
+            <aside className="hidden lg:block w-80 shrink-0" style={{ position: 'sticky', top: '5rem', maxHeight: 'calc(100vh - 6rem)', overflowY: 'auto' }}>
+              <div className="space-y-4">
                 {/* Active Filters Display */}
                 {(selectedTag || selectedCategory) && (
                   <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
@@ -2325,6 +2326,7 @@ export default function Community() {
                   onTagSelect={setSelectedTag}
                   onCategorySelect={setSelectedCategory}
                 />
+              </div>
             </aside>
           </div>
         </div>
