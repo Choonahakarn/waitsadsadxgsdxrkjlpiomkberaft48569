@@ -6,6 +6,7 @@ import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserChec
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
+import { PostDetailDialog } from "@/components/community/PostDetailDialog";
 import { TagInput } from "@/components/ui/TagInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2667,515 +2668,55 @@ export default function Community() {
           </Dialog>
         )}
 
-        {/* Post Detail Dialog */}
-        <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
-            {selectedPost && (
-              <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
-                {/* Image */}
-                <div className="md:w-3/5 bg-black flex items-center justify-center">
-                  <img
-                    src={selectedPost.image_url}
-                    alt={selectedPost.title}
-                    className="max-h-[50vh] md:max-h-[90vh] w-full object-contain"
-                  />
-                </div>
-                
-                {/* Details */}
-                <div className="md:w-2/5 flex flex-col max-h-[40vh] md:max-h-[90vh]">
-                  {/* Header */}
-                  <div className="p-4 border-b border-border">
-                    <div className="flex items-center gap-3">
-                      <Link to={`/profile/${selectedPost.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={selectedPost.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {(selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "U")[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">
-                              {selectedPost.artist_profile?.artist_name || selectedPost.user_profile?.full_name || "ผู้ใช้"}
-                            </span>
-                            {selectedPost.artist_profile?.is_verified && (
-                              <Badge variant="secondary" className="text-xs">✓</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </Link>
-                      {user && user.id !== selectedPost.user_id && (
-                        <Button
-                          variant={followingUsers.has(selectedPost.user_id) ? "secondary" : "default"}
-                          size="sm"
-                          onClick={(e) => handleFollow(selectedPost.user_id, followingUsers.has(selectedPost.user_id), e)}
-                        >
-                          {followingUsers.has(selectedPost.user_id) ? 'Following' : 'Follow'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Title & Description */}
-                  <div className="p-4 border-b border-border">
-                    <h2 className="font-bold text-lg">{selectedPost.title}</h2>
-                    {selectedPost.description && (
-                      <p className="text-muted-foreground mt-2 text-sm">
-                        {renderTextWithMentions(selectedPost.description)}
-                      </p>
-                    )}
-                    {(selectedPost.tools_used && selectedPost.tools_used.length > 0) || (selectedPost.hashtags && selectedPost.hashtags.length > 0) ? (
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {selectedPost.tools_used?.map((tool) => (
-                          <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                            🛠 {tool}
-                          </Badge>
-                        ))}
-                        {selectedPost.hashtags?.map((tag) => (
-                          <button
-                            key={`tag-${tag}`}
-                            onClick={() => {
-                              setSelectedTag(tag);
-                              setSelectedPost(null);
-                            }}
-                            className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
-                          >
-                            #{tag}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={(e) => handleLike(selectedPost.id, selectedPost.is_liked || false, e)}
-                        className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <Heart className={`h-6 w-6 ${selectedPost.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
-                        <span className="font-medium">{selectedPost.likes_count}</span>
-                      </button>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MessageCircle className="h-6 w-6" />
-                        <span className="font-medium">{selectedPost.comments_count || 0}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Share Buttons */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/community?post=${selectedPost.id}`;
-                          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
-                        }}
-                        className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-[#1877F2]"
-                        title="แชร์ไปยัง Facebook"
-                      >
-                        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/community?post=${selectedPost.id}`;
-                          const text = `${selectedPost.title} - ดูผลงานสร้างสรรค์`;
-                          window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank', 'width=600,height=400');
-                        }}
-                        className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="แชร์ไปยัง X"
-                      >
-                        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/community?post=${selectedPost.id}`;
-                          const text = `${selectedPost.title} - ดูผลงานสร้างสรรค์`;
-                          window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank', 'width=600,height=400');
-                        }}
-                        className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-[#00B900]"
-                        title="แชร์ไปยัง LINE"
-                      >
-                        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const url = `${window.location.origin}/community?post=${selectedPost.id}`;
-                          await navigator.clipboard.writeText(url);
-                          toast({
-                            title: "คัดลอกลิงก์แล้ว!",
-                            description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด"
-                          });
-                        }}
-                        className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="คัดลอกลิงก์"
-                      >
-                        <Link2 className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Comments */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {commentsLoading ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="h-6 w-6 animate-spin" />
-                      </div>
-                    ) : comments.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-4">
-                        ยังไม่มีความคิดเห็น
-                      </p>
-                    ) : (
-                      comments.map((comment) => (
-                        <div key={comment.id} className="space-y-3">
-                          {/* Parent Comment */}
-                          <div className="group flex gap-3">
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
-                              <AvatarFallback className="text-xs">
-                                {getDisplayName(comment.user_profile, comment.artist_profile)[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              {editingComment?.id === comment.id ? (
-                                // Edit mode
-                                <div className="space-y-2">
-                                  <Textarea
-                                    value={editCommentContent}
-                                    onChange={(e) => setEditCommentContent(e.target.value)}
-                                    className="min-h-[60px] text-sm"
-                                    autoFocus
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      size="sm" 
-                                      onClick={handleEditComment}
-                                      disabled={!editCommentContent.trim() || savingCommentEdit}
-                                    >
-                                      {savingCommentEdit ? (
-                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                      ) : null}
-                                      บันทึก
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setEditingComment(null);
-                                        setEditCommentContent("");
-                                      }}
-                                    >
-                                      ยกเลิก
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                // Display mode
-                                <>
-                                  <p className="text-sm">
-                                    <span className="font-semibold mr-1">
-                                      {getDisplayName(comment.user_profile, comment.artist_profile)}
-                                    </span>
-                                    {comment.artist_profile?.is_verified && (
-                                      <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0 mr-1">
-                                        ✓
-                                      </Badge>
-                                    )}
-                                    {isBuyerUser(comment.artist_profile) && (
-                                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0 mr-2">
-                                        Buyer
-                                      </Badge>
-                                    )}
-                                    {renderTextWithMentions(comment.content)}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">
-                                      {formatTimeAgo(comment.created_at)}
-                                    </span>
-                                    {/* Reply button */}
-                                    {user && (
-                                      <button
-                                        onClick={() => {
-                                          setReplyingToComment(comment);
-                                          setReplyContent("");
-                                        }}
-                                        className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                                      >
-                                        ตอบกลับ
-                                      </button>
-                                    )}
-                                    {/* Edit button for own comments */}
-                                    {user && user.id === comment.user_id && (
-                                      <button
-                                        onClick={() => {
-                                          setEditingComment(comment);
-                                          setEditCommentContent(comment.content);
-                                        }}
-                                        className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        แก้ไข
-                                      </button>
-                                    )}
-                                    {/* Delete button for own comments OR post owner */}
-                                    {user && (user.id === comment.user_id || user.id === selectedPost?.user_id) && (
-                                      <button
-                                        onClick={() => handleDeleteComment(comment.id)}
-                                        disabled={deletingCommentId === comment.id}
-                                        className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        {deletingCommentId === comment.id ? (
-                                          <Loader2 className="h-3 w-3 animate-spin inline" />
-                                        ) : (
-                                          "ลบ"
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Nested Replies */}
-                          {comment.replies && comment.replies.length > 0 && (
-                            <>
-                              {/* Show expand button if replies not yet expanded */}
-                              {!expandedReplies.has(comment.id) ? (
-                                <button
-                                  onClick={() => setExpandedReplies(prev => new Set([...prev, comment.id]))}
-                                  className="ml-11 text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1"
-                                >
-                                  <MessageCircle className="h-3 w-3" />
-                                  ดูการตอบกลับทั้ง {comment.replies.length} รายการ
-                                </button>
-                              ) : (
-                                <div className="ml-11 space-y-3 border-l-2 border-muted pl-3">
-                                  {comment.replies.map((reply) => (
-                                    <div key={reply.id} className="group flex gap-2">
-                                      <Avatar className="h-6 w-6 shrink-0">
-                                        <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
-                                        <AvatarFallback className="text-[10px]">
-                                          {getDisplayName(reply.user_profile, reply.artist_profile)[0]}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="flex-1 min-w-0">
-                                        {editingComment?.id === reply.id ? (
-                                          // Edit mode for reply
-                                          <div className="space-y-2">
-                                            <Textarea
-                                              value={editCommentContent}
-                                              onChange={(e) => setEditCommentContent(e.target.value)}
-                                              className="min-h-[50px] text-sm"
-                                              autoFocus
-                                            />
-                                            <div className="flex gap-2">
-                                              <Button 
-                                                size="sm" 
-                                                onClick={handleEditComment}
-                                                disabled={!editCommentContent.trim() || savingCommentEdit}
-                                              >
-                                                {savingCommentEdit ? (
-                                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                                ) : null}
-                                                บันทึก
-                                              </Button>
-                                              <Button 
-                                                size="sm" 
-                                                variant="ghost"
-                                                onClick={() => {
-                                                  setEditingComment(null);
-                                                  setEditCommentContent("");
-                                                }}
-                                              >
-                                                ยกเลิก
-                                              </Button>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          // Display mode for reply
-                                          <>
-                                            <p className="text-sm">
-                                              <span className="font-semibold mr-1 text-xs">
-                                                {getDisplayName(reply.user_profile, reply.artist_profile)}
-                                              </span>
-                                              {reply.artist_profile?.is_verified && (
-                                                <Badge variant="secondary" className="h-3.5 px-1 text-[9px] bg-blue-500 text-white border-0 mr-1">
-                                                  ✓
-                                                </Badge>
-                                              )}
-                                              {isBuyerUser(reply.artist_profile) && (
-                                                <Badge variant="secondary" className="h-3.5 px-1 text-[9px] bg-sky-500 text-white border-0 mr-1">
-                                                  Buyer
-                                                </Badge>
-                                              )}
-                                              {renderTextWithMentions(reply.content)}
-                                            </p>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-xs text-muted-foreground">
-                                                {formatTimeAgo(reply.created_at)}
-                                              </span>
-                                              {/* Reply button for nested reply - replies to parent comment */}
-                                              {user && (
-                                                <button
-                                                  onClick={() => {
-                                                    setReplyingToComment(comment);
-                                                    setReplyContent(`@${getDisplayName(reply.user_profile, reply.artist_profile)} `);
-                                                  }}
-                                                  className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                                                >
-                                                  ตอบกลับ
-                                                </button>
-                                              )}
-                                              {/* Edit button for own replies */}
-                                              {user && user.id === reply.user_id && (
-                                                <button
-                                                  onClick={() => {
-                                                    setEditingComment(reply);
-                                                    setEditCommentContent(reply.content);
-                                                  }}
-                                                  className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                  แก้ไข
-                                                </button>
-                                              )}
-                                              {/* Delete button for own replies OR post owner */}
-                                              {user && (user.id === reply.user_id || user.id === selectedPost?.user_id) && (
-                                                <button
-                                                  onClick={() => handleDeleteComment(reply.id)}
-                                                  disabled={deletingCommentId === reply.id}
-                                                  className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                  {deletingCommentId === reply.id ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin inline" />
-                                                  ) : (
-                                                    "ลบ"
-                                                  )}
-                                                </button>
-                                              )}
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {/* Collapse button */}
-                                  <button
-                                    onClick={() => setExpandedReplies(prev => {
-                                      const next = new Set(prev);
-                                      next.delete(comment.id);
-                                      return next;
-                                    })}
-                                    className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                                  >
-                                    ซ่อนการตอบกลับ
-                                  </button>
-                                </div>
-                              )}
-                            </>
-                          )}
-
-                          {/* Reply Input Box - Facebook style at bottom */}
-                          {replyingToComment?.id === comment.id && user && (
-                            <div className="ml-11 mt-2">
-                              <div className="bg-muted/50 rounded-lg p-2 border border-border">
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                                  <span>ตอบกลับ</span>
-                                  <span className="font-medium text-foreground">
-                                    {getDisplayName(comment.user_profile, comment.artist_profile)}
-                                  </span>
-                                  <button
-                                    onClick={() => {
-                                      setReplyingToComment(null);
-                                      setReplyContent("");
-                                    }}
-                                    className="ml-auto text-muted-foreground hover:text-foreground"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                                <div className="flex gap-2 items-center">
-                                  <Avatar className="h-6 w-6 shrink-0">
-                                    <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
-                                    <AvatarFallback className="text-[10px]">
-                                      {(user?.user_metadata?.full_name || user?.email || "U")[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1 relative">
-                                    <input
-                                      type="text"
-                                      value={replyContent}
-                                      onChange={(e) => setReplyContent(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey && replyContent.trim() && !submittingReply) {
-                                          e.preventDefault();
-                                          handleSubmitReply(comment);
-                                        }
-                                      }}
-                                      placeholder="เขียนการตอบกลับ..."
-                                      className="w-full bg-background border border-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                      autoFocus
-                                      disabled={submittingReply}
-                                    />
-                                  </div>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 shrink-0"
-                                    onClick={() => handleSubmitReply(comment)}
-                                    disabled={!replyContent.trim() || submittingReply}
-                                  >
-                                    {submittingReply ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Send className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Comment Input */}
-                  {user && (
-                    <div className="p-4 border-t border-border">
-                      <div className="flex gap-2 items-end">
-                        <div className="flex-1">
-                          <MentionInput
-                            value={newComment}
-                            onChange={setNewComment}
-                            placeholder="เขียนความคิดเห็น... พิมพ์ @ เพื่อแท็กผู้ใช้"
-                            rows={1}
-                            className="min-h-[40px] resize-none"
-                          />
-                        </div>
-                        <Button
-                          size="icon"
-                          onClick={handleSubmitComment}
-                          disabled={!newComment.trim() || submittingComment}
-                        >
-                          {submittingComment ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Send className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Post Detail Dialog - Cara/Pixiv Style */}
+        <PostDetailDialog
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          user={user}
+          comments={comments}
+          commentsLoading={commentsLoading}
+          newComment={newComment}
+          onNewCommentChange={setNewComment}
+          onSubmitComment={handleSubmitComment}
+          submittingComment={submittingComment}
+          onLike={handleLike}
+          onFollow={handleFollow}
+          followingUsers={followingUsers}
+          savedPosts={savedPosts}
+          repostedPosts={repostedPosts}
+          onSavePost={(postId) => handleSave(postId)}
+          onUnsavePost={(postId) => handleSave(postId)}
+          onTagSelect={(tag) => setSelectedTag(tag)}
+          onShareDialogOpen={setShareDialogPost}
+          editingComment={editingComment}
+          editCommentContent={editCommentContent}
+          onEditCommentContentChange={setEditCommentContent}
+          onEditComment={handleEditComment}
+          onCancelEditComment={() => { setEditingComment(null); setEditCommentContent(""); }}
+          savingCommentEdit={savingCommentEdit}
+          onStartEditComment={(comment) => { setEditingComment(comment); setEditCommentContent(comment.content); }}
+          onDeleteComment={handleDeleteComment}
+          deletingCommentId={deletingCommentId}
+          replyingToComment={replyingToComment}
+          replyContent={replyContent}
+          onReplyContentChange={setReplyContent}
+          onSubmitReply={handleSubmitReply}
+          submittingReply={submittingReply}
+          onStartReply={(comment) => { setReplyingToComment(comment); setReplyContent(""); }}
+          onCancelReply={() => setReplyingToComment(null)}
+          expandedReplies={expandedReplies}
+          onToggleReplies={(commentId, expanded) => {
+            if (expanded) {
+              setExpandedReplies(prev => new Set([...prev, commentId]));
+            } else {
+              setExpandedReplies(prev => {
+                const next = new Set(prev);
+                next.delete(commentId);
+                return next;
+              });
+            }
+          }}
+        />
 
         {/* Share/Repost Dialog */}
         <Dialog open={!!shareDialogPost} onOpenChange={(open) => !open && setShareDialogPost(null)}>
