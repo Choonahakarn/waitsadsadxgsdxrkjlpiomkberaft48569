@@ -40,7 +40,7 @@ interface AggregatedNotification {
 }
 
 // Types that can be aggregated (same type + same reference_id)
-const AGGREGATABLE_TYPES = ['like', 'comment', 'share'];
+const AGGREGATABLE_TYPES = ['like', 'comment', 'share', 'reply', 'mention'];
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -104,6 +104,12 @@ export function NotificationBell() {
         } else if (type === 'comment') {
           displayTitle = `มีคนแสดงความคิดเห็น 💬`;
           displayMessage = `${uniqueCount} ความคิดเห็นใหม่`;
+        } else if (type === 'reply') {
+          displayTitle = `มีคนตอบกลับความคิดเห็น 💬`;
+          displayMessage = `${uniqueCount} การตอบกลับใหม่`;
+        } else if (type === 'mention') {
+          displayTitle = `มีคนกล่าวถึงคุณ 📣`;
+          displayMessage = `${uniqueCount} คนกล่าวถึงคุณ`;
         } else if (type === 'share') {
           displayTitle = `โพสต์ของคุณถูกแชร์! 🔁`;
           displayMessage = `${uniqueCount} คนแชร์โพสต์ของคุณ`;
