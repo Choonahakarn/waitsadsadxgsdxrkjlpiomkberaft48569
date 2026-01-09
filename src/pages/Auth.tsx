@@ -10,14 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield } from 'lucide-react';
+import { Palette, ShoppingBag, Mail, Lock, User, Check, Phone, Shield, AtSign } from 'lucide-react';
 
 type AppRole = 'artist' | 'buyer';
 
 const Auth = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user, signIn, signUp, loading } = useAuth();
+  const { user, signIn, signUp, loading, checkDisplayIdAvailable } = useAuth();
   const { toast } = useToast();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,7 +25,11 @@ const Auth = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
-  const [signupFullName, setSignupFullName] = useState('');
+  const [signupFirstName, setSignupFirstName] = useState('');
+  const [signupLastName, setSignupLastName] = useState('');
+  const [signupDisplayId, setSignupDisplayId] = useState('');
+  const [displayIdAvailable, setDisplayIdAvailable] = useState<boolean | null>(null);
+  const [checkingDisplayId, setCheckingDisplayId] = useState(false);
   const [signupRoles, setSignupRoles] = useState<AppRole[]>(['buyer']);
   const [signupRealName, setSignupRealName] = useState('');
   const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
@@ -39,7 +43,12 @@ const Auth = () => {
   const signupSchema = z.object({
     email: z.string().trim().email({ message: t('validation.emailRequired') }),
     password: z.string().min(6, { message: t('validation.passwordMin') }),
-    fullName: z.string().trim().min(2, { message: t('validation.nameRequired') }),
+    firstName: z.string().trim().min(2, { message: 'กรุณากรอกชื่อ' }),
+    lastName: z.string().trim().min(2, { message: 'กรุณากรอกนามสกุล' }),
+    displayId: z.string().trim()
+      .min(3, { message: 'User ID ต้องมีอย่างน้อย 3 ตัวอักษร' })
+      .max(20, { message: 'User ID ต้องไม่เกิน 20 ตัวอักษร' })
+      .regex(/^[a-zA-Z0-9_]+$/, { message: 'User ID ใช้ได้เฉพาะ a-z, 0-9 และ _ เท่านั้น' }),
     roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: t('validation.roleRequired') }),
     realName: z.string().optional(),
     phoneNumber: z.string().optional(),
@@ -52,6 +61,23 @@ const Auth = () => {
     message: t('validation.verificationRequired'),
     path: ['artistVerification'],
   });
+
+  // Check display ID availability with debounce
+  useEffect(() => {
+    if (!signupDisplayId || signupDisplayId.length < 3) {
+      setDisplayIdAvailable(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingDisplayId(true);
+      const isAvailable = await checkDisplayIdAvailable(signupDisplayId);
+      setDisplayIdAvailable(isAvailable);
+      setCheckingDisplayId(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [signupDisplayId, checkDisplayIdAvailable]);
 
   useEffect(() => {
     if (user && !loading) {
@@ -110,11 +136,19 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+
+    // Check display ID availability
+    if (displayIdAvailable === false) {
+      setErrors({ signup_displayId: 'User ID นี้ถูกใช้ไปแล้ว' });
+      return;
+    }
     
     const result = signupSchema.safeParse({
       email: signupEmail,
       password: signupPassword,
-      fullName: signupFullName,
+      firstName: signupFirstName,
+      lastName: signupLastName,
+      displayId: signupDisplayId,
       roles: signupRoles,
       realName: signupRealName,
       phoneNumber: signupPhoneNumber,
@@ -137,7 +171,7 @@ const Auth = () => {
       ? { realName: signupRealName, phoneNumber: signupPhoneNumber }
       : undefined;
     
-    const { error } = await signUp(signupEmail, signupPassword, signupFullName, signupRoles, artistVerification);
+    const { error } = await signUp(signupEmail, signupPassword, signupFirstName, signupLastName, signupDisplayId, signupRoles, artistVerification);
     setIsSubmitting(false);
     
     if (error) {
@@ -245,22 +279,72 @@ const Auth = () => {
 
               <TabsContent value="signup" className="mt-6">
                 <form onSubmit={handleSignup} className="space-y-4">
+                  {/* User ID Field */}
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">{t('auth.fullName')}</Label>
+                    <Label htmlFor="signup-displayid">User ID <span className="text-destructive">*</span></Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        id="signup-name"
+                        id="signup-displayid"
                         type="text"
-                        placeholder={t('auth.fullName')}
-                        value={signupFullName}
-                        onChange={(e) => setSignupFullName(e.target.value)}
-                        className="pl-10"
+                        placeholder="your_user_id"
+                        value={signupDisplayId}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                          setSignupDisplayId(value);
+                        }}
+                        className={`pl-10 ${displayIdAvailable === false ? 'border-destructive' : displayIdAvailable === true ? 'border-green-500' : ''}`}
                       />
+                      {checkingDisplayId && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        </div>
+                      )}
+                      {!checkingDisplayId && displayIdAvailable === true && signupDisplayId.length >= 3 && (
+                        <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                      )}
                     </div>
-                    {errors.signup_fullName && (
-                      <p className="text-sm text-destructive">{errors.signup_fullName}</p>
+                    {errors.signup_displayId && (
+                      <p className="text-sm text-destructive">{errors.signup_displayId}</p>
                     )}
+                    {displayIdAvailable === false && !errors.signup_displayId && (
+                      <p className="text-sm text-destructive">User ID นี้ถูกใช้ไปแล้ว</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">ใช้ได้เฉพาะ a-z, 0-9 และ _ (ห้ามเว้นวรรค)</p>
+                  </div>
+
+                  {/* First Name and Last Name */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-firstname">ชื่อ <span className="text-destructive">*</span></Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="signup-firstname"
+                          type="text"
+                          placeholder="ชื่อ"
+                          value={signupFirstName}
+                          onChange={(e) => setSignupFirstName(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      {errors.signup_firstName && (
+                        <p className="text-sm text-destructive">{errors.signup_firstName}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-lastname">นามสกุล <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="signup-lastname"
+                        type="text"
+                        placeholder="นามสกุล"
+                        value={signupLastName}
+                        onChange={(e) => setSignupLastName(e.target.value)}
+                      />
+                      {errors.signup_lastName && (
+                        <p className="text-sm text-destructive">{errors.signup_lastName}</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
