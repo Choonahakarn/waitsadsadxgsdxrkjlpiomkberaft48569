@@ -2288,7 +2288,7 @@ export default function Community() {
 
             {/* Sidebar */}
             <aside className="hidden lg:block w-80 shrink-0">
-              <div className="sticky top-44">
+              <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pr-2">
                 {/* Active Filters Display */}
                 {(selectedTag || selectedCategory) && (
                   <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
