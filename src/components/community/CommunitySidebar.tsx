@@ -36,13 +36,13 @@ interface CommunitySidebarProps {
 }
 
 const categories = [
-  { name: "ภาพวาดดิจิทัล", icon: "🎨", count: 0 },
-  { name: "ภาพวาดสีน้ำมัน", icon: "🖼️", count: 0 },
-  { name: "ภาพวาดสีน้ำ", icon: "💧", count: 0 },
-  { name: "ภาพประกอบ", icon: "✏️", count: 0 },
-  { name: "คาแรคเตอร์ดีไซน์", icon: "👤", count: 0 },
-  { name: "แฟนอาร์ต", icon: "⭐", count: 0 },
-  { name: "งานปั้น 3D", icon: "🎮", count: 0 },
+  { name: "ภาพวาดดิจิทัล" },
+  { name: "ภาพวาดสีน้ำมัน" },
+  { name: "ภาพวาดสีน้ำ" },
+  { name: "ภาพประกอบ" },
+  { name: "คาแรคเตอร์ดีไซน์" },
+  { name: "แฟนอาร์ต" },
+  { name: "งานปั้น 3D" },
 ];
 
 export function CommunitySidebar({ 
@@ -363,20 +363,14 @@ export function CommunitySidebar({
             <button
               key={cat.name}
               onClick={() => onCategorySelect?.(selectedCategory === cat.name ? null : cat.name)}
-              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center group ${
                 selectedCategory === cat.name 
                   ? 'bg-primary text-primary-foreground' 
                   : 'hover:bg-muted'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <span>{cat.icon}</span>
-                <span className={`text-sm ${selectedCategory !== cat.name ? 'group-hover:text-primary' : ''} transition-colors`}>
-                  {cat.name}
-                </span>
-              </div>
-              <span className={`text-xs ${selectedCategory === cat.name ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                {categoryCounts[cat.name] || 0}
+              <span className={`text-sm ${selectedCategory !== cat.name ? 'group-hover:text-primary' : ''} transition-colors`}>
+                {cat.name}
               </span>
             </button>
           ))}
