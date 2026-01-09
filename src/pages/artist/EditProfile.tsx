@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, Loader2, ImagePlus, AlertTriangle, Lock } from 'lucide-react';
+import { Camera, Save, Loader2, ImagePlus, AlertTriangle, Lock, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
@@ -381,6 +381,16 @@ const MyArtistProfile = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              ย้อนกลับ
+            </Button>
+
             <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
               {t('profile.editProfile', 'แก้ไขโปรไฟล์')}
             </h1>
