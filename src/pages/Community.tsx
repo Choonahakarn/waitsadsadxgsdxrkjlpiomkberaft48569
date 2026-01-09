@@ -198,6 +198,35 @@ export default function Community() {
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Desktop: scroll wheel should scroll the sidebar first (until it reaches the end), then the feed.
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+
+    const isDesktop = () => window.matchMedia("(min-width: 1024px)").matches;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!isDesktop()) return;
+
+      const target = e.target as HTMLElement | null;
+      // Don't hijack scrolling inside dialogs/drawers
+      if (target?.closest('[role="dialog"]')) return;
+
+      const dy = e.deltaY;
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+
+      if ((dy > 0 && !atBottom) || (dy < 0 && !atTop)) {
+        e.preventDefault();
+        el.scrollTop += dy;
+      }
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
 
   const fetchFollowing = useCallback(async () => {
     if (!user) return;
@@ -2287,48 +2316,52 @@ export default function Community() {
           )}
             </div>
 
-            {/* Sidebar - Scrolls with page, sticks at bottom */}
+            {/* Sidebar (desktop): sticky + internal scroll (scrollbar hidden) */}
             <aside className="hidden lg:block w-80 shrink-0">
-              <div className="sticky bottom-4 top-20">
-              <div className="space-y-4">
-                {/* Active Filters Display */}
-                {(selectedTag || selectedCategory) && (
-                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-primary">กำลังกรอง:</span>
-                      <button
-                        onClick={() => {
-                          setSelectedTag(null);
-                          setSelectedCategory(null);
-                        }}
-                        className="text-xs text-muted-foreground hover:text-destructive"
-                      >
-                        ล้างทั้งหมด
-                      </button>
+              <div
+                ref={sidebarScrollRef}
+                className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-hidden pr-1"
+              >
+                <div className="space-y-4">
+                  {/* Active Filters Display */}
+                  {(selectedTag || selectedCategory) && (
+                    <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-primary">กำลังกรอง:</span>
+                        <button
+                          onClick={() => {
+                            setSelectedTag(null);
+                            setSelectedCategory(null);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-destructive"
+                        >
+                          ล้างทั้งหมด
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedTag && (
+                          <Badge variant="secondary" className="gap-1">
+                            #{selectedTag}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedTag(null)} />
+                          </Badge>
+                        )}
+                        {selectedCategory && (
+                          <Badge variant="secondary" className="gap-1">
+                            {selectedCategory}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedCategory(null)} />
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedTag && (
-                        <Badge variant="secondary" className="gap-1">
-                          #{selectedTag}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedTag(null)} />
-                        </Badge>
-                      )}
-                      {selectedCategory && (
-                        <Badge variant="secondary" className="gap-1">
-                          {selectedCategory}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedCategory(null)} />
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <CommunitySidebar 
-                  selectedTag={selectedTag}
-                  selectedCategory={selectedCategory}
-                  onTagSelect={setSelectedTag}
-                  onCategorySelect={setSelectedCategory}
-                />
-              </div>
+                  )}
+
+                  <CommunitySidebar
+                    selectedTag={selectedTag}
+                    selectedCategory={selectedCategory}
+                    onTagSelect={setSelectedTag}
+                    onCategorySelect={setSelectedCategory}
+                  />
+                </div>
               </div>
             </aside>
           </div>
