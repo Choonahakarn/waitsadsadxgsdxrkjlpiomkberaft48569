@@ -17,6 +17,7 @@ export type Database = {
       artist_profiles: {
         Row: {
           artist_name: string
+          artist_name_changed_at: string | null
           avatar_position_x: number | null
           avatar_position_y: number | null
           avatar_url: string | null
@@ -42,6 +43,7 @@ export type Database = {
         }
         Insert: {
           artist_name: string
+          artist_name_changed_at?: string | null
           avatar_position_x?: number | null
           avatar_position_y?: number | null
           avatar_url?: string | null
@@ -67,6 +69,7 @@ export type Database = {
         }
         Update: {
           artist_name?: string
+          artist_name_changed_at?: string | null
           avatar_position_x?: number | null
           avatar_position_y?: number | null
           avatar_url?: string | null
