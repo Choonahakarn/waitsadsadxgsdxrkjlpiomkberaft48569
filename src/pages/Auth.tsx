@@ -386,21 +386,15 @@ const Auth = () => {
                     <p className="text-xs text-muted-foreground">ใช้ได้เฉพาะ a-z, 0-9 และ _ (ห้ามเว้นวรรค) - ใช้สำหรับอ้างอิงบัญชี</p>
                   </div>
 
-                  {/* Display Name / Artist Name Field */}
+                  {/* Display Name Field */}
                   <div className="space-y-2">
-                    <Label htmlFor="signup-displayname">
-                      {signupRoles.includes('artist') ? 'ชื่อศิลปิน' : 'ชื่อที่แสดง (Display Name)'} <span className="text-destructive">*</span>
-                    </Label>
+                    <Label htmlFor="signup-displayname">ชื่อที่แสดง (Display Name) <span className="text-destructive">*</span></Label>
                     <div className="relative">
-                      {signupRoles.includes('artist') ? (
-                        <Palette className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      ) : (
-                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      )}
+                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="signup-displayname"
                         type="text"
-                        placeholder={signupRoles.includes('artist') ? 'ชื่อที่จะแสดงในโปรไฟล์ศิลปิน' : 'ชื่อที่จะแสดงในคอมมูนิตี้'}
+                        placeholder="ชื่อที่จะแสดงในโปรไฟล์"
                         value={signupDisplayName}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\s/g, '');
@@ -412,11 +406,7 @@ const Auth = () => {
                     {errors.signup_displayName && (
                       <p className="text-sm text-destructive">{errors.signup_displayName}</p>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {signupRoles.includes('artist') 
-                        ? 'ชื่อนี้จะแสดงในโปรไฟล์ศิลปิน (ห้ามเว้นวรรค, เปลี่ยนได้ทุก 30 วัน)'
-                        : 'ชื่อนี้จะแสดงในโปรไฟล์และคอมมูนิตี้ (ห้ามเว้นวรรค, เปลี่ยนได้ทุก 30 วัน)'}
-                    </p>
+                    <p className="text-xs text-muted-foreground">ชื่อนี้จะแสดงในโปรไฟล์และคอมมูนิตี้ (ห้ามเว้นวรรค, เปลี่ยนได้ทุก 30 วัน)</p>
                   </div>
 
                   {/* First Name and Last Name */}
