@@ -8,14 +8,17 @@ interface TagInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  maxTags?: number;
 }
+
+const DEFAULT_MAX_TAGS = 20;
 
 interface PopularTag {
   tag: string;
   count: number;
 }
 
-export function TagInput({ value, onChange, placeholder }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_TAGS }: TagInputProps) {
   const [inputValue, setInputValue] = useState('');
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -94,9 +97,16 @@ export function TagInput({ value, onChange, placeholder }: TagInputProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const isAtMaxTags = currentTags.length >= maxTags;
+
   const addTag = (tag: string) => {
     const cleanTag = tag.trim().replace(/^#/, '');
     if (!cleanTag || currentTags.includes(cleanTag)) return;
+    
+    // Check max tags limit
+    if (currentTags.length >= maxTags) {
+      return;
+    }
 
     const newTags = [...currentTags, cleanTag];
     onChange(newTags.join(', '));
@@ -136,24 +146,31 @@ export function TagInput({ value, onChange, placeholder }: TagInputProps) {
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Tags display */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {currentTags.map((tag) => (
-          <Badge
-            key={tag}
-            variant="outline"
-            className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 pr-1"
-          >
-            #{tag}
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="ml-1 hover:bg-purple-500/20 rounded-full p-0.5"
+      {/* Tag count indicator */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap gap-1 flex-1">
+          {currentTags.map((tag) => (
+            <Badge
+              key={tag}
+              variant="outline"
+              className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 pr-1"
             >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
+              #{tag}
+              <button
+                type="button"
+                onClick={() => removeTag(tag)}
+                className="ml-1 hover:bg-purple-500/20 rounded-full p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+        {currentTags.length > 0 && (
+          <span className={`text-xs ml-2 shrink-0 ${isAtMaxTags ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            {currentTags.length}/{maxTags}
+          </span>
+        )}
       </div>
 
       {/* Input */}
@@ -165,13 +182,14 @@ export function TagInput({ value, onChange, placeholder }: TagInputProps) {
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
-          placeholder={placeholder || "พิมพ์แล้วกด Enter หรือ , เพื่อเพิ่ม Tag"}
+          placeholder={isAtMaxTags ? `ถึงขีดจำกัด ${maxTags} Tags แล้ว` : (placeholder || "พิมพ์แล้วกด Enter หรือ , เพื่อเพิ่ม Tag")}
           className="pl-9"
+          disabled={isAtMaxTags}
         />
       </div>
 
-      {/* Suggestions dropdown */}
-      {showSuggestions && (
+      {/* Suggestions dropdown - hide when at max tags */}
+      {showSuggestions && !isAtMaxTags && (
         <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-56 overflow-y-auto">
           <div className="p-2">
             {/* Show "create new tag" option when user is typing */}
