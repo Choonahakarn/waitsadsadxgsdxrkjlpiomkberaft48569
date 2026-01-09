@@ -217,11 +217,11 @@ const EditUserProfile = () => {
   const handleSaveClick = () => {
     if (!user) return;
 
-    // Validate display name - no spaces allowed
-    if (/\s/.test(displayName)) {
+    // Validate display name - no spaces or @ allowed
+    if (/[\s@]/.test(displayName)) {
       toast({
         variant: 'destructive',
-        title: 'ชื่อที่แสดงห้ามมีเว้นวรรค',
+        title: 'ชื่อที่แสดงห้ามมีเว้นวรรคและ @',
         description: 'กรุณาใช้ขีดล่าง (_) หรือตัวเชื่อมอื่นแทน',
       });
       return;
@@ -466,16 +466,16 @@ const EditUserProfile = () => {
                     id="displayName"
                     value={displayName}
                     onChange={(e) => {
-                      // Remove spaces from display name
-                      const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
-                      setDisplayName(valueWithoutSpaces);
+                      // Remove spaces and @ from display name
+                      const valueWithoutInvalid = e.target.value.replace(/[\s@]/g, '');
+                      setDisplayName(valueWithoutInvalid);
                     }}
-                    placeholder="ชื่อที่จะแสดงในคอมมูนิตี้ (ไม่มีเว้นวรรค)"
+                    placeholder="ชื่อที่จะแสดงในคอมมูนิตี้ (ไม่มีเว้นวรรคและ @)"
                     disabled={!canChangeDisplayName()}
                   />
-                  {displayName.includes(' ') && (
+                  {/[\s@]/.test(displayName) && (
                     <p className="text-xs text-red-500">
-                      ⚠️ ชื่อที่แสดงห้ามมีเว้นวรรค
+                      ⚠️ ชื่อที่แสดงห้ามมีเว้นวรรคและ @
                     </p>
                   )}
                   {!canChangeDisplayName() ? (

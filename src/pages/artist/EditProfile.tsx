@@ -273,12 +273,12 @@ const MyArtistProfile = () => {
   const handleSaveClick = () => {
     if (!user) return;
 
-    // Validate artist name - no spaces allowed
-    if (/\s/.test(artistName)) {
-      setArtistNameError('ชื่อศิลปินห้ามมีเว้นวรรค');
+    // Validate artist name - no spaces or @ allowed
+    if (/[\s@]/.test(artistName)) {
+      setArtistNameError('ชื่อศิลปินห้ามมีเว้นวรรคและ @');
       toast({
         variant: 'destructive',
-        title: 'ชื่อศิลปินห้ามมีเว้นวรรค',
+        title: 'ชื่อศิลปินห้ามมีเว้นวรรคและ @',
         description: 'กรุณาใช้ขีดล่าง (_) หรือตัวเชื่อมอื่นแทน',
       });
       return;
@@ -525,11 +525,11 @@ const MyArtistProfile = () => {
                     id="artist-name"
                     value={artistName}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/\s/g, ''); // Remove spaces
+                      const value = e.target.value.replace(/[\s@]/g, ''); // Remove spaces and @
                       setArtistName(value);
                       setArtistNameError('');
                     }}
-                    placeholder={t('profile.artistNamePlaceholder', 'ชื่อที่จะแสดงในโปรไฟล์ (ห้ามมีเว้นวรรค)')}
+                    placeholder={t('profile.artistNamePlaceholder', 'ชื่อที่จะแสดงในโปรไฟล์ (ห้ามมีเว้นวรรคและ @)')}
                     className={artistNameError ? 'border-destructive' : ''}
                     disabled={!canChangeArtistName()}
                     readOnly={!canChangeArtistName()}
@@ -542,7 +542,7 @@ const MyArtistProfile = () => {
                       เปลี่ยนชื่อศิลปินได้อีกครั้งใน {getDaysUntilCanChange()} วัน
                     </p>
                   ) : (
-                    <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้ (เปลี่ยนได้ทุก 30 วัน)</p>
+                    <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรคและ @ สามารถใช้ขีดล่าง (_) แทนได้ (เปลี่ยนได้ทุก 30 วัน)</p>
                   )}
                 </div>
 
