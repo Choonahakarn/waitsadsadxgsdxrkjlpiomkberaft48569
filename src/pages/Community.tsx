@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2, Hash } from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2, Hash, SlidersHorizontal } from "lucide-react";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { TagInput } from "@/components/ui/TagInput";
@@ -2330,6 +2331,66 @@ export default function Community() {
             </aside>
           </div>
         </div>
+
+        {/* Mobile Sidebar Drawer */}
+        <Drawer>
+          <DrawerTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="fixed bottom-6 left-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-40 lg:hidden bg-background border-2"
+            >
+              <SlidersHorizontal className="h-5 w-5" />
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="pb-2">
+              <DrawerTitle className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5" />
+                ตัวกรองและหมวดหมู่
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-6 overflow-y-auto max-h-[70vh]">
+              {/* Active Filters Display */}
+              {(selectedTag || selectedCategory) && (
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-primary">กำลังกรอง:</span>
+                    <button
+                      onClick={() => {
+                        setSelectedTag(null);
+                        setSelectedCategory(null);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      ล้างทั้งหมด
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTag && (
+                      <Badge variant="secondary" className="gap-1">
+                        #{selectedTag}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedTag(null)} />
+                      </Badge>
+                    )}
+                    {selectedCategory && (
+                      <Badge variant="secondary" className="gap-1">
+                        {selectedCategory}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedCategory(null)} />
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+              <CommunitySidebar 
+                selectedTag={selectedTag}
+                selectedCategory={selectedCategory}
+                onTagSelect={setSelectedTag}
+                onCategorySelect={setSelectedCategory}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         {/* Floating Create Button - Only for Artists */}
         {user && isArtist && (
