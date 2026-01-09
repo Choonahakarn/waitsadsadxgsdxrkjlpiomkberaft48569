@@ -435,17 +435,30 @@ const EditUserProfile = () => {
                   <Input
                     id="displayName"
                     value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="ชื่อที่จะแสดงในคอมมูนิตี้"
+                    onChange={(e) => {
+                      // Remove spaces from display name
+                      const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
+                      setDisplayName(valueWithoutSpaces);
+                    }}
+                    placeholder="ชื่อที่จะแสดงในคอมมูนิตี้ (ไม่มีเว้นวรรค)"
                     disabled={!canChangeDisplayName()}
                   />
+                  {displayName.includes(' ') && (
+                    <p className="text-xs text-red-500">
+                      ⚠️ ชื่อที่แสดงห้ามมีเว้นวรรค
+                    </p>
+                  )}
                   {!canChangeDisplayName() ? (
                     <p className="text-xs text-orange-600">
                       ⏳ คุณต้องรออีก {getDaysUntilDisplayNameChange()} วัน ก่อนเปลี่ยนชื่อที่แสดงอีกครั้ง
                     </p>
+                  ) : displayName !== (profile?.display_name || '') ? (
+                    <p className="text-xs text-orange-600">
+                      ⚠️ คำเตือน: หลังจากเปลี่ยนชื่อที่แสดง คุณจะต้องรอ 30 วันก่อนเปลี่ยนอีกครั้ง
+                    </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      ชื่อนี้จะแสดงแทนชื่อจริงในความคิดเห็นและการแชร์โพสต์ (เปลี่ยนได้ทุก 30 วัน)
+                      ชื่อนี้จะแสดงแทนชื่อจริงในความคิดเห็นและการแชร์โพสต์ (เปลี่ยนได้ทุก 30 วัน, ไม่มีเว้นวรรค)
                     </p>
                   )}
                 </div>
