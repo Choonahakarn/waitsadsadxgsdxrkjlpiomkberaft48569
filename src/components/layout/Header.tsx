@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine, Users, Bookmark, Shield } from "lucide-react";
+import { Menu, X, User, LogOut, Settings, Palette, ShoppingBag, Plus, ShieldCheck, Wallet, CreditCard, Image, TrendingUp, ArrowDownToLine, Users, Bookmark, Shield, UserCog } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -146,21 +146,16 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/followers" className="cursor-pointer">
-                    <Users className="mr-2 h-4 w-4" />
-                    ผู้ติดตาม
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
                   <Link to="/saved" className="cursor-pointer">
                     <Bookmark className="mr-2 h-4 w-4" />
                     โพสต์ที่บันทึก
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/settings/privacy" className="cursor-pointer">
-                    <Shield className="mr-2 h-4 w-4" />
-                    ความเป็นส่วนตัว
+                  <Link to="/settings/account" className="cursor-pointer">
+                    <UserCog className="mr-2 h-4 w-4" />
+                    จัดการบัญชี
                   </Link>
                 </DropdownMenuItem>
                 {isAdmin && (
@@ -197,12 +192,6 @@ export function Header() {
                       <Link to="/artist/withdraw" className="cursor-pointer">
                         <ArrowDownToLine className="mr-2 h-4 w-4" />
                         ถอนเงิน
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/artist/edit-profile" className="cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        {t('common.editProfile', 'แก้ไขโปรไฟล์')}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
