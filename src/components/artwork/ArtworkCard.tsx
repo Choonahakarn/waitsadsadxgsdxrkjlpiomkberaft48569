@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Check, UserCheck } from "lucide-react";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 
 export interface ArtworkCardProps {
   id: string;
@@ -12,6 +13,11 @@ export interface ArtworkCardProps {
   isVerified?: boolean;
   isIdentityVerified?: boolean;
   medium?: string;
+  // Cloudinary optimized image variants
+  imageBlurUrl?: string;
+  imageSmallUrl?: string;
+  imageMediumUrl?: string;
+  imageLargeUrl?: string;
 }
 
 export function ArtworkCard({
@@ -24,6 +30,10 @@ export function ArtworkCard({
   isVerified = true,
   isIdentityVerified = false,
   medium,
+  imageBlurUrl,
+  imageSmallUrl,
+  imageMediumUrl,
+  imageLargeUrl,
 }: ArtworkCardProps) {
   return (
     <motion.article
@@ -35,13 +45,21 @@ export function ArtworkCard({
     >
       <Link to={`/artwork/${id}`} className="block">
         <div className="relative aspect-[4/5] overflow-hidden">
-          <img
+          <OptimizedImage
             src={image}
+            variants={{
+              blur: imageBlurUrl,
+              small: imageSmallUrl,
+              medium: imageMediumUrl,
+              large: imageLargeUrl,
+            }}
             alt={title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            variant="feed"
+            className="h-full w-full transition-transform duration-500 group-hover:scale-105"
+            aspectRatio="4/5"
           />
           {(isVerified || isIdentityVerified) && (
-            <div className="absolute left-3 top-3 flex flex-col gap-1">
+            <div className="absolute left-3 top-3 flex flex-col gap-1 z-10">
               {isVerified && (
                 <span className="verified-badge">
                   <Check className="h-3 w-3" />
