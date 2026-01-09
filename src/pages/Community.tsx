@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2, Hash } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
+import { TagInput } from "@/components/ui/TagInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -2426,12 +2427,11 @@ export default function Community() {
                 </div>
 
                 <div>
-                  <Label htmlFor="hashtags">Tags / แท็ก (#)</Label>
-                  <Input
-                    id="hashtags"
+                  <Label>Tags / แท็ก (#)</Label>
+                  <TagInput
                     value={hashtags}
-                    onChange={(e) => setHashtags(e.target.value)}
-                    placeholder="เช่น fanart, anime, portrait (คั่นด้วย , หรือ เว้นวรรค)"
+                    onChange={setHashtags}
+                    placeholder="พิมพ์แล้วกด Enter หรือเลือกจากรายการ"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
@@ -3303,12 +3303,11 @@ export default function Community() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-hashtags">Tags / แท็ก (#)</Label>
-                <Input
-                  id="edit-hashtags"
+                <Label>Tags / แท็ก (#)</Label>
+                <TagInput
                   value={editHashtags}
-                  onChange={(e) => setEditHashtags(e.target.value)}
-                  placeholder="เช่น fanart, anime, portrait (คั่นด้วย , หรือ เว้นวรรค)"
+                  onChange={setEditHashtags}
+                  placeholder="พิมพ์แล้วกด Enter หรือเลือกจากรายการ"
                 />
                 <p className="text-xs text-muted-foreground">
                   เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
