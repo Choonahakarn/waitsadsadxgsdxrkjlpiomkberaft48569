@@ -171,41 +171,62 @@ export function TagInput({ value, onChange, placeholder }: TagInputProps) {
       </div>
 
       {/* Suggestions dropdown */}
-      {showSuggestions && filteredSuggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {showSuggestions && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-56 overflow-y-auto">
           <div className="p-2">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 px-2">
-              <TrendingUp className="h-3 w-3" />
-              <span>Tags ยอดนิยม</span>
-            </div>
-            {filteredSuggestions.map((suggestion) => (
+            {/* Show "create new tag" option when user is typing */}
+            {inputValue.trim() && !currentTags.includes(inputValue.trim().replace(/^#/, '')) && (
               <button
-                key={suggestion.tag}
                 type="button"
                 onClick={() => {
-                  addTag(suggestion.tag);
+                  addTag(inputValue);
                   setShowSuggestions(false);
                 }}
-                className="w-full text-left px-3 py-2 rounded-md hover:bg-muted transition-colors flex items-center justify-between"
+                className="w-full text-left px-3 py-2 rounded-md hover:bg-primary/10 transition-colors flex items-center gap-2 border-b border-border mb-2 pb-2"
               >
-                <span className="text-sm text-purple-600 dark:text-purple-400">
-                  #{suggestion.tag}
+                <span className="text-sm font-medium text-primary">
+                  + สร้าง Tag ใหม่ "#{inputValue.trim().replace(/^#/, '')}"
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {suggestion.count} โพสต์
+                <span className="text-xs text-muted-foreground ml-auto">
+                  กด Enter
                 </span>
               </button>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* Show popular tags hint when focused with no suggestions */}
-      {showSuggestions && filteredSuggestions.length === 0 && popularTags.length > 0 && !inputValue && currentTags.length === 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg">
-          <div className="p-3 text-xs text-muted-foreground">
-            <TrendingUp className="h-3 w-3 inline mr-1" />
-            ยังไม่มี Tags ยอดนิยมที่ตรงกับที่พิมพ์
+            {/* Popular tags suggestions */}
+            {filteredSuggestions.length > 0 && (
+              <>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 px-2">
+                  <TrendingUp className="h-3 w-3" />
+                  <span>Tags ยอดนิยม</span>
+                </div>
+                {filteredSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.tag}
+                    type="button"
+                    onClick={() => {
+                      addTag(suggestion.tag);
+                      setShowSuggestions(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-md hover:bg-muted transition-colors flex items-center justify-between"
+                  >
+                    <span className="text-sm text-purple-600 dark:text-purple-400">
+                      #{suggestion.tag}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {suggestion.count} โพสต์
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Empty state */}
+            {!inputValue && filteredSuggestions.length === 0 && (
+              <div className="p-3 text-xs text-muted-foreground text-center">
+                พิมพ์เพื่อสร้าง Tag ใหม่หรือค้นหา
+              </div>
+            )}
           </div>
         </div>
       )}
