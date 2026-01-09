@@ -2045,11 +2045,11 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Main Content - Masonry Grid like Cara */}
-        <div className="container mx-auto max-w-3xl px-4 py-6">
-          <div className="flex gap-6">
+        {/* Main Content */}
+        <div className="container mx-auto max-w-6xl px-4 py-6">
+          <div className="flex justify-center gap-8">
             {/* Feed Content - Vertical scrolling feed */}
-            <div ref={feedRef} className="flex-1 max-w-xl mx-auto lg:mx-0">
+            <div ref={feedRef} className="w-full max-w-[560px]">
               {loading ? (
                 <div className="py-20 text-center">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -2075,7 +2075,7 @@ export default function Community() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}
-                      className="py-4 first:pt-0"
+                      className="py-5 first:pt-0"
                     >
                       {/* Post Header */}
                       <div className="flex items-start gap-3 mb-2">
@@ -2164,7 +2164,7 @@ export default function Community() {
 
                       {/* Image */}
                       <div 
-                        className="relative cursor-pointer rounded-xl overflow-hidden mt-3 ml-13"
+                        className="relative cursor-pointer rounded-2xl overflow-hidden mt-3 border border-border/50"
                         onClick={() => handleOpenPost(post)}
                       >
                         <OptimizedImage
@@ -2177,12 +2177,12 @@ export default function Community() {
                           }}
                           alt={post.title}
                           variant="feed"
-                          className="w-full rounded-xl"
+                          className="w-full"
                         />
                       </div>
 
                       {/* Action Bar */}
-                      <div className="flex items-center justify-between mt-3 ml-13 text-muted-foreground">
+                      <div className="flex items-center justify-between mt-3 px-1 text-muted-foreground">
                         <button 
                           className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
                           onClick={() => handleOpenPost(post)}
@@ -2249,12 +2249,12 @@ export default function Community() {
             </div>
 
             {/* Sidebar (desktop): sticky + internal scroll (scrollbar hidden) */}
-            <aside className="hidden lg:block w-80 shrink-0">
+            <aside className="hidden lg:block w-72 shrink-0">
               <div
                 ref={sidebarScrollRef}
-                className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-hidden pr-1"
+                className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-hidden"
               >
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {/* Active Filters Display */}
                   {(selectedTag || selectedCategory) && (
                     <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
