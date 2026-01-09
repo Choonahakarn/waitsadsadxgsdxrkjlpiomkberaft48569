@@ -1481,6 +1481,9 @@ export default function Community() {
       setNewComment("");
       fetchComments(actualPostId);
       
+      // Update posts and selectedPost comment count
+      const newCommentCount = (selectedPost.comments_count || 0) + 1;
+      
       setPosts(posts.map(post => {
         // Update both the repost and original post if they exist
         const postActualId = post.original_post_id || post.id;
@@ -1489,6 +1492,9 @@ export default function Community() {
         }
         return post;
       }));
+      
+      // Also update selectedPost state
+      setSelectedPost(prev => prev ? { ...prev, comments_count: newCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1585,6 +1591,9 @@ export default function Community() {
       setReplyingToComment(null);
       fetchComments(actualPostId);
       
+      // Update posts and selectedPost comment count for reply
+      const newReplyCommentCount = (selectedPost.comments_count || 0) + 1;
+      
       setPosts(posts.map(post => {
         const postActualId = post.original_post_id || post.id;
         if (postActualId === actualPostId) {
@@ -1592,6 +1601,9 @@ export default function Community() {
         }
         return post;
       }));
+      
+      // Also update selectedPost state
+      setSelectedPost(prev => prev ? { ...prev, comments_count: newReplyCommentCount } : null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -2194,7 +2206,7 @@ export default function Community() {
                 <div className="space-y-0 divide-y divide-border">
                   {filteredPosts.map((post, index) => (
                     <motion.article
-                      key={post.id}
+                      key={`${post.id}-${post.is_repost ? 'repost' : 'original'}-${index}`}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}
@@ -2203,10 +2215,10 @@ export default function Community() {
                       {/* Post Header */}
                       <div className="flex items-start gap-3 mb-2">
                         <Link to={`/profile/${post.user_id}`}>
-                          <Avatar className="h-10 w-10">
+                          <Avatar className="h-10 w-10 border border-border">
                             <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                            <AvatarFallback>
-                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]?.toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                         </Link>
