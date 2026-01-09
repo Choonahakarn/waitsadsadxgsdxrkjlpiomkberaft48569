@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,11 +42,12 @@ interface CommunityPost {
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
+    display_name: string | null;
   };
   artist_profile?: {
     artist_name: string;
     is_verified: boolean;
-  };
+  } | null;
   is_liked?: boolean;
   is_following?: boolean;
   followers_count?: number;
@@ -58,11 +61,12 @@ interface CommunityPost {
   repost_user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
+    display_name: string | null;
   };
   repost_artist_profile?: {
     artist_name: string;
     is_verified: boolean;
-  };
+  } | null;
 }
 
 interface Comment {
@@ -75,7 +79,12 @@ interface Comment {
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
+    display_name: string | null;
   };
+  artist_profile?: {
+    artist_name: string;
+    is_verified: boolean;
+  } | null;
   replies?: Comment[];
 }
 
@@ -98,7 +107,7 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, isArtist, isBuyer } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
@@ -270,7 +279,7 @@ export default function Community() {
         (postsData || []).map(async (post) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url')
+            .select('full_name, avatar_url, display_name')
             .eq('id', post.user_id)
             .maybeSingle();
 
@@ -336,7 +345,7 @@ export default function Community() {
           // Get reposter's profile
           const { data: reposterProfile } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url')
+            .select('full_name, avatar_url, display_name')
             .eq('id', share.user_id)
             .maybeSingle();
 
@@ -349,7 +358,7 @@ export default function Community() {
           // Get original poster's profile
           const { data: originalProfile } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url')
+            .select('full_name, avatar_url, display_name')
             .eq('id', originalPost.user_id)
             .maybeSingle();
 
@@ -501,7 +510,7 @@ export default function Community() {
             // Fetch additional data for the post
             const { data: profile } = await supabase
               .from('profiles')
-              .select('full_name, avatar_url')
+              .select('full_name, avatar_url, display_name')
               .eq('id', postData.user_id)
               .maybeSingle();
 
@@ -1137,10 +1146,16 @@ export default function Community() {
         (data || []).map(async (comment) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url')
+            .select('full_name, avatar_url, display_name')
             .eq('id', comment.user_id)
             .maybeSingle();
-          return { ...comment, user_profile: profile };
+          
+          const { data: commentArtistProfile } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', comment.user_id)
+            .maybeSingle();
+          return { ...comment, user_profile: profile, artist_profile: commentArtistProfile };
         })
       );
 
@@ -1722,6 +1737,22 @@ export default function Community() {
     return date.toLocaleDateString('th-TH');
   };
 
+  // Get display name based on user type (artist uses artist_name, buyer uses display_name or full_name)
+  const getDisplayName = (
+    userProfile?: { full_name: string | null; display_name: string | null } | null,
+    artistProfile?: { artist_name: string; is_verified: boolean } | null
+  ) => {
+    if (artistProfile?.artist_name) {
+      return artistProfile.artist_name;
+    }
+    return userProfile?.display_name || userProfile?.full_name || "ผู้ใช้";
+  };
+
+  // Check if user is a buyer (has no artist profile)
+  const isBuyerUser = (artistProfile?: { artist_name: string; is_verified: boolean } | null) => {
+    return !artistProfile;
+  };
+
   // Handle edit comment
   const handleEditComment = async () => {
     if (!user || !editingComment || !editCommentContent.trim()) return;
@@ -1937,12 +1968,17 @@ export default function Community() {
                         <Avatar className="h-5 w-5">
                           <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
                           <AvatarFallback className="text-[10px]">
-                            {(post.repost_artist_profile?.artist_name || post.repost_user_profile?.full_name || "U")[0]}
+                            {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]}
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-medium text-foreground">
-                          {post.repost_artist_profile?.artist_name || post.repost_user_profile?.full_name || "ผู้ใช้"}
+                          {getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
                         </span>
+                        {isBuyerUser(post.repost_artist_profile) && (
+                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
+                            Buyer
+                          </Badge>
+                        )}
                         <span>รีโพสต์</span>
                         <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
                       </Link>
@@ -1961,17 +1997,22 @@ export default function Community() {
                         <Avatar className="h-10 w-10 ring-2 ring-primary/20">
                           <AvatarImage src={post.user_profile?.avatar_url || undefined} />
                           <AvatarFallback>
-                            {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
+                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-1.5">
                             <span className="font-semibold text-foreground">
-                              {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                              {getDisplayName(post.user_profile, post.artist_profile)}
                             </span>
                             {post.artist_profile?.is_verified && (
                               <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
                                 ✓
+                              </Badge>
+                            )}
+                            {isBuyerUser(post.artist_profile) && (
+                              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
+                                Buyer
                               </Badge>
                             )}
                           </div>
@@ -2154,7 +2195,7 @@ export default function Community() {
                       {/* Title & Description */}
                       <div>
                         <span className="font-semibold mr-2">
-                          {post.artist_profile?.artist_name || post.user_profile?.full_name || "ผู้ใช้"}
+                          {getDisplayName(post.user_profile, post.artist_profile)}
                         </span>
                         <span className="text-foreground">{post.title}</span>
                         {post.description && (
@@ -2257,8 +2298,8 @@ export default function Community() {
           </div>
         </div>
 
-        {/* Floating Create Button */}
-        {user && (
+        {/* Floating Create Button - Only for Artists */}
+        {user && isArtist && (
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button
@@ -2273,6 +2314,41 @@ export default function Community() {
                 <DialogTitle>โพสต์ผลงานใหม่</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+
+        {/* Buyer warning - show create button that opens warning */}
+        {user && isBuyer && !isArtist && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                size="lg"
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-50"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  ไม่สามารถโพสต์ได้
+                </DialogTitle>
+              </DialogHeader>
+              <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950 dark:border-orange-800">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-700 dark:text-orange-300">
+                  <strong>การโพสต์ผลงานสำหรับศิลปินเท่านั้น</strong>
+                  <p className="mt-2 text-sm">
+                    คุณสามารถดู กดถูกใจ แสดงความคิดเห็น และแชร์ผลงานของศิลปินได้ 
+                    แต่การโพสต์ผลงานใหม่จำกัดเฉพาะศิลปินที่ลงทะเบียนแล้วเท่านั้น
+                  </p>
+                  <p className="mt-2 text-sm">
+                    หากคุณต้องการเป็นศิลปิน สามารถสมัครได้ที่หน้าการตั้งค่าบัญชี
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </DialogContent>
+          </Dialog>
+        )}
                 <div>
                   <Label htmlFor="title">ชื่อผลงาน *</Label>
                   <Input
@@ -2572,7 +2648,7 @@ export default function Community() {
                             <Avatar className="h-8 w-8 shrink-0">
                               <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
                               <AvatarFallback className="text-xs">
-                                {(comment.user_profile?.full_name || "U")[0]}
+                                {getDisplayName(comment.user_profile, comment.artist_profile)[0]}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
@@ -2612,9 +2688,19 @@ export default function Community() {
                                 // Display mode
                                 <>
                                   <p className="text-sm">
-                                    <span className="font-semibold mr-2">
-                                      {comment.user_profile?.full_name || "ผู้ใช้"}
+                                    <span className="font-semibold mr-1">
+                                      {getDisplayName(comment.user_profile, comment.artist_profile)}
                                     </span>
+                                    {comment.artist_profile?.is_verified && (
+                                      <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0 mr-1">
+                                        ✓
+                                      </Badge>
+                                    )}
+                                    {isBuyerUser(comment.artist_profile) && (
+                                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0 mr-2">
+                                        Buyer
+                                      </Badge>
+                                    )}
                                     {renderTextWithMentions(comment.content)}
                                   </p>
                                   <div className="flex items-center gap-2">
@@ -2684,7 +2770,7 @@ export default function Community() {
                                       <Avatar className="h-6 w-6 shrink-0">
                                         <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
                                         <AvatarFallback className="text-[10px]">
-                                          {(reply.user_profile?.full_name || "U")[0]}
+                                          {getDisplayName(reply.user_profile, reply.artist_profile)[0]}
                                         </AvatarFallback>
                                       </Avatar>
                                       <div className="flex-1 min-w-0">
@@ -2724,9 +2810,19 @@ export default function Community() {
                                           // Display mode for reply
                                           <>
                                             <p className="text-sm">
-                                              <span className="font-semibold mr-2 text-xs">
-                                                {reply.user_profile?.full_name || "ผู้ใช้"}
+                                              <span className="font-semibold mr-1 text-xs">
+                                                {getDisplayName(reply.user_profile, reply.artist_profile)}
                                               </span>
+                                              {reply.artist_profile?.is_verified && (
+                                                <Badge variant="secondary" className="h-3.5 px-1 text-[9px] bg-blue-500 text-white border-0 mr-1">
+                                                  ✓
+                                                </Badge>
+                                              )}
+                                              {isBuyerUser(reply.artist_profile) && (
+                                                <Badge variant="secondary" className="h-3.5 px-1 text-[9px] bg-sky-500 text-white border-0 mr-1">
+                                                  Buyer
+                                                </Badge>
+                                              )}
                                               {renderTextWithMentions(reply.content)}
                                             </p>
                                             <div className="flex items-center gap-2">
@@ -2738,7 +2834,7 @@ export default function Community() {
                                                 <button
                                                   onClick={() => {
                                                     setReplyingToComment(comment);
-                                                    setReplyContent(`@${reply.user_profile?.full_name || 'ผู้ใช้'} `);
+                                                    setReplyContent(`@${getDisplayName(reply.user_profile, reply.artist_profile)} `);
                                                   }}
                                                   className="text-xs text-muted-foreground hover:text-foreground font-medium"
                                                 >
@@ -2800,7 +2896,7 @@ export default function Community() {
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                                   <span>ตอบกลับ</span>
                                   <span className="font-medium text-foreground">
-                                    {comment.user_profile?.full_name || "ผู้ใช้"}
+                                    {getDisplayName(comment.user_profile, comment.artist_profile)}
                                   </span>
                                   <button
                                     onClick={() => {
