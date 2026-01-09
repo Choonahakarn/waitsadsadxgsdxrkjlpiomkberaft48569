@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2, X, Send, Loader2, MoreHorizontal, VolumeX, Flag, Ban, Star } from "lucide-react";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
+import { ProfileTagFilter } from "@/components/profile/ProfileTagFilter";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UserProfileData {
@@ -153,6 +154,10 @@ export default function UserProfile() {
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+
+  // Tag filter state
+  const [selectedPostsTag, setSelectedPostsTag] = useState<string | null>(null);
+  const [selectedSavedTag, setSelectedSavedTag] = useState<string | null>(null);
 
   const reportReasons = [
     { value: "spam", label: "สแปมหรือโฆษณา" },
@@ -950,6 +955,33 @@ export default function UserProfile() {
     }
   };
 
+  // Helper function to extract hashtags from description
+  const extractHashtags = (text: string | null | undefined): string[] => {
+    if (!text) return [];
+    const matches = text.match(/#[\wก-๙]+/g);
+    return matches ? matches.map(tag => tag.substring(1)) : [];
+  };
+
+  // Filter posts by tag
+  const filteredPosts = useMemo(() => {
+    if (!selectedPostsTag) return posts;
+    return posts.filter(post => {
+      const hasToolTag = post.tools_used?.includes(selectedPostsTag);
+      const hasHashtag = extractHashtags(post.description).includes(selectedPostsTag);
+      return hasToolTag || hasHashtag;
+    });
+  }, [posts, selectedPostsTag]);
+
+  // Filter saved posts by tag
+  const filteredSavedPosts = useMemo(() => {
+    if (!selectedSavedTag) return savedPostsList;
+    return savedPostsList.filter(post => {
+      const hasToolTag = post.tools_used?.includes(selectedSavedTag);
+      const hasHashtag = extractHashtags(post.description).includes(selectedSavedTag);
+      return hasToolTag || hasHashtag;
+    });
+  }, [savedPostsList, selectedSavedTag]);
+
   const displayName = artistProfile?.artist_name || profile?.display_name || profile?.full_name || 'ผู้ใช้';
   const displayAvatar = artistProfile?.avatar_url || profile?.avatar_url;
   const displayBio = artistProfile?.bio || profile?.bio;
@@ -1415,15 +1447,27 @@ export default function UserProfile() {
 
             {/* All Posts Tab - Feed Style */}
             <TabsContent value="posts">
+              {/* Tag Filter */}
+              {userId && posts.length > 0 && (
+                <div className="max-w-2xl mx-auto mt-4">
+                  <ProfileTagFilter
+                    userId={userId}
+                    posts={posts}
+                    selectedTag={selectedPostsTag}
+                    onTagSelect={setSelectedPostsTag}
+                  />
+                </div>
+              )}
+              
               <AnimatePresence mode="wait">
-                {posts.length > 0 ? (
+                {filteredPosts.length > 0 ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="max-w-2xl mx-auto space-y-6"
                   >
-                    {posts.map((post, index) => (
+                    {filteredPosts.map((post, index) => (
                       <motion.article
                         key={post.id}
                         initial={{ opacity: 0, y: 20 }}
@@ -1560,6 +1604,22 @@ export default function UserProfile() {
                         )}
                       </motion.article>
                     ))}
+                  </motion.div>
+                ) : posts.length > 0 && filteredPosts.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16"
+                  >
+                    <Grid3X3 className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">ไม่มีโพสต์ที่ตรงกับ tag นี้</p>
+                    <Button
+                      variant="link"
+                      onClick={() => setSelectedPostsTag(null)}
+                      className="mt-2"
+                    >
+                      ดูโพสต์ทั้งหมด
+                    </Button>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -1750,6 +1810,18 @@ export default function UserProfile() {
 
             {/* Saved Tab */}
             <TabsContent value="saved">
+              {/* Tag Filter for Saved */}
+              {userId && savedPostsList.length > 0 && (
+                <div className="max-w-2xl mx-auto mt-4">
+                  <ProfileTagFilter
+                    userId={userId}
+                    posts={savedPostsList}
+                    selectedTag={selectedSavedTag}
+                    onTagSelect={setSelectedSavedTag}
+                  />
+                </div>
+              )}
+              
               <AnimatePresence mode="wait">
                 {savedPostsLoading ? (
                   <motion.div
@@ -1759,14 +1831,14 @@ export default function UserProfile() {
                   >
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </motion.div>
-                ) : savedPostsList.length > 0 ? (
+                ) : filteredSavedPosts.length > 0 ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="max-w-2xl mx-auto space-y-6"
                   >
-                    {savedPostsList.map((post, index) => {
+                    {filteredSavedPosts.map((post, index) => {
                       const postDisplayName = post.artist_profile?.artist_name || post.user_profile?.full_name || 'ผู้ใช้';
                       const postDisplayAvatar = post.user_profile?.avatar_url;
                       
@@ -1908,6 +1980,22 @@ export default function UserProfile() {
                         </motion.article>
                       );
                     })}
+                  </motion.div>
+                ) : savedPostsList.length > 0 && filteredSavedPosts.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16"
+                  >
+                    <Bookmark className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">ไม่มีโพสต์ที่ตรงกับ tag นี้</p>
+                    <Button
+                      variant="link"
+                      onClick={() => setSelectedSavedTag(null)}
+                      className="mt-2"
+                    >
+                      ดูโพสต์ทั้งหมด
+                    </Button>
                   </motion.div>
                 ) : (
                   <motion.div
