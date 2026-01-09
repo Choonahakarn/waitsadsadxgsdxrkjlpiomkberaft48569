@@ -21,6 +21,7 @@ interface UserProfile {
   last_name: string | null;
   full_name: string | null;
   display_name: string | null;
+  display_name_changed_at: string | null;
   bio: string | null;
   website: string | null;
   avatar_url: string | null;
@@ -194,27 +195,72 @@ const EditUserProfile = () => {
     }
   };
 
+  // Check if display name can be changed (30 day restriction)
+  const canChangeDisplayName = () => {
+    if (!profile?.display_name_changed_at) return true;
+    const lastChanged = new Date(profile.display_name_changed_at);
+    const now = new Date();
+    const daysSinceChange = (now.getTime() - lastChanged.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSinceChange >= 30;
+  };
+
+  const getDaysUntilDisplayNameChange = () => {
+    if (!profile?.display_name_changed_at) return 0;
+    const lastChanged = new Date(profile.display_name_changed_at);
+    const now = new Date();
+    const daysSinceChange = (now.getTime() - lastChanged.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0, Math.ceil(30 - daysSinceChange));
+  };
+
   const handleSave = async () => {
     if (!user) return;
+
+    // Check if display name changed and if it's allowed
+    const displayNameChanged = displayName !== (profile?.display_name || '');
+    if (displayNameChanged && !canChangeDisplayName()) {
+      toast({
+        variant: 'destructive',
+        title: 'ไม่สามารถเปลี่ยนชื่อที่แสดงได้',
+        description: `คุณต้องรออีก ${getDaysUntilDisplayNameChange()} วัน ก่อนเปลี่ยนชื่อที่แสดงอีกครั้ง`,
+      });
+      return;
+    }
 
     setIsSaving(true);
 
     try {
       const fullName = `${firstName} ${lastName}`.trim();
       
+      // Build update object
+      const updateData: Record<string, any> = {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        full_name: fullName || null,
+        bio: bio || null,
+        website: website || null,
+      };
+
+      // Only update display_name and timestamp if it actually changed
+      if (displayNameChanged) {
+        updateData.display_name = displayName || null;
+        updateData.display_name_changed_at = new Date().toISOString();
+      }
+      
       const { error } = await supabase
         .from('profiles')
-        .update({
-          first_name: firstName || null,
-          last_name: lastName || null,
-          full_name: fullName || null,
-          display_name: displayName || null,
-          bio: bio || null,
-          website: website || null,
-        })
+        .update(updateData)
         .eq('id', user.id);
 
       if (error) throw error;
+
+      // Update local profile state
+      if (displayNameChanged) {
+        setProfile(prev => prev ? {
+          ...prev,
+          display_name: displayName || null,
+          display_name_changed_at: new Date().toISOString()
+        } : null);
+      }
 
       toast({
         title: 'บันทึกโปรไฟล์สำเร็จ',
@@ -391,10 +437,17 @@ const EditUserProfile = () => {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="ชื่อที่จะแสดงในคอมมูนิตี้"
+                    disabled={!canChangeDisplayName()}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    ชื่อนี้จะแสดงแทนชื่อจริงในความคิดเห็นและการแชร์โพสต์
-                  </p>
+                  {!canChangeDisplayName() ? (
+                    <p className="text-xs text-orange-600">
+                      ⏳ คุณต้องรออีก {getDaysUntilDisplayNameChange()} วัน ก่อนเปลี่ยนชื่อที่แสดงอีกครั้ง
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      ชื่อนี้จะแสดงแทนชื่อจริงในความคิดเห็นและการแชร์โพสต์ (เปลี่ยนได้ทุก 30 วัน)
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
