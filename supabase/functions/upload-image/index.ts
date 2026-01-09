@@ -63,6 +63,12 @@ serve(async (req) => {
       throw new Error('Cloudinary configuration missing')
     }
 
+    // Quick sanity-check: Cloudinary API secret is usually much longer than 10 chars.
+    // If it's too short, it's almost certainly pasted incorrectly.
+    if (apiSecret.length < 20) {
+      throw new Error('Cloudinary API secret looks invalid (too short). Please update the CLOUDINARY_API_SECRET secret.')
+    }
+
     // Create timestamp and signature for authenticated upload
     const timestamp = Math.floor(Date.now() / 1000)
     const folderPath = `${folder}/${user.id}`
