@@ -2046,10 +2046,10 @@ export default function Community() {
         </div>
 
         {/* Main Content */}
-        <div className="container mx-auto max-w-6xl px-4 py-6">
-          <div className="flex justify-center gap-8">
+        <div className="flex justify-center px-4 py-6">
+          <div className="flex gap-8 w-full max-w-[900px]">
             {/* Feed Content - Vertical scrolling feed */}
-            <div ref={feedRef} className="w-full max-w-[560px]">
+            <div ref={feedRef} className="flex-1 min-w-0 max-w-[560px]">
               {loading ? (
                 <div className="py-20 text-center">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
