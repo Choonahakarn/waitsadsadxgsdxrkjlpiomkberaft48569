@@ -202,37 +202,37 @@ const Auth = () => {
       return;
     }
     
-    // For artists, send OTP for email verification
+    // For artists, navigate to verify email page (they need to click confirmation link)
     if (isArtistSignup) {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ email: signupEmail, type: 'signup' }),
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          console.error('OTP send error:', data);
-        }
-      } catch (err) {
-        console.error('Failed to send OTP:', err);
-      }
-      
       setIsSubmitting(false);
       toast({
         title: '🎉 สมัครสมาชิกสำเร็จ!',
-        description: 'กรุณายืนยันอีเมลของคุณด้วยรหัส OTP',
+        description: 'กรุณาตรวจสอบอีเมลและคลิกลิงก์ยืนยัน',
         duration: 5000,
       });
       // Navigate to verify email page with email and artist flag
       navigate(`/verify-email?email=${encodeURIComponent(signupEmail)}&artist=true`);
     } else {
-      // For buyers, no verification needed - direct login success
+      // For buyers, auto-confirm via edge function
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-buyer-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ email: signupEmail }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Auto-confirm error:', data);
+        }
+      } catch (err) {
+        console.error('Failed to auto-confirm buyer:', err);
+      }
+      
       setIsSubmitting(false);
       toast({
         title: '🎉 สมัครสมาชิกสำเร็จ!',
