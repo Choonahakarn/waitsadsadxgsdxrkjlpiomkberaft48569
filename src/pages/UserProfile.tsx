@@ -1582,12 +1582,17 @@ export default function UserProfile() {
                           </div>
                         )}
 
-                        {/* Tools/Tags */}
-                        {post.tools_used && post.tools_used.length > 0 && (
+                        {/* Tools & Tags */}
+                        {((post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
                           <div className="px-4 pb-3 flex flex-wrap gap-1">
-                            {post.tools_used.map((tool) => (
-                              <Badge key={tool} variant="secondary" className="text-xs">
-                                {tool}
+                            {post.tools_used?.map((tool) => (
+                              <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                                🛠 {tool}
+                              </Badge>
+                            ))}
+                            {post.hashtags?.map((tag) => (
+                              <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                #{tag}
                               </Badge>
                             ))}
                           </div>
@@ -1771,12 +1776,17 @@ export default function UserProfile() {
                             </div>
                           )}
 
-                          {/* Tools/Tags */}
-                          {post.tools_used && post.tools_used.length > 0 && (
+                          {/* Tools & Tags */}
+                          {((post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
                             <div className="px-4 pb-3 flex flex-wrap gap-1">
-                              {post.tools_used.map((tool) => (
-                                <Badge key={tool} variant="secondary" className="text-xs">
-                                  {tool}
+                              {post.tools_used?.map((tool) => (
+                                <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                                  🛠 {tool}
+                                </Badge>
+                              ))}
+                              {post.hashtags?.map((tag) => (
+                                <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                  #{tag}
                                 </Badge>
                               ))}
                             </div>
@@ -1957,12 +1967,17 @@ export default function UserProfile() {
                             </div>
                           )}
 
-                          {/* Tools/Tags */}
-                          {post.tools_used && post.tools_used.length > 0 && (
+                          {/* Tools & Tags */}
+                          {((post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
                             <div className="px-4 pb-3 flex flex-wrap gap-1">
-                              {post.tools_used.map((tool) => (
-                                <Badge key={tool} variant="secondary" className="text-xs">
-                                  {tool}
+                              {post.tools_used?.map((tool) => (
+                                <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                                  🛠 {tool}
+                                </Badge>
+                              ))}
+                              {post.hashtags?.map((tag) => (
+                                <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                  #{tag}
                                 </Badge>
                               ))}
                             </div>

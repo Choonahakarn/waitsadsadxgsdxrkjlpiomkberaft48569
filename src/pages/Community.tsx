@@ -2232,8 +2232,8 @@ export default function Community() {
                         )}
                       </div>
 
-                      {/* Tags */}
-                      {(post.category || (post.tools_used && post.tools_used.length > 0)) && (
+                      {/* Category, Tools & Tags */}
+                      {(post.category || (post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
                         <div className="flex flex-wrap gap-1">
                           {post.category && (
                             <Badge variant="secondary" className="text-xs">
@@ -2241,8 +2241,13 @@ export default function Community() {
                             </Badge>
                           )}
                           {post.tools_used?.slice(0, 3).map((tool, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
-                              {tool}
+                            <Badge key={`tool-${i}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                              🛠 {tool}
+                            </Badge>
+                          ))}
+                          {post.hashtags?.slice(0, 3).map((tag, i) => (
+                            <Badge key={`tag-${i}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                              #{tag}
                             </Badge>
                           ))}
                         </div>
@@ -2588,13 +2593,20 @@ export default function Community() {
                         {renderTextWithMentions(selectedPost.description)}
                       </p>
                     )}
-                    {selectedPost.tools_used && selectedPost.tools_used.length > 0 && (
+                    {(selectedPost.tools_used && selectedPost.tools_used.length > 0) || (selectedPost.hashtags && selectedPost.hashtags.length > 0) ? (
                       <div className="flex flex-wrap gap-1 mt-3">
-                        {selectedPost.tools_used.map((tool) => (
-                          <Badge key={tool} variant="outline" className="text-xs">{tool}</Badge>
+                        {selectedPost.tools_used?.map((tool) => (
+                          <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                            🛠 {tool}
+                          </Badge>
+                        ))}
+                        {selectedPost.hashtags?.map((tag) => (
+                          <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                            #{tag}
+                          </Badge>
                         ))}
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Actions */}
