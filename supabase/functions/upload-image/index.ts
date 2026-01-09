@@ -49,9 +49,15 @@ serve(async (req) => {
       throw new Error('File too large. Maximum size is 20MB')
     }
 
-    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')
-    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')
-    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')
+    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')?.trim()
+    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')?.trim()
+    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')?.trim()
+
+    console.log('Cloudinary env present:', {
+      cloudName: !!cloudName,
+      apiKeyLen: apiKey?.length ?? 0,
+      apiSecretLen: apiSecret?.length ?? 0,
+    })
 
     if (!cloudName || !apiKey || !apiSecret) {
       throw new Error('Cloudinary configuration missing')
