@@ -151,22 +151,19 @@ export function CommunitySidebar({
 
   const fetchTrendingTags = async () => {
     try {
+      // Fetch ALL posts to get all-time popular hashtags
       const { data } = await supabase
         .from('community_posts')
-        .select('tools_used, category')
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .select('hashtags')
+        .not('hashtags', 'is', null);
 
       if (data) {
         const tagCounts: { [key: string]: number } = {};
         
         data.forEach(post => {
-          if (post.category) {
-            tagCounts[post.category] = (tagCounts[post.category] || 0) + 1;
-          }
-          if (post.tools_used) {
-            post.tools_used.forEach((tool: string) => {
-              tagCounts[tool] = (tagCounts[tool] || 0) + 1;
+          if (post.hashtags && Array.isArray(post.hashtags)) {
+            post.hashtags.forEach((tag: string) => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
             });
           }
         });
@@ -174,7 +171,7 @@ export function CommunitySidebar({
         const sortedTags = Object.entries(tagCounts)
           .map(([tag, count]) => ({ tag, count }))
           .sort((a, b) => b.count - a.count)
-          .slice(0, 8);
+          .slice(0, 10);
 
         setTrendingTags(sortedTags);
       }
@@ -311,8 +308,8 @@ export function CommunitySidebar({
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Hash className="h-5 w-5 text-green-500" />
-            <h3 className="font-semibold">แท็กยอดนิยม</h3>
+            <TrendingUp className="h-5 w-5 text-green-500" />
+            <h3 className="font-semibold">Trending Tags</h3>
           </div>
           {selectedTag && (
             <button
@@ -324,25 +321,23 @@ export function CommunitySidebar({
             </button>
           )}
         </div>
-        <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
           {trendingTags.map((tag) => (
             <button
               key={tag.tag}
               onClick={() => onTagSelect?.(selectedTag === tag.tag ? null : tag.tag)}
-              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
+              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
                 selectedTag === tag.tag 
                   ? 'bg-primary text-primary-foreground' 
-                  : 'hover:bg-muted'
+                  : 'bg-muted hover:bg-primary/10 hover:text-primary'
               }`}
             >
-              <span className={`text-sm ${selectedTag !== tag.tag ? 'group-hover:text-primary' : ''} transition-colors`}>
-                #{tag.tag}
-              </span>
-              <span className={`text-xs ${selectedTag === tag.tag ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                {tag.count} โพสต์
-              </span>
+              #{tag.tag}
             </button>
           ))}
+          {trendingTags.length === 0 && (
+            <p className="text-sm text-muted-foreground">ยังไม่มี Tags</p>
+          )}
         </div>
       </div>
 
