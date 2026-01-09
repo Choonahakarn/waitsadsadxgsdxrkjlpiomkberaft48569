@@ -462,7 +462,7 @@ export default function UserProfile() {
       // Fetch community posts with additional data
       const { data: postsData } = await supabase
         .from('community_posts')
-        .select('id, title, description, image_url, likes_count, created_at, category, tools_used')
+        .select('id, title, description, image_url, likes_count, created_at, category, tools_used, hashtags')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       
