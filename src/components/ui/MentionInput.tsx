@@ -38,9 +38,9 @@ export function MentionInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Extract mentions from text (supports Thai and other Unicode characters)
+  // Extract mentions from text (supports Thai names with spaces)
   const extractMentions = useCallback((text: string): string[] => {
-    const mentionRegex = /@([\w\u0E00-\u0E7F_]+)/g;
+    const mentionRegex = /@([\w\u0E00-\u0E7F_]+(?:\s[\w\u0E00-\u0E7F_]+)*)/g;
     const matches = text.match(mentionRegex);
     return matches ? matches.map(m => m.slice(1)) : [];
   }, []);
@@ -253,35 +253,55 @@ export function MentionInput({
   );
 }
 
-// Utility to render text with highlighted mentions (supports Thai and other Unicode characters)
+// Utility to render text with highlighted mentions (supports Thai names with spaces)
 export function renderTextWithMentions(text: string, className?: string) {
   if (!text) return null;
   
-  // Match @followed by word characters, Thai characters, or underscores
-  const parts = text.split(/(@[\w\u0E00-\u0E7F_]+)/g);
+  // Match @followed by Thai/word characters, including spaces between name parts
+  // Pattern: @ + (Thai chars or word chars or underscores) + optionally (space + Thai chars or word chars)+
+  const mentionPattern = /@([\w\u0E00-\u0E7F_]+(?:\s[\w\u0E00-\u0E7F_]+)*)/g;
+  
+  const parts: { text: string; isMention: boolean }[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = mentionPattern.exec(text)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index), isMention: false });
+    }
+    // Add the mention
+    parts.push({ text: match[0], isMention: true });
+    lastIndex = mentionPattern.lastIndex;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), isMention: false });
+  }
   
   return (
     <span className={className}>
       {parts.map((part, index) => {
-        if (part.startsWith('@')) {
+        if (part.isMention) {
           return (
             <span
               key={index}
               className="text-primary font-medium hover:underline cursor-pointer"
             >
-              {part}
+              {part.text}
             </span>
           );
         }
-        return part;
+        return part.text;
       })}
     </span>
   );
 }
 
-// Extract user IDs from mentions (for notifications, supports Thai and other Unicode characters)
+// Extract user IDs from mentions (for notifications, supports Thai names with spaces)
 export async function getMentionedUserIds(text: string): Promise<string[]> {
-  const mentionRegex = /@([\w\u0E00-\u0E7F_]+)/g;
+  const mentionRegex = /@([\w\u0E00-\u0E7F_]+(?:\s[\w\u0E00-\u0E7F_]+)*)/g;
   const matches = text.match(mentionRegex);
   if (!matches) return [];
 
