@@ -386,8 +386,10 @@ export type Database = {
           created_at: string
           display_id: string | null
           email: string
+          first_name: string | null
           full_name: string | null
           id: string
+          last_name: string | null
           updated_at: string
           website: string | null
         }
@@ -401,8 +403,10 @@ export type Database = {
           created_at?: string
           display_id?: string | null
           email: string
+          first_name?: string | null
           full_name?: string | null
           id: string
+          last_name?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -416,8 +420,10 @@ export type Database = {
           created_at?: string
           display_id?: string | null
           email?: string
+          first_name?: string | null
           full_name?: string | null
           id?: string
+          last_name?: string | null
           updated_at?: string
           website?: string | null
         }
