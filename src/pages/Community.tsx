@@ -2046,10 +2046,10 @@ export default function Community() {
         </div>
 
         {/* Main Content - Masonry Grid like Cara */}
-        <div className="container mx-auto max-w-7xl px-4 py-6">
+        <div className="container mx-auto max-w-3xl px-4 py-6">
           <div className="flex gap-6">
-            {/* Feed Content - Masonry Grid */}
-            <div ref={feedRef} className="flex-1">
+            {/* Feed Content - Vertical scrolling feed */}
+            <div ref={feedRef} className="flex-1 max-w-xl mx-auto lg:mx-0">
               {loading ? (
                 <div className="py-20 text-center">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -2068,20 +2068,105 @@ export default function Community() {
                   </p>
                 </div>
               ) : (
-                <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
+                <div className="space-y-0 divide-y divide-border">
                   {filteredPosts.map((post, index) => (
-                    <motion.div
+                    <motion.article
                       key={post.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}
-                      className="break-inside-avoid mb-3"
+                      className="py-4 first:pt-0"
                     >
+                      {/* Post Header */}
+                      <div className="flex items-start gap-3 mb-2">
+                        <Link to={`/profile/${post.user_id}`}>
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback>
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Link to={`/profile/${post.user_id}`} className="font-semibold text-foreground hover:underline">
+                              {getDisplayName(post.user_profile, post.artist_profile)}
+                            </Link>
+                            {post.artist_profile?.is_verified && (
+                              <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
+                                ✓
+                              </Badge>
+                            )}
+                            <span className="text-muted-foreground text-sm">
+                              · {formatTimeAgo(post.created_at)}
+                            </span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto -mr-2">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setShareDialogPost(post)}>
+                                  <Repeat2 className="h-4 w-4 mr-2" />
+                                  แชร์โพสต์ภายใน
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleShare(post)}>
+                                  <Share2 className="h-4 w-4 mr-2" />
+                                  แชร์ลิงก์
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleSave(post.id, post.original_post_id)}>
+                                  <Bookmark className="h-4 w-4 mr-2" />
+                                  {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
+                                </DropdownMenuItem>
+                                {user && user.id === post.user_id && !post.is_repost && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => openEditDialog(post)}>
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      แก้ไขโพสต์
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => openDeleteDialog(post)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      ลบโพสต์
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {user && user.id !== post.user_id && (
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setReportingPost(post);
+                                      setReportDialogOpen(true);
+                                    }}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Flag className="h-4 w-4 mr-2" />
+                                    รายงานโพสต์
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          
+                          {/* Title */}
+                          <h3 className="font-semibold text-foreground">{post.title}</h3>
+                          
+                          {/* Description */}
+                          {post.description && (
+                            <p className="text-muted-foreground text-sm mt-0.5">
+                              {renderTextWithMentions(post.description)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Image */}
                       <div 
-                        className="relative group cursor-pointer rounded-lg overflow-hidden bg-muted"
+                        className="relative cursor-pointer rounded-xl overflow-hidden mt-3 ml-13"
                         onClick={() => handleOpenPost(post)}
                       >
-                        {/* Image */}
                         <OptimizedImage
                           src={post.image_url}
                           variants={{
@@ -2092,74 +2177,57 @@ export default function Community() {
                           }}
                           alt={post.title}
                           variant="feed"
-                          className="w-full"
+                          className="w-full rounded-xl"
                         />
-                        
-                        {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <div className="absolute bottom-0 left-0 right-0 p-3">
-                            {/* User info */}
-                            <Link 
-                              to={`/profile/${post.user_id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex items-center gap-2 mb-2 hover:opacity-80"
-                            >
-                              <Avatar className="h-6 w-6 border border-white/30">
-                                <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                                <AvatarFallback className="text-[10px]">
-                                  {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-white text-sm font-medium truncate">
-                                {getDisplayName(post.user_profile, post.artist_profile)}
-                              </span>
-                              {post.artist_profile?.is_verified && (
-                                <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
-                                  ✓
-                                </Badge>
-                              )}
-                            </Link>
-                            
-                            {/* Stats */}
-                            <div className="flex items-center gap-3 text-white/80 text-xs">
-                              <button 
-                                className="flex items-center gap-1 hover:text-white"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleLike(post.id, post.is_liked || false, undefined, post.original_post_id);
-                                }}
-                              >
-                                <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
-                                <span>{post.likes_count}</span>
-                              </button>
-                              <span className="flex items-center gap-1">
-                                <MessageCircle className="h-4 w-4" />
-                                <span>{post.comments_count || 0}</span>
-                              </span>
-                              <button 
-                                className="flex items-center gap-1 hover:text-white ml-auto"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSave(post.id, post.original_post_id);
-                                }}
-                              >
-                                <Bookmark className={`h-4 w-4 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-white' : ''}`} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Repost indicator */}
-                        {post.is_repost && (
-                          <div className="absolute top-2 left-2">
-                            <Badge variant="secondary" className="bg-black/60 text-white border-0 text-[10px]">
-                              <Repeat2 className="h-3 w-3 mr-1" />
-                              Repost
-                            </Badge>
-                          </div>
-                        )}
                       </div>
-                    </motion.div>
+
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between mt-3 ml-13 text-muted-foreground">
+                        <button 
+                          className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
+                          onClick={() => handleOpenPost(post)}
+                        >
+                          <MessageCircle className="h-5 w-5 group-hover:text-blue-500" />
+                          <span className="text-sm">{post.comments_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-green-500 transition-colors group ${
+                            repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
+                          }`}
+                          onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                        >
+                          <Repeat2 className="h-5 w-5" />
+                          <span className="text-sm">{post.shares_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-red-500 transition-colors group ${
+                            post.is_liked ? 'text-red-500' : ''
+                          }`}
+                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
+                        >
+                          <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
+                          <span className="text-sm">{post.likes_count}</span>
+                        </button>
+                        
+                        <button 
+                          className={`hover:text-foreground transition-colors ${
+                            savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
+                          }`}
+                          onClick={() => handleSave(post.id, post.original_post_id)}
+                        >
+                          <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
+                        </button>
+                        
+                        <button 
+                          className="hover:text-foreground transition-colors"
+                          onClick={() => handleShare(post)}
+                        >
+                          <Share2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </motion.article>
                   ))}
                 </div>
               )}
