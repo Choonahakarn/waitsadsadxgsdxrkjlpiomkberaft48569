@@ -234,15 +234,19 @@ export default function UserProfile() {
     fetchBlockMuteStatus();
   }, [user, userId]);
 
+  // Check if viewing own profile
+  const isOwner = user?.id === userId;
+
   // Fetch liked posts when tab changes to likes
   useEffect(() => {
     if (activeTab === 'likes' && userId) {
       fetchLikedPosts();
     }
-    if (activeTab === 'saved' && userId) {
+    // Only fetch saved posts for own profile (RLS restricts access)
+    if (activeTab === 'saved' && userId && isOwner) {
       fetchSavedPostsList();
     }
-  }, [activeTab, userId]);
+  }, [activeTab, userId, isOwner]);
 
   const fetchLikedPosts = async () => {
     if (!userId) return;
@@ -1376,12 +1380,14 @@ export default function UserProfile() {
               >
                 Likes
               </TabsTrigger>
-              <TabsTrigger 
-                value="saved" 
-                className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
-              >
-                Saved
-              </TabsTrigger>
+              {isOwner && (
+                <TabsTrigger 
+                  value="saved" 
+                  className="relative px-1 py-3 bg-transparent text-muted-foreground data-[state=active]:text-primary data-[state=active]:bg-transparent rounded-none border-b-2 border-transparent data-[state=active]:border-primary transition-colors"
+                >
+                  Saved
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Portfolio Tab */}
@@ -1808,7 +1814,8 @@ export default function UserProfile() {
               </AnimatePresence>
             </TabsContent>
 
-            {/* Saved Tab */}
+            {/* Saved Tab - Only visible for profile owner */}
+            {isOwner && (
             <TabsContent value="saved">
               {/* Tag Filter for Saved */}
               {userId && savedPostsList.length > 0 && (
@@ -2014,6 +2021,7 @@ export default function UserProfile() {
                 )}
               </AnimatePresence>
             </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>
