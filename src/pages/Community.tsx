@@ -2287,8 +2287,7 @@ export default function Community() {
             </div>
 
             {/* Sidebar */}
-            <aside className="hidden lg:block w-80 shrink-0">
-              <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pr-2">
+            <aside className="hidden lg:block w-80 shrink-0 self-start sticky top-20">
                 {/* Active Filters Display */}
                 {(selectedTag || selectedCategory) && (
                   <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
@@ -2326,7 +2325,6 @@ export default function Community() {
                   onTagSelect={setSelectedTag}
                   onCategorySelect={setSelectedCategory}
                 />
-              </div>
             </aside>
           </div>
         </div>
