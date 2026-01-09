@@ -20,6 +20,7 @@ interface ArtistProfile {
   id: string;
   user_id: string;
   artist_name: string;
+  artist_name_changed_at: string | null;
   real_name: string | null;
   bio: string | null;
   avatar_url: string | null;
@@ -59,6 +60,8 @@ const MyArtistProfile = () => {
   const [toolsUsed, setToolsUsed] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
   const [artistNameError, setArtistNameError] = useState('');
+  const [originalArtistName, setOriginalArtistName] = useState('');
+  const [artistNameChangedAt, setArtistNameChangedAt] = useState<string | null>(null);
 
   const isArtist = roles.includes('artist');
 
@@ -86,6 +89,8 @@ const MyArtistProfile = () => {
       } else if (data) {
         setProfile(data);
         setArtistName(data.artist_name || '');
+        setOriginalArtistName(data.artist_name || '');
+        setArtistNameChangedAt(data.artist_name_changed_at);
         setRealName(data.real_name || '');
         setBio(data.bio || '');
         setSpecialty(data.specialty || '');
@@ -245,8 +250,36 @@ const MyArtistProfile = () => {
     }
   };
 
+  // Check if artist name can be changed (30 days cooldown)
+  const canChangeArtistName = () => {
+    if (!artistNameChangedAt) return true;
+    const changedDate = new Date(artistNameChangedAt);
+    const now = new Date();
+    const daysDiff = Math.floor((now.getTime() - changedDate.getTime()) / (1000 * 60 * 60 * 24));
+    return daysDiff >= 30;
+  };
+
+  const getDaysUntilCanChange = () => {
+    if (!artistNameChangedAt) return 0;
+    const changedDate = new Date(artistNameChangedAt);
+    const now = new Date();
+    const daysDiff = Math.floor((now.getTime() - changedDate.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 30 - daysDiff);
+  };
+
   const handleSave = async () => {
     if (!user) return;
+
+    // Check if artist name is being changed while on cooldown
+    const isArtistNameChanged = artistName !== originalArtistName;
+    if (isArtistNameChanged && !canChangeArtistName()) {
+      toast({
+        variant: 'destructive',
+        title: 'ยังไม่สามารถเปลี่ยนชื่อศิลปินได้',
+        description: `กรุณารออีก ${getDaysUntilCanChange()} วัน`,
+      });
+      return;
+    }
 
     // Validate artist name - no spaces allowed
     if (/\s/.test(artistName)) {
@@ -263,20 +296,34 @@ const MyArtistProfile = () => {
     setIsSaving(true);
 
     try {
+      // Build update object
+      const updateData: Record<string, unknown> = {
+        artist_name: artistName,
+        real_name: realName || null,
+        bio,
+        specialty,
+        portfolio_url: portfolioUrl || null,
+        tools_used: toolsUsed.split(',').map(t => t.trim()).filter(Boolean),
+        years_experience: yearsExperience ? parseInt(yearsExperience) : null,
+      };
+
+      // If artist name changed, update the changed_at timestamp
+      if (isArtistNameChanged) {
+        updateData.artist_name_changed_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('artist_profiles')
-        .update({
-          artist_name: artistName,
-          real_name: realName || null,
-          bio,
-          specialty,
-          portfolio_url: portfolioUrl || null,
-          tools_used: toolsUsed.split(',').map(t => t.trim()).filter(Boolean),
-          years_experience: yearsExperience ? parseInt(yearsExperience) : null,
-        })
+        .update(updateData)
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      // Update local state
+      if (isArtistNameChanged) {
+        setOriginalArtistName(artistName);
+        setArtistNameChangedAt(new Date().toISOString());
+      }
 
       toast({
         title: t('profile.saved', 'บันทึกโปรไฟล์สำเร็จ'),
@@ -462,11 +509,19 @@ const MyArtistProfile = () => {
                     }}
                     placeholder={t('profile.artistNamePlaceholder', 'ชื่อที่จะแสดงในโปรไฟล์ (ห้ามมีเว้นวรรค)')}
                     className={artistNameError ? 'border-destructive' : ''}
+                    disabled={!canChangeArtistName()}
+                    readOnly={!canChangeArtistName()}
                   />
                   {artistNameError && (
                     <p className="text-sm text-destructive">{artistNameError}</p>
                   )}
-                  <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้</p>
+                  {!canChangeArtistName() ? (
+                    <p className="text-xs text-amber-600">
+                      เปลี่ยนชื่อศิลปินได้อีกครั้งใน {getDaysUntilCanChange()} วัน
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้ (เปลี่ยนได้ทุก 30 วัน)</p>
+                  )}
                 </div>
 
                 {/* First Name and Last Name - Read Only */}
