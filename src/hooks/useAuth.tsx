@@ -15,8 +15,9 @@ interface AuthContextType {
     firstName: string, 
     lastName: string, 
     displayId: string,
+    displayName: string,
     roles: AppRole[], 
-    artistVerification?: { realName: string; phoneNumber: string }
+    artistVerification?: { realName: string; phoneNumber: string; artistName: string }
   ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -102,8 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     firstName: string, 
     lastName: string,
     displayId: string,
+    displayName: string,
     selectedRoles: AppRole[],
-    artistVerification?: { realName: string; phoneNumber: string }
+    artistVerification?: { realName: string; phoneNumber: string; artistName: string }
   ) => {
     const redirectUrl = `${window.location.origin}/`;
     const fullName = `${firstName} ${lastName}`.trim();
@@ -125,15 +127,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           role: primaryRole,
           display_id: displayId || undefined,
+          display_name: displayName || displayId || undefined,
         },
       },
     });
 
-    // Update profile with display_id if provided
-    if (!error && data.user && displayId) {
+    // Update profile with display_id and display_name if provided
+    if (!error && data.user && (displayId || displayName)) {
       await supabase
         .from('profiles')
-        .update({ display_id: displayId })
+        .update({ 
+          display_id: displayId || undefined,
+          display_name: displayName || displayId || undefined
+        })
         .eq('id', data.user.id);
     }
 
@@ -150,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (roleToInsert === 'artist' && artistVerification) {
           await supabase.from('artist_profiles').insert({
             user_id: data.user.id,
-            artist_name: displayId || fullName || 'Artist',
+            artist_name: artistVerification.artistName || displayId || fullName || 'Artist',
             real_name: artistVerification.realName,
             phone_number: artistVerification.phoneNumber,
             verification_submitted_at: new Date().toISOString(),
@@ -163,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!error && data.user && primaryRole === 'artist' && artistVerification) {
       await supabase.from('artist_profiles')
         .update({
-          artist_name: displayId || fullName || 'Artist',
+          artist_name: artistVerification.artistName || displayId || fullName || 'Artist',
           real_name: artistVerification.realName,
           phone_number: artistVerification.phoneNumber,
           verification_submitted_at: new Date().toISOString(),
