@@ -1,0 +1,436 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import Layout from '@/components/layout/Layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Camera, Save, Loader2, ArrowLeft, ImagePlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { ImagePositioner } from '@/components/ui/ImagePositioner';
+import { ImageCropper } from '@/components/ui/ImageCropper';
+
+interface UserProfile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  bio: string | null;
+  website: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  cover_position_y: number | null;
+  avatar_position_x: number | null;
+  avatar_position_y: number | null;
+}
+
+const EditUserProfile = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  
+  // Cropper state
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropperFile, setCropperFile] = useState<File | null>(null);
+  const [cropperType, setCropperType] = useState<'avatar' | 'cover'>('avatar');
+
+  // Form state
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [bio, setBio] = useState('');
+  const [website, setWebsite] = useState('');
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+      } else if (data) {
+        setProfile(data);
+        setFirstName(data.first_name || '');
+        setLastName(data.last_name || '');
+        setBio(data.bio || '');
+        setWebsite(data.website || '');
+      }
+      setIsLoading(false);
+    };
+
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCropperFile(file);
+      setCropperType('avatar');
+      setCropperOpen(true);
+    }
+    e.target.value = '';
+  };
+
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCropperFile(file);
+      setCropperType('cover');
+      setCropperOpen(true);
+    }
+    e.target.value = '';
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    if (!user) return;
+
+    const isAvatar = cropperType === 'avatar';
+    if (isAvatar) {
+      setIsUploading(true);
+    } else {
+      setIsUploadingCover(true);
+    }
+
+    try {
+      const fileName = `${user.id}/${Date.now()}-${isAvatar ? 'avatar' : 'cover'}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, croppedBlob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const updateField = isAvatar ? 'avatar_url' : 'cover_url';
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ [updateField]: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile(prev => prev ? { ...prev, [updateField]: publicUrl } : null);
+      
+      toast({
+        title: isAvatar ? 'อัปโหลดรูปโปรไฟล์สำเร็จ' : 'อัปโหลดรูปปกสำเร็จ',
+      });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'อัปโหลดไม่สำเร็จ',
+        description: error.message,
+      });
+    } finally {
+      setIsUploading(false);
+      setIsUploadingCover(false);
+      setCropperOpen(false);
+      setCropperFile(null);
+    }
+  };
+
+  const handleCoverPositionChange = async (positionY: number) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ cover_position_y: positionY })
+      .eq('id', user.id);
+
+    if (!error) {
+      setProfile(prev => prev ? { ...prev, cover_position_y: positionY } : null);
+    }
+  };
+
+  const handleAvatarPositionChange = async (positionX: number, positionY: number) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        avatar_position_x: positionX,
+        avatar_position_y: positionY 
+      })
+      .eq('id', user.id);
+
+    if (!error) {
+      setProfile(prev => prev ? { 
+        ...prev, 
+        avatar_position_x: positionX,
+        avatar_position_y: positionY 
+      } : null);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    setIsSaving(true);
+
+    try {
+      const fullName = `${firstName} ${lastName}`.trim();
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: firstName || null,
+          last_name: lastName || null,
+          full_name: fullName || null,
+          bio: bio || null,
+          website: website || null,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'บันทึกโปรไฟล์สำเร็จ',
+      });
+    } catch (error: any) {
+      console.error('Save error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'บันทึกไม่สำเร็จ',
+        description: error.message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (authLoading || isLoading) {
+    return (
+      <Layout>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <section className="py-8 md:py-12">
+        <div className="container max-w-2xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              ย้อนกลับ
+            </Button>
+
+            <h1 className="font-serif text-2xl font-bold text-foreground md:text-3xl">
+              แก้ไขโปรไฟล์
+            </h1>
+            <p className="mt-2 text-muted-foreground mb-6">
+              แก้ไขข้อมูลโปรไฟล์ของคุณ
+            </p>
+
+            {/* Cover Image Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>รูปปก</CardTitle>
+                <CardDescription>
+                  รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {profile?.cover_url ? (
+                  <ImagePositioner
+                    imageUrl={profile.cover_url}
+                    positionY={profile.cover_position_y ?? 50}
+                    onPositionChange={handleCoverPositionChange}
+                    aspectRatio="cover"
+                    className="w-full h-40 rounded-lg"
+                  />
+                ) : (
+                  <div className="w-full h-40 rounded-lg bg-gradient-to-br from-primary/20 via-muted to-background flex items-center justify-center">
+                    <p className="text-muted-foreground text-sm">ยังไม่มีรูปปก</p>
+                  </div>
+                )}
+                <div className="mt-4 flex justify-center">
+                  <label
+                    htmlFor="cover-upload"
+                    className="flex items-center gap-2 cursor-pointer text-sm text-primary hover:underline"
+                  >
+                    {isUploadingCover ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4" />
+                    )}
+                    {profile?.cover_url ? 'เปลี่ยนรูปปก' : 'อัปโหลดรูปปก'}
+                  </label>
+                  <input
+                    id="cover-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleCoverSelect}
+                    disabled={isUploadingCover}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Avatar Card */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>รูปโปรไฟล์</CardTitle>
+                <CardDescription>
+                  รูปโปรไฟล์จะแสดงในโพสต์และคอมเมนต์ของคุณ
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center">
+                <div className="relative">
+                  <Avatar className="h-32 w-32">
+                    <AvatarImage 
+                      src={profile?.avatar_url || ''} 
+                      alt="Profile"
+                      style={{
+                        objectPosition: `${profile?.avatar_position_x ?? 50}% ${profile?.avatar_position_y ?? 50}%`
+                      }}
+                    />
+                    <AvatarFallback className="text-3xl">
+                      {firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label
+                    htmlFor="avatar-upload"
+                    className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Camera className="h-5 w-5" />
+                    )}
+                  </label>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                    disabled={isUploading}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Profile Info Card */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>ข้อมูลส่วนตัว</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">ชื่อ</Label>
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="ชื่อของคุณ"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">นามสกุล</Label>
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="นามสกุลของคุณ"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bio">เกี่ยวกับฉัน</Label>
+                  <Textarea
+                    id="bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="เล่าเกี่ยวกับตัวคุณ..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="website">เว็บไซต์</Label>
+                  <Input
+                    id="website"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    บันทึก
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Image Cropper Dialog */}
+          <ImageCropper
+            imageFile={cropperFile}
+            open={cropperOpen}
+            onClose={() => {
+              setCropperOpen(false);
+              setCropperFile(null);
+            }}
+            onCropComplete={handleCropComplete}
+            aspectRatio={cropperType === 'avatar' ? 1 : 4}
+            title={cropperType === 'avatar' ? 'ครอปรูปโปรไฟล์' : 'ครอปรูปปก'}
+          />
+        </div>
+      </section>
+    </Layout>
+  );
+};
+
+export default EditUserProfile;
