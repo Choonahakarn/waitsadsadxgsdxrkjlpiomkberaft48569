@@ -2,32 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Plus,
-  Heart,
-  MessageCircle,
-  Image,
-  Send,
-  X,
-  Loader2,
-  UserPlus,
-  UserCheck,
-  Search,
-  Sparkles,
-  Clock,
-  Users,
-  Share2,
-  Link2,
-  Bookmark,
-  MoreHorizontal,
-  Repeat2,
-  FolderPlus,
-  Flag,
-  Pencil,
-  Trash2,
-  Hash,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Plus, Heart, MessageCircle, Image, Send, X, Loader2, UserPlus, UserCheck, Search, Sparkles, Clock, Users, Share2, Link2, Bookmark, MoreHorizontal, Repeat2, FolderPlus, Flag, Pencil, Trash2, Hash, SlidersHorizontal } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
@@ -49,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { MentionInput, renderTextWithMentions, getMentionedUserIds } from "@/components/ui/MentionInput";
+import ImageUploader from "@/components/ui/ImageUploader";
+import OptimizedImage from "@/components/ui/OptimizedImage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +40,12 @@ interface CommunityPost {
   title: string;
   description: string | null;
   image_url: string;
+  // Cloudinary optimized image variants
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
+  image_asset_id?: string | null;
   tools_used: string[];
   hashtags?: string[];
   category: string | null;
@@ -127,10 +110,10 @@ const categories = [
   "แฟนอาร์ต",
   "ภาพถ่าย",
   "งานปั้น 3D",
-  "อื่นๆ",
+  "อื่นๆ"
 ];
 
-type FeedTab = "discover" | "following" | "latest";
+type FeedTab = 'discover' | 'following' | 'latest';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -140,8 +123,9 @@ export default function Community() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
-
+  
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [recommendedPosts, setRecommendedPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -156,7 +140,7 @@ export default function Community() {
   const [shareDialogPost, setShareDialogPost] = useState<CommunityPost | null>(null);
   const [shareCaption, setShareCaption] = useState("");
   const [sharingPost, setSharingPost] = useState(false);
-
+  
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -170,9 +154,18 @@ export default function Community() {
   const [addToPortfolio, setAddToPortfolio] = useState(false);
   const [artistProfile, setArtistProfile] = useState<{ id: string; artist_name: string } | null>(null);
   const [price, setPrice] = useState("");
-
+  // Cloudinary upload state
+  const [uploadedImageData, setUploadedImageData] = useState<{
+    image_url: string;
+    image_blur_url?: string;
+    image_small_url?: string;
+    image_medium_url?: string;
+    image_large_url?: string;
+    image_asset_id?: string;
+  } | null>(null);
+  
   // Filters
-  const [activeTab, setActiveTab] = useState<FeedTab>("discover");
+  const [activeTab, setActiveTab] = useState<FeedTab>('discover');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -207,7 +200,7 @@ export default function Community() {
     { value: "impersonation", label: "แอบอ้างตัวตน" },
     { value: "copyright", label: "ละเมิดลิขสิทธิ์" },
     { value: "scam", label: "หลอกลวง/ฉ้อโกง" },
-    { value: "other", label: "อื่นๆ" },
+    { value: "other", label: "อื่นๆ" }
   ];
 
   // Comment edit/delete state
@@ -215,12 +208,12 @@ export default function Community() {
   const [editCommentContent, setEditCommentContent] = useState("");
   const [savingCommentEdit, setSavingCommentEdit] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-
+  
   // Reply state
   const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
-
+  
   // State to track which comments have their replies expanded
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
 
@@ -268,262 +261,326 @@ export default function Community() {
   const fetchFollowing = useCallback(async () => {
     if (!user) return;
     try {
-      const { data } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
-
+      const { data } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+      
       if (data) {
-        setFollowingUsers(new Set(data.map((f) => f.following_id)));
+        setFollowingUsers(new Set(data.map(f => f.following_id)));
       }
     } catch (error) {
-      console.error("Error fetching following:", error);
+      console.error('Error fetching following:', error);
     }
   }, [user]);
 
   const fetchSavedPosts = useCallback(async () => {
     if (!user) return;
     try {
-      const { data } = await supabase.from("saved_posts").select("post_id").eq("user_id", user.id);
-
+      const { data } = await supabase
+        .from('saved_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
       if (data) {
-        setSavedPosts(new Set(data.map((s) => s.post_id)));
+        setSavedPosts(new Set(data.map(s => s.post_id)));
       }
     } catch (error) {
-      console.error("Error fetching saved posts:", error);
+      console.error('Error fetching saved posts:', error);
     }
   }, [user]);
 
   const fetchRepostedPosts = useCallback(async () => {
     if (!user) return;
     try {
-      const { data } = await supabase.from("shared_posts").select("post_id").eq("user_id", user.id);
-
+      const { data } = await supabase
+        .from('shared_posts')
+        .select('post_id')
+        .eq('user_id', user.id);
+      
       if (data) {
-        setRepostedPosts(new Set(data.map((s) => s.post_id)));
+        setRepostedPosts(new Set(data.map(s => s.post_id)));
       }
     } catch (error) {
-      console.error("Error fetching reposted posts:", error);
+      console.error('Error fetching reposted posts:', error);
     }
   }, [user]);
 
-  const fetchPosts = useCallback(
-    async (reset = false) => {
+  // Fetch discover posts (mix of random + popular for new artists visibility)
+  const fetchRecommendedPosts = useCallback(async () => {
+    try {
+      // Fetch more posts to shuffle and include variety
+      const { data: postsData, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      // Shuffle posts but keep some popular ones prominent
+      const shuffled = [...(postsData || [])].sort(() => Math.random() - 0.5);
+      
+      // Take first 20 for display
+      const selectedPosts = shuffled.slice(0, 20);
+
+      const postsWithDetails = await Promise.all(
+        selectedPosts.map(async (post) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', post.user_id)
+            .maybeSingle();
+
+          const { data: artistProf } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', post.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          return {
+            ...post,
+            user_profile: profile,
+            artist_profile: artistProf,
+            is_liked: isLiked,
+          } as CommunityPost;
+        })
+      );
+
+      setRecommendedPosts(postsWithDetails);
+    } catch (error) {
+      console.error('Error fetching recommended posts:', error);
+    }
+  }, [user]);
+
+  const fetchPosts = useCallback(async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setPosts([]);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const offset = reset ? 0 : posts.length;
+      
+      // Fetch original posts
+      let query = supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+
+      if (searchQuery.trim()) {
+        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+      }
+
+      const { data: postsData, error } = await query;
+      if (error) throw error;
+
+      // Fetch shared posts (reposts)
+      const { data: sharedPostsData } = await supabase
+        .from('shared_posts')
+        .select('*, community_posts(*)')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+
+      // Process original posts
+      const originalPostsWithDetails = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', post.user_id)
+            .maybeSingle();
+
+          const { data: artistProfile } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', post.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          const { count: commentsCount } = await supabase
+            .from('community_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          const { count: followersCount } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', post.user_id);
+
+          const { count: sharesCount } = await supabase
+            .from('shared_posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          return {
+            ...post,
+            likes_count: likesCount || 0,
+            user_profile: profile,
+            artist_profile: artistProfile,
+            is_liked: isLiked,
+            is_following: followingUsers.has(post.user_id),
+            followers_count: followersCount || 0,
+            comments_count: commentsCount || 0,
+            shares_count: sharesCount || 0,
+            is_repost: false,
+            repost_created_at: undefined as string | undefined
+          } as CommunityPost;
+        })
+      );
+
+      // Process shared posts (reposts)
+      const repostsWithDetails = await Promise.all(
+        (sharedPostsData || []).map(async (share) => {
+          const originalPost = share.community_posts as any;
+          if (!originalPost) return null;
+
+          // Get reposter's profile
+          const { data: reposterProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', share.user_id)
+            .maybeSingle();
+
+          const { data: reposterArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', share.user_id)
+            .maybeSingle();
+
+          // Get original poster's profile
+          const { data: originalProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', originalPost.user_id)
+            .maybeSingle();
+
+          const { data: originalArtist } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', originalPost.user_id)
+            .maybeSingle();
+
+          let isLiked = false;
+          if (user) {
+            const { data: like } = await supabase
+              .from('community_likes')
+              .select('id')
+              .eq('post_id', originalPost.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            isLiked = !!like;
+          }
+
+          const { count: likesCount } = await supabase
+            .from('community_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
+          const { count: commentsCount } = await supabase
+            .from('community_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
+          const { count: sharesCount } = await supabase
+            .from('shared_posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', originalPost.id);
+
+          return {
+            ...originalPost,
+            id: `repost-${share.id}`, // Unique key for repost
+            original_post_id: originalPost.id,
+            likes_count: likesCount || 0,
+            user_profile: originalProfile,
+            artist_profile: originalArtist,
+            is_liked: isLiked,
+            is_following: followingUsers.has(originalPost.user_id),
+            followers_count: 0,
+            comments_count: commentsCount || 0,
+            shares_count: sharesCount || 0,
+            is_repost: true,
+            repost_user_id: share.user_id,
+            repost_caption: share.caption,
+            repost_created_at: share.created_at,
+            repost_user_profile: reposterProfile,
+            repost_artist_profile: reposterArtist
+          };
+        })
+      );
+
+      // Filter out null reposts and combine with original posts
+      const validReposts = repostsWithDetails.filter(r => r !== null) as CommunityPost[];
+      
+      // Merge and sort by created_at (use repost_created_at for reposts)
+      const allPosts: CommunityPost[] = [...originalPostsWithDetails, ...validReposts].sort((a, b) => {
+        const dateA = a.is_repost && a.repost_created_at ? new Date(a.repost_created_at) : new Date(a.created_at);
+        const dateB = b.is_repost && b.repost_created_at ? new Date(b.repost_created_at) : new Date(b.created_at);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      // Limit to ITEMS_PER_PAGE
+      const limitedPosts = allPosts.slice(0, ITEMS_PER_PAGE);
+
       if (reset) {
-        setLoading(true);
-        setPosts([]);
+        setPosts(limitedPosts);
       } else {
-        setLoadingMore(true);
+        setPosts(prev => [...prev, ...limitedPosts]);
       }
-
-      try {
-        const offset = reset ? 0 : posts.length;
-
-        // Fetch original posts
-        let query = supabase
-          .from("community_posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(offset, offset + ITEMS_PER_PAGE - 1);
-
-        if (searchQuery.trim()) {
-          query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
-        }
-
-        const { data: postsData, error } = await query;
-        if (error) throw error;
-
-        // Fetch shared posts (reposts)
-        const { data: sharedPostsData } = await supabase
-          .from("shared_posts")
-          .select("*, community_posts(*)")
-          .order("created_at", { ascending: false })
-          .range(offset, offset + ITEMS_PER_PAGE - 1);
-
-        // Process original posts
-        const originalPostsWithDetails = await Promise.all(
-          (postsData || []).map(async (post) => {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name, avatar_url, display_name")
-              .eq("id", post.user_id)
-              .maybeSingle();
-
-            const { data: artistProfile } = await supabase
-              .from("artist_profiles")
-              .select("artist_name, is_verified")
-              .eq("user_id", post.user_id)
-              .maybeSingle();
-
-            let isLiked = false;
-            if (user) {
-              const { data: like } = await supabase
-                .from("community_likes")
-                .select("id")
-                .eq("post_id", post.id)
-                .eq("user_id", user.id)
-                .maybeSingle();
-              isLiked = !!like;
-            }
-
-            const { count: likesCount } = await supabase
-              .from("community_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", post.id);
-
-            const { count: commentsCount } = await supabase
-              .from("community_comments")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", post.id);
-
-            const { count: followersCount } = await supabase
-              .from("follows")
-              .select("*", { count: "exact", head: true })
-              .eq("following_id", post.user_id);
-
-            const { count: sharesCount } = await supabase
-              .from("shared_posts")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", post.id);
-
-            return {
-              ...post,
-              likes_count: likesCount || 0,
-              user_profile: profile,
-              artist_profile: artistProfile,
-              is_liked: isLiked,
-              is_following: followingUsers.has(post.user_id),
-              followers_count: followersCount || 0,
-              comments_count: commentsCount || 0,
-              shares_count: sharesCount || 0,
-              is_repost: false,
-              repost_created_at: undefined as string | undefined,
-            } as CommunityPost;
-          }),
-        );
-
-        // Process shared posts (reposts)
-        const repostsWithDetails = await Promise.all(
-          (sharedPostsData || []).map(async (share) => {
-            const originalPost = share.community_posts as any;
-            if (!originalPost) return null;
-
-            // Get reposter's profile
-            const { data: reposterProfile } = await supabase
-              .from("profiles")
-              .select("full_name, avatar_url, display_name")
-              .eq("id", share.user_id)
-              .maybeSingle();
-
-            const { data: reposterArtist } = await supabase
-              .from("artist_profiles")
-              .select("artist_name, is_verified")
-              .eq("user_id", share.user_id)
-              .maybeSingle();
-
-            // Get original poster's profile
-            const { data: originalProfile } = await supabase
-              .from("profiles")
-              .select("full_name, avatar_url, display_name")
-              .eq("id", originalPost.user_id)
-              .maybeSingle();
-
-            const { data: originalArtist } = await supabase
-              .from("artist_profiles")
-              .select("artist_name, is_verified")
-              .eq("user_id", originalPost.user_id)
-              .maybeSingle();
-
-            let isLiked = false;
-            if (user) {
-              const { data: like } = await supabase
-                .from("community_likes")
-                .select("id")
-                .eq("post_id", originalPost.id)
-                .eq("user_id", user.id)
-                .maybeSingle();
-              isLiked = !!like;
-            }
-
-            const { count: likesCount } = await supabase
-              .from("community_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", originalPost.id);
-
-            const { count: commentsCount } = await supabase
-              .from("community_comments")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", originalPost.id);
-
-            const { count: sharesCount } = await supabase
-              .from("shared_posts")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", originalPost.id);
-
-            return {
-              ...originalPost,
-              id: `repost-${share.id}`, // Unique key for repost
-              original_post_id: originalPost.id,
-              likes_count: likesCount || 0,
-              user_profile: originalProfile,
-              artist_profile: originalArtist,
-              is_liked: isLiked,
-              is_following: followingUsers.has(originalPost.user_id),
-              followers_count: 0,
-              comments_count: commentsCount || 0,
-              shares_count: sharesCount || 0,
-              is_repost: true,
-              repost_user_id: share.user_id,
-              repost_caption: share.caption,
-              repost_created_at: share.created_at,
-              repost_user_profile: reposterProfile,
-              repost_artist_profile: reposterArtist,
-            };
-          }),
-        );
-
-        // Filter out null reposts and combine with original posts
-        const validReposts = repostsWithDetails.filter((r) => r !== null) as CommunityPost[];
-
-        // Merge and sort by created_at (use repost_created_at for reposts)
-        const allPosts: CommunityPost[] = [...originalPostsWithDetails, ...validReposts].sort((a, b) => {
-          const dateA = a.is_repost && a.repost_created_at ? new Date(a.repost_created_at) : new Date(a.created_at);
-          const dateB = b.is_repost && b.repost_created_at ? new Date(b.repost_created_at) : new Date(b.created_at);
-          return dateB.getTime() - dateA.getTime();
-        });
-
-        // Limit to ITEMS_PER_PAGE
-        const limitedPosts = allPosts.slice(0, ITEMS_PER_PAGE);
-
-        if (reset) {
-          setPosts(limitedPosts);
-        } else {
-          setPosts((prev) => [...prev, ...limitedPosts]);
-        }
-
-        setHasMore(limitedPosts.length === ITEMS_PER_PAGE);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [posts.length, searchQuery, user, followingUsers],
-  );
+      
+      setHasMore(limitedPosts.length === ITEMS_PER_PAGE);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [posts.length, searchQuery, user, followingUsers]);
 
   // Fetch artist profile
   const fetchArtistProfile = useCallback(async () => {
     if (!user) return;
     try {
       const { data } = await supabase
-        .from("artist_profiles")
-        .select("id, artist_name")
-        .eq("user_id", user.id)
+        .from('artist_profiles')
+        .select('id, artist_name')
+        .eq('user_id', user.id)
         .maybeSingle();
-
+      
       if (data) {
         setArtistProfile(data);
       }
     } catch (error) {
-      console.error("Error fetching artist profile:", error);
+      console.error('Error fetching artist profile:', error);
     }
   }, [user]);
 
@@ -533,7 +590,8 @@ export default function Community() {
     fetchSavedPosts();
     fetchRepostedPosts();
     fetchArtistProfile();
-  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile]);
+    fetchRecommendedPosts();
+  }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile, fetchRecommendedPosts]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -541,11 +599,13 @@ export default function Community() {
 
   // Handle opening post from query parameter (e.g., from notifications)
   useEffect(() => {
-    const postIdFromUrl = searchParams.get("post");
+    const postIdFromUrl = searchParams.get('post');
     if (postIdFromUrl && posts.length > 0 && !loading) {
       // Try to find the post in loaded posts first
-      const existingPost = posts.find((p) => p.id === postIdFromUrl || p.original_post_id === postIdFromUrl);
-
+      const existingPost = posts.find(p => 
+        p.id === postIdFromUrl || p.original_post_id === postIdFromUrl
+      );
+      
       if (existingPost) {
         handleOpenPost(existingPost);
         // Clear the query param after opening
@@ -555,16 +615,16 @@ export default function Community() {
         const fetchAndOpenPost = async () => {
           try {
             const { data: postData, error } = await supabase
-              .from("community_posts")
-              .select("*")
-              .eq("id", postIdFromUrl)
+              .from('community_posts')
+              .select('*')
+              .eq('id', postIdFromUrl)
               .maybeSingle();
 
             if (error || !postData) {
               toast({
                 variant: "destructive",
                 title: "ไม่พบโพสต์",
-                description: "โพสต์นี้อาจถูกลบหรือไม่มีอยู่",
+                description: "โพสต์นี้อาจถูกลบหรือไม่มีอยู่"
               });
               setSearchParams({}, { replace: true });
               return;
@@ -572,42 +632,42 @@ export default function Community() {
 
             // Fetch additional data for the post
             const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name, avatar_url, display_name")
-              .eq("id", postData.user_id)
+              .from('profiles')
+              .select('full_name, avatar_url, display_name')
+              .eq('id', postData.user_id)
               .maybeSingle();
 
             const { data: artistProfile } = await supabase
-              .from("artist_profiles")
-              .select("artist_name, is_verified")
-              .eq("user_id", postData.user_id)
+              .from('artist_profiles')
+              .select('artist_name, is_verified')
+              .eq('user_id', postData.user_id)
               .maybeSingle();
 
             let isLiked = false;
             if (user) {
               const { data: like } = await supabase
-                .from("community_likes")
-                .select("id")
-                .eq("post_id", postData.id)
-                .eq("user_id", user.id)
+                .from('community_likes')
+                .select('id')
+                .eq('post_id', postData.id)
+                .eq('user_id', user.id)
                 .maybeSingle();
               isLiked = !!like;
             }
 
             const { count: likesCount } = await supabase
-              .from("community_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", postData.id);
+              .from('community_likes')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
 
             const { count: commentsCount } = await supabase
-              .from("community_comments")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", postData.id);
+              .from('community_comments')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
 
             const { count: sharesCount } = await supabase
-              .from("shared_posts")
-              .select("*", { count: "exact", head: true })
-              .eq("post_id", postData.id);
+              .from('shared_posts')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postData.id);
 
             const fullPost: CommunityPost = {
               ...postData,
@@ -617,17 +677,17 @@ export default function Community() {
               is_liked: isLiked,
               comments_count: commentsCount || 0,
               shares_count: sharesCount || 0,
-              is_repost: false,
+              is_repost: false
             };
 
             handleOpenPost(fullPost);
             setSearchParams({}, { replace: true });
           } catch (error) {
-            console.error("Error fetching post from notification:", error);
+            console.error('Error fetching post from notification:', error);
             setSearchParams({}, { replace: true });
           }
         };
-
+        
         fetchAndOpenPost();
       }
     }
@@ -636,84 +696,72 @@ export default function Community() {
   // Real-time subscription for comments
   useEffect(() => {
     const channel = supabase
-      .channel("community-comments-realtime")
+      .channel('community-comments-realtime')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "INSERT",
-          schema: "public",
-          table: "community_comments",
+          event: 'INSERT',
+          schema: 'public',
+          table: 'community_comments'
         },
         (payload) => {
           const newComment = payload.new as { post_id: string };
-
+          
           // Update comment count in posts
-          setPosts((prevPosts) =>
-            prevPosts.map((post) => {
-              const postActualId = post.original_post_id || post.id;
-              if (postActualId === newComment.post_id) {
-                return { ...post, comments_count: (post.comments_count || 0) + 1 };
-              }
-              return post;
-            }),
-          );
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === newComment.post_id) {
+              return { ...post, comments_count: (post.comments_count || 0) + 1 };
+            }
+            return post;
+          }));
 
           // Update selectedPost if viewing that post
           if (selectedPost) {
             const selectedActualId = selectedPost.original_post_id || selectedPost.id;
             if (selectedActualId === newComment.post_id) {
-              setSelectedPost((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      comments_count: (prev.comments_count || 0) + 1,
-                    }
-                  : null,
-              );
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                comments_count: (prev.comments_count || 0) + 1
+              } : null);
               // Refresh comments list
               fetchComments(newComment.post_id);
             }
           }
-        },
+        }
       )
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "DELETE",
-          schema: "public",
-          table: "community_comments",
+          event: 'DELETE',
+          schema: 'public',
+          table: 'community_comments'
         },
         (payload) => {
           const deletedComment = payload.old as { post_id: string };
-
+          
           // Update comment count in posts
-          setPosts((prevPosts) =>
-            prevPosts.map((post) => {
-              const postActualId = post.original_post_id || post.id;
-              if (postActualId === deletedComment.post_id) {
-                return { ...post, comments_count: Math.max(0, (post.comments_count || 1) - 1) };
-              }
-              return post;
-            }),
-          );
+          setPosts(prevPosts => prevPosts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === deletedComment.post_id) {
+              return { ...post, comments_count: Math.max(0, (post.comments_count || 1) - 1) };
+            }
+            return post;
+          }));
 
           // Update selectedPost if viewing that post
           if (selectedPost) {
             const selectedActualId = selectedPost.original_post_id || selectedPost.id;
             if (selectedActualId === deletedComment.post_id) {
-              setSelectedPost((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      comments_count: Math.max(0, (prev.comments_count || 1) - 1),
-                    }
-                  : null,
-              );
+              setSelectedPost(prev => prev ? {
+                ...prev,
+                comments_count: Math.max(0, (prev.comments_count || 1) - 1)
+              } : null);
               // Refresh comments list
               fetchComments(deletedComment.post_id);
             }
           }
-        },
+        }
       )
       .subscribe();
 
@@ -726,59 +774,57 @@ export default function Community() {
   useEffect(() => {
     const refetchLikesCount = async (postId: string) => {
       const { count } = await supabase
-        .from("community_likes")
-        .select("*", { count: "exact", head: true })
-        .eq("post_id", postId);
-
+        .from('community_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId);
+      
       const actualCount = count ?? 0;
-
-      setPosts((prevPosts) =>
-        prevPosts.map((post) => {
-          const postActualId = post.original_post_id || post.id;
-          if (postActualId === postId) {
-            return { ...post, likes_count: actualCount };
-          }
-          return post;
-        }),
-      );
+      
+      setPosts(prevPosts => prevPosts.map(post => {
+        const postActualId = post.original_post_id || post.id;
+        if (postActualId === postId) {
+          return { ...post, likes_count: actualCount };
+        }
+        return post;
+      }));
 
       if (selectedPost) {
         const selectedActualId = selectedPost.original_post_id || selectedPost.id;
         if (selectedActualId === postId) {
-          setSelectedPost((prev) => (prev ? { ...prev, likes_count: actualCount } : null));
+          setSelectedPost(prev => prev ? { ...prev, likes_count: actualCount } : null);
         }
       }
     };
 
     const channel = supabase
-      .channel("community-likes-realtime")
+      .channel('community-likes-realtime')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "INSERT",
-          schema: "public",
-          table: "community_likes",
+          event: 'INSERT',
+          schema: 'public',
+          table: 'community_likes'
         },
         (payload) => {
           const newLike = payload.new as { post_id: string; user_id: string };
           // Don't update if it's from the current user (already handled locally)
           if (user && newLike.user_id === user.id) return;
           refetchLikesCount(newLike.post_id);
-        },
+        }
       )
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "DELETE",
-          schema: "public",
-          table: "community_likes",
+          event: 'DELETE',
+          schema: 'public',
+          table: 'community_likes'
         },
         (payload) => {
           const deletedLike = payload.old as { post_id: string; user_id: string };
           // Don't update if it's from the current user (already handled locally)
           if (user && deletedLike.user_id === user.id) return;
           refetchLikesCount(deletedLike.post_id);
-        },
+        }
       )
       .subscribe();
 
@@ -797,7 +843,7 @@ export default function Community() {
           fetchPosts(false);
         }
       },
-      { threshold: 0.1 },
+      { threshold: 0.1 }
     );
 
     if (loadMoreRef.current) {
@@ -812,29 +858,29 @@ export default function Community() {
   }, [loading, hasMore, loadingMore]);
 
   // Filter posts by tab, tag, category, and blocked/muted users
-  const filteredPosts = posts.filter((post) => {
+  const filteredPosts = posts.filter(post => {
     // Filter out posts from blocked/muted users
     if (isUserHidden(post.user_id)) return false;
-
+    
     // For reposts, also check the reposter
     if (post.is_repost && post.repost_user_id && isUserHidden(post.repost_user_id)) return false;
-
+    
     // Filter by tab
-    if (activeTab === "following") {
+    if (activeTab === 'following') {
       if (!followingUsers.has(post.user_id)) return false;
     }
-
+    
     // Filter by tag (check tools_used and category)
     if (selectedTag) {
       const hasTag = post.tools_used?.includes(selectedTag) || post.category === selectedTag;
       if (!hasTag) return false;
     }
-
+    
     // Filter by category
     if (selectedCategory) {
       if (post.category !== selectedCategory) return false;
     }
-
+    
     return true;
   });
 
@@ -850,12 +896,38 @@ export default function Community() {
     }
   };
 
+  // Handle Cloudinary upload result
+  const handleImageUploadComplete = (result: any) => {
+    if (result.success && result.variants) {
+      setUploadedImageData({
+        image_url: result.image_url || result.variants.url_medium,
+        image_blur_url: result.variants.url_blur,
+        image_small_url: result.variants.url_small,
+        image_medium_url: result.variants.url_medium,
+        image_large_url: result.variants.url_large,
+        image_asset_id: result.imageAsset?.id
+      });
+      setImagePreview(result.variants.url_medium);
+      // Set a dummy file object to indicate we have an image
+      setImageFile(new File([], 'cloudinary-upload'));
+    }
+  };
+
+  const handleClearUploadedImage = () => {
+    setUploadedImageData(null);
+    setImagePreview("");
+    setImageFile(null);
+  };
+
   const handleSubmitPost = async () => {
-    if (!user || !title || !imageFile) {
+    // Check if we have an uploaded image (either from Cloudinary or legacy)
+    const hasImage = uploadedImageData || imageFile;
+    
+    if (!user || !title || !hasImage) {
       toast({
         variant: "destructive",
         title: "ข้อมูลไม่ครบ",
-        description: "กรุณากรอกชื่อผลงานและอัปโหลดรูปภาพ",
+        description: "กรุณากรอกชื่อผลงานและอัปโหลดรูปภาพ"
       });
       return;
     }
@@ -865,87 +937,121 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "ไม่สามารถเพิ่มใน Portfolio ได้",
-        description: "คุณต้องมีบัญชีศิลปินเพื่อเพิ่มใน Portfolio",
+        description: "คุณต้องมีบัญชีศิลปินเพื่อเพิ่มใน Portfolio"
       });
       return;
     }
 
     setSubmitting(true);
     try {
-      const fileExt = imageFile.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("artworks").upload(fileName, imageFile);
+      let imageUrl: string;
+      let imageBlurUrl: string | null = null;
+      let imageSmallUrl: string | null = null;
+      let imageMediumUrl: string | null = null;
+      let imageLargeUrl: string | null = null;
+      let imageAssetId: string | null = null;
 
-      if (uploadError) throw uploadError;
+      // If we have Cloudinary uploaded data, use it directly
+      if (uploadedImageData) {
+        imageUrl = uploadedImageData.image_url;
+        imageBlurUrl = uploadedImageData.image_blur_url || null;
+        imageSmallUrl = uploadedImageData.image_small_url || null;
+        imageMediumUrl = uploadedImageData.image_medium_url || null;
+        imageLargeUrl = uploadedImageData.image_large_url || null;
+        imageAssetId = uploadedImageData.image_asset_id || null;
+      } else if (imageFile && imageFile.name !== 'cloudinary-upload') {
+        // Legacy fallback: upload to Supabase storage
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('artworks')
+          .upload(fileName, imageFile);
 
-      const { data: urlData } = supabase.storage.from("artworks").getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('artworks')
+          .getPublicUrl(fileName);
+        
+        imageUrl = urlData.publicUrl;
+      } else {
+        throw new Error('No image to upload');
+      }
 
       // Parse hashtags - extract tags from the hashtags field
       const parsedHashtags = hashtags
-        ? hashtags
-            .split(/[,\s]+/)
-            .map((t) => t.trim().replace(/^#/, ""))
-            .filter((t) => t.length > 0)
+        ? hashtags.split(/[,\s]+/)
+            .map(t => t.trim().replace(/^#/, ''))
+            .filter(t => t.length > 0)
         : [];
-
+      
       // Parse tools_used separately
-      const parsedTools = toolsUsed
-        ? toolsUsed
-            .split(",")
-            .map((t) => t.trim())
-            .filter((t) => t.length > 0)
+      const parsedTools = toolsUsed 
+        ? toolsUsed.split(',').map(t => t.trim()).filter(t => t.length > 0) 
         : [];
 
-      const { error: postError } = await supabase.from("community_posts").insert({
-        user_id: user.id,
-        title,
-        description: description || null,
-        image_url: urlData.publicUrl,
-        category: category || null,
-        tools_used: parsedTools,
-        hashtags: parsedHashtags,
-      });
+      const { error: postError } = await supabase
+        .from('community_posts')
+        .insert({
+          user_id: user.id,
+          title,
+          description: description || null,
+          image_url: imageUrl,
+          image_blur_url: imageBlurUrl,
+          image_small_url: imageSmallUrl,
+          image_medium_url: imageMediumUrl,
+          image_large_url: imageLargeUrl,
+          image_asset_id: imageAssetId,
+          category: category || null,
+          tools_used: parsedTools,
+          hashtags: parsedHashtags
+        });
 
       if (postError) throw postError;
 
       // Also add to portfolio (artworks table) if checkbox is checked
       if (addToPortfolio && artistProfile) {
         // Map community category to artworks category
-        const artworkCategory = category
-          ? category.includes("ดิจิทัล") || category.includes("3D")
-            ? "digital"
-            : "traditional"
+        const artworkCategory = category ? 
+          (category.includes('ดิจิทัล') || category.includes('3D') ? 'digital' : 'traditional') 
           : null;
-
-        const { error: artworkError } = await supabase.from("artworks").insert({
-          artist_id: artistProfile.id,
-          title,
-          description: description || null,
-          image_url: urlData.publicUrl,
-          category: artworkCategory,
-          tools_used: toolsUsed ? toolsUsed.split(",").map((t) => t.trim()) : [],
-          price: price ? parseFloat(price) : 0,
-          is_verified: false,
-          is_sold: false,
-        });
+        
+        const { error: artworkError } = await supabase
+          .from('artworks')
+          .insert({
+            artist_id: artistProfile.id,
+            title,
+            description: description || null,
+            image_url: imageUrl,
+            image_blur_url: imageBlurUrl,
+            image_small_url: imageSmallUrl,
+            image_medium_url: imageMediumUrl,
+            image_large_url: imageLargeUrl,
+            image_asset_id: imageAssetId,
+            category: artworkCategory,
+            tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
+            price: price ? parseFloat(price) : 0,
+            is_verified: false,
+            is_sold: false
+          });
 
         if (artworkError) {
-          console.error("Error adding to portfolio:", artworkError);
+          console.error('Error adding to portfolio:', artworkError);
           toast({
             variant: "destructive",
             title: "เกิดข้อผิดพลาด",
-            description: "โพสต์สำเร็จ แต่ไม่สามารถเพิ่มใน Portfolio ได้",
+            description: "โพสต์สำเร็จ แต่ไม่สามารถเพิ่มใน Portfolio ได้"
           });
         } else {
           toast({
             title: "โพสต์สำเร็จ! 🎉",
-            description: "ผลงานของคุณถูกเผยแพร่และเพิ่มใน Portfolio แล้ว",
+            description: "ผลงานของคุณถูกเผยแพร่และเพิ่มใน Portfolio แล้ว"
           });
         }
       } else {
         toast({
           title: "โพสต์สำเร็จ! 🎉",
-          description: "ผลงานของคุณถูกเผยแพร่แล้ว",
+          description: "ผลงานของคุณถูกเผยแพร่แล้ว"
         });
       }
 
@@ -956,6 +1062,7 @@ export default function Community() {
       setHashtags("");
       setImageFile(null);
       setImagePreview("");
+      setUploadedImageData(null);
       setAddToPortfolio(false);
       setPrice("");
       setIsCreateOpen(false);
@@ -964,7 +1071,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSubmitting(false);
@@ -977,7 +1084,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "กรุณาเข้าสู่ระบบ",
-        description: "เข้าสู่ระบบเพื่อกดถูกใจ",
+        description: "เข้าสู่ระบบเพื่อกดถูกใจ"
       });
       return;
     }
@@ -988,29 +1095,30 @@ export default function Community() {
     try {
       // Check if user already liked this post
       const { data: existingLike } = await supabase
-        .from("community_likes")
-        .select("id")
-        .eq("post_id", actualPostId)
-        .eq("user_id", user.id)
+        .from('community_likes')
+        .select('id')
+        .eq('post_id', actualPostId)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (existingLike) {
         // Unlike - delete the like
-        await supabase.from("community_likes").delete().eq("id", existingLike.id);
+        await supabase
+          .from('community_likes')
+          .delete()
+          .eq('id', existingLike.id);
 
-        setPosts(
-          posts.map((post) => {
-            const postActualId = post.original_post_id || post.id;
-            if (postActualId === actualPostId) {
-              return {
-                ...post,
-                is_liked: false,
-                likes_count: Math.max(0, post.likes_count - 1),
-              };
-            }
-            return post;
-          }),
-        );
+        setPosts(posts.map(post => {
+          const postActualId = post.original_post_id || post.id;
+          if (postActualId === actualPostId) {
+            return {
+              ...post,
+              is_liked: false,
+              likes_count: Math.max(0, post.likes_count - 1)
+            };
+          }
+          return post;
+        }));
 
         // Also update selectedPost if it's the same post
         if (selectedPost) {
@@ -1019,53 +1127,53 @@ export default function Community() {
             setSelectedPost({
               ...selectedPost,
               is_liked: false,
-              likes_count: Math.max(0, selectedPost.likes_count - 1),
+              likes_count: Math.max(0, selectedPost.likes_count - 1)
             });
           }
         }
 
         // Delete the like notification if it was created by current user within last 5 seconds
         const { data: postData } = await supabase
-          .from("community_posts")
-          .select("user_id")
-          .eq("id", actualPostId)
+          .from('community_posts')
+          .select('user_id')
+          .eq('id', actualPostId)
           .maybeSingle();
 
         if (postData && postData.user_id !== user.id) {
           const fiveSecondsAgo = new Date(Date.now() - 5 * 1000).toISOString();
-
+          
           // Delete notification with actor_id (new notifications)
           const { error } = await supabase
-            .from("notifications")
+            .from('notifications')
             .delete()
-            .eq("user_id", postData.user_id)
-            .eq("type", "like")
-            .eq("reference_id", actualPostId)
-            .eq("actor_id", user.id)
-            .gte("created_at", fiveSecondsAgo);
-
+            .eq('user_id', postData.user_id)
+            .eq('type', 'like')
+            .eq('reference_id', actualPostId)
+            .eq('actor_id', user.id)
+            .gte('created_at', fiveSecondsAgo);
+            
           if (error) {
-            console.log("Could not delete notification:", error.message);
+            console.log('Could not delete notification:', error.message);
           }
         }
       } else {
         // Like - insert new like
-        const { error } = await supabase.from("community_likes").insert({ post_id: actualPostId, user_id: user.id });
+        const { error } = await supabase
+          .from('community_likes')
+          .insert({ post_id: actualPostId, user_id: user.id });
 
         if (!error) {
-          setPosts(
-            posts.map((post) => {
-              const postActualId = post.original_post_id || post.id;
-              if (postActualId === actualPostId) {
-                return {
-                  ...post,
-                  is_liked: true,
-                  likes_count: post.likes_count + 1,
-                };
-              }
-              return post;
-            }),
-          );
+          setPosts(posts.map(post => {
+            const postActualId = post.original_post_id || post.id;
+            if (postActualId === actualPostId) {
+              return {
+                ...post,
+                is_liked: true,
+                likes_count: post.likes_count + 1
+              };
+            }
+            return post;
+          }));
 
           // Also update selectedPost if it's the same post
           if (selectedPost) {
@@ -1074,63 +1182,63 @@ export default function Community() {
               setSelectedPost({
                 ...selectedPost,
                 is_liked: true,
-                likes_count: selectedPost.likes_count + 1,
+                likes_count: selectedPost.likes_count + 1
               });
             }
           }
 
           // Get the post owner
           const { data: postData } = await supabase
-            .from("community_posts")
-            .select("user_id")
-            .eq("id", actualPostId)
+            .from('community_posts')
+            .select('user_id')
+            .eq('id', actualPostId)
             .maybeSingle();
 
           if (postData && postData.user_id !== user.id) {
             // Check if liker is muted by post owner
             const { data: isMuted } = await supabase
-              .from("user_mutes")
-              .select("id")
-              .eq("muter_id", postData.user_id)
-              .eq("muted_id", user.id)
+              .from('user_mutes')
+              .select('id')
+              .eq('muter_id', postData.user_id)
+              .eq('muted_id', user.id)
               .maybeSingle();
 
             if (!isMuted) {
               // Check cooldown - don't send if notification was sent within last hour
               const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
               const { data: recentNotification } = await supabase
-                .from("notifications")
-                .select("id")
-                .eq("user_id", postData.user_id)
-                .eq("type", "like")
-                .eq("reference_id", actualPostId)
-                .gte("created_at", oneHourAgo)
+                .from('notifications')
+                .select('id')
+                .eq('user_id', postData.user_id)
+                .eq('type', 'like')
+                .eq('reference_id', actualPostId)
+                .gte('created_at', oneHourAgo)
                 .maybeSingle();
 
               // Only send notification if no recent notification exists
               if (!recentNotification) {
                 // Get liker's name
                 const { data: likerProfile } = await supabase
-                  .from("profiles")
-                  .select("full_name")
-                  .eq("id", user.id)
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('id', user.id)
                   .maybeSingle();
 
                 const { data: likerArtist } = await supabase
-                  .from("artist_profiles")
-                  .select("artist_name")
-                  .eq("user_id", user.id)
+                  .from('artist_profiles')
+                  .select('artist_name')
+                  .eq('user_id', user.id)
                   .maybeSingle();
 
-                const likerName = likerArtist?.artist_name || likerProfile?.full_name || "ผู้ใช้";
+                const likerName = likerArtist?.artist_name || likerProfile?.full_name || 'ผู้ใช้';
 
-                await supabase.from("notifications").insert({
+                await supabase.from('notifications').insert({
                   user_id: postData.user_id,
-                  title: "มีคนถูกใจโพสต์ของคุณ ❤️",
+                  title: 'มีคนถูกใจโพสต์ของคุณ ❤️',
                   message: `${likerName} ถูกใจโพสต์ของคุณ`,
-                  type: "like",
+                  type: 'like',
                   reference_id: actualPostId,
-                  actor_id: user.id,
+                  actor_id: user.id
                 });
               }
             }
@@ -1138,7 +1246,7 @@ export default function Community() {
         }
       }
     } catch (error) {
-      console.error("Error liking post:", error);
+      console.error('Error liking post:', error);
     }
   };
 
@@ -1148,66 +1256,74 @@ export default function Community() {
 
     try {
       if (isFollowing) {
-        await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", userId);
-
-        setFollowingUsers((prev) => {
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('following_id', userId);
+        
+        setFollowingUsers(prev => {
           const newSet = new Set(prev);
           newSet.delete(userId);
           return newSet;
         });
       } else {
-        await supabase.from("follows").insert({ follower_id: user.id, following_id: userId });
-
-        setFollowingUsers((prev) => new Set(prev).add(userId));
+        await supabase
+          .from('follows')
+          .insert({ follower_id: user.id, following_id: userId });
+        
+        setFollowingUsers(prev => new Set(prev).add(userId));
 
         const { data: followerProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
           .maybeSingle();
 
         const { data: artistProfile } = await supabase
-          .from("artist_profiles")
-          .select("artist_name")
-          .eq("user_id", user.id)
+          .from('artist_profiles')
+          .select('artist_name')
+          .eq('user_id', user.id)
           .maybeSingle();
 
-        const followerName = artistProfile?.artist_name || followerProfile?.full_name || "ผู้ใช้";
+        const followerName = artistProfile?.artist_name || followerProfile?.full_name || 'ผู้ใช้';
 
         // Check if follower is muted by the user being followed
         const { data: isMuted } = await supabase
-          .from("user_mutes")
-          .select("id")
-          .eq("muter_id", userId)
-          .eq("muted_id", user.id)
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', userId)
+          .eq('muted_id', user.id)
           .maybeSingle();
 
         // Only send notification if not muted
         if (!isMuted) {
-          await supabase.from("notifications").insert({
-            user_id: userId,
-            title: "มีผู้ติดตามใหม่! 🎉",
-            message: `${followerName} เริ่มติดตามคุณแล้ว`,
-            type: "follow",
-            reference_id: user.id,
-          });
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              title: 'มีผู้ติดตามใหม่! 🎉',
+              message: `${followerName} เริ่มติดตามคุณแล้ว`,
+              type: 'follow',
+              reference_id: user.id
+            });
         }
       }
 
-      setPosts(
-        posts.map((post) => {
-          if (post.user_id === userId) {
-            return {
-              ...post,
-              is_following: !isFollowing,
-              followers_count: isFollowing ? (post.followers_count || 1) - 1 : (post.followers_count || 0) + 1,
-            };
-          }
-          return post;
-        }),
-      );
+      setPosts(posts.map(post => {
+        if (post.user_id === userId) {
+          return {
+            ...post,
+            is_following: !isFollowing,
+            followers_count: isFollowing 
+              ? (post.followers_count || 1) - 1 
+              : (post.followers_count || 0) + 1
+          };
+        }
+        return post;
+      }));
     } catch (error) {
-      console.error("Error following:", error);
+      console.error('Error following:', error);
     }
   };
 
@@ -1215,38 +1331,40 @@ export default function Community() {
     setCommentsLoading(true);
     try {
       const { data, error } = await supabase
-        .from("community_comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
+        .from('community_comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
       const commentsWithProfiles = await Promise.all(
         (data || []).map(async (comment) => {
           const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, avatar_url, display_name")
-            .eq("id", comment.user_id)
+            .from('profiles')
+            .select('full_name, avatar_url, display_name')
+            .eq('id', comment.user_id)
             .maybeSingle();
-
+          
           const { data: commentArtistProfile } = await supabase
-            .from("artist_profiles")
-            .select("artist_name, is_verified")
-            .eq("user_id", comment.user_id)
+            .from('artist_profiles')
+            .select('artist_name, is_verified')
+            .eq('user_id', comment.user_id)
             .maybeSingle();
           return { ...comment, user_profile: profile, artist_profile: commentArtistProfile };
-        }),
+        })
       );
 
       // Filter out comments from blocked/muted users
-      const filteredComments = commentsWithProfiles.filter((comment) => !isUserHidden(comment.user_id));
+      const filteredComments = commentsWithProfiles.filter(
+        comment => !isUserHidden(comment.user_id)
+      );
 
       // Organize comments into parent and replies structure
       const parentComments: Comment[] = [];
       const repliesMap = new Map<string, Comment[]>();
 
-      filteredComments.forEach((comment) => {
+      filteredComments.forEach(comment => {
         if (comment.parent_id) {
           const existing = repliesMap.get(comment.parent_id) || [];
           existing.push(comment);
@@ -1257,14 +1375,14 @@ export default function Community() {
       });
 
       // Attach replies to parent comments
-      const commentsWithReplies = parentComments.map((parent) => ({
+      const commentsWithReplies = parentComments.map(parent => ({
         ...parent,
-        replies: repliesMap.get(parent.id) || [],
+        replies: repliesMap.get(parent.id) || []
       }));
 
       setComments(commentsWithReplies);
     } catch (error) {
-      console.error("Error fetching comments:", error);
+      console.error('Error fetching comments:', error);
     } finally {
       setCommentsLoading(false);
     }
@@ -1285,38 +1403,40 @@ export default function Community() {
 
     setSubmittingComment(true);
     try {
-      const { error } = await supabase.from("community_comments").insert({
-        post_id: actualPostId,
-        user_id: user.id,
-        content: newComment.trim(),
-      });
+      const { error } = await supabase
+        .from('community_comments')
+        .insert({
+          post_id: actualPostId,
+          user_id: user.id,
+          content: newComment.trim()
+        });
 
       if (error) throw error;
 
       // Send notifications to mentioned users
       const mentionedUserIds = await getMentionedUserIds(newComment);
       const { data: commenterProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
         .maybeSingle();
-
+      
       const { data: commenterArtist } = await supabase
-        .from("artist_profiles")
-        .select("artist_name")
-        .eq("user_id", user.id)
+        .from('artist_profiles')
+        .select('artist_name')
+        .eq('user_id', user.id)
         .maybeSingle();
-
-      const commenterName = commenterArtist?.artist_name || commenterProfile?.full_name || "ผู้ใช้";
-
+      
+      const commenterName = commenterArtist?.artist_name || commenterProfile?.full_name || 'ผู้ใช้';
+      
       for (const mentionedUserId of mentionedUserIds) {
         if (mentionedUserId !== user.id) {
-          await supabase.from("notifications").insert({
+          await supabase.from('notifications').insert({
             user_id: mentionedUserId,
-            title: "คุณถูกแท็กในความคิดเห็น 💬",
-            message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? "..." : ""}"`,
-            type: "mention",
-            reference_id: actualPostId,
+            title: 'คุณถูกแท็กในความคิดเห็น 💬',
+            message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+            type: 'mention',
+            reference_id: actualPostId
           });
         }
       }
@@ -1325,32 +1445,32 @@ export default function Community() {
       if (selectedPost.user_id !== user.id) {
         // Check if commenter is muted by post owner
         const { data: isMuted } = await supabase
-          .from("user_mutes")
-          .select("id")
-          .eq("muter_id", selectedPost.user_id)
-          .eq("muted_id", user.id)
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', selectedPost.user_id)
+          .eq('muted_id', user.id)
           .maybeSingle();
 
         if (!isMuted) {
           // Check cooldown - don't send if notification was sent within last 10 minutes
           const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
           const { data: recentNotification } = await supabase
-            .from("notifications")
-            .select("id")
-            .eq("user_id", selectedPost.user_id)
-            .eq("type", "comment")
-            .eq("reference_id", actualPostId)
-            .gte("created_at", tenMinutesAgo)
+            .from('notifications')
+            .select('id')
+            .eq('user_id', selectedPost.user_id)
+            .eq('type', 'comment')
+            .eq('reference_id', actualPostId)
+            .gte('created_at', tenMinutesAgo)
             .maybeSingle();
 
           // Only send notification if no recent notification exists
           if (!recentNotification) {
-            await supabase.from("notifications").insert({
+            await supabase.from('notifications').insert({
               user_id: selectedPost.user_id,
-              title: "มีคนแสดงความคิดเห็น 💬",
-              message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? "..." : ""}"`,
-              type: "comment",
-              reference_id: actualPostId,
+              title: 'มีคนแสดงความคิดเห็น 💬',
+              message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+              type: 'comment',
+              reference_id: actualPostId
             });
           }
         }
@@ -1358,22 +1478,20 @@ export default function Community() {
 
       setNewComment("");
       fetchComments(actualPostId);
-
-      setPosts(
-        posts.map((post) => {
-          // Update both the repost and original post if they exist
-          const postActualId = post.original_post_id || post.id;
-          if (postActualId === actualPostId) {
-            return { ...post, comments_count: (post.comments_count || 0) + 1 };
-          }
-          return post;
-        }),
-      );
+      
+      setPosts(posts.map(post => {
+        // Update both the repost and original post if they exist
+        const postActualId = post.original_post_id || post.id;
+        if (postActualId === actualPostId) {
+          return { ...post, comments_count: (post.comments_count || 0) + 1 };
+        }
+        return post;
+      }));
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSubmittingComment(false);
@@ -1387,46 +1505,48 @@ export default function Community() {
 
     setSubmittingReply(true);
     try {
-      const { error } = await supabase.from("community_comments").insert({
-        post_id: actualPostId,
-        user_id: user.id,
-        content: replyContent.trim(),
-        parent_id: parentComment.id,
-      });
+      const { error } = await supabase
+        .from('community_comments')
+        .insert({
+          post_id: actualPostId,
+          user_id: user.id,
+          content: replyContent.trim(),
+          parent_id: parentComment.id
+        });
 
       if (error) throw error;
 
       // Send notification to parent comment owner
       if (parentComment.user_id !== user.id) {
         const { data: replierProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
           .maybeSingle();
-
+        
         const { data: replierArtist } = await supabase
-          .from("artist_profiles")
-          .select("artist_name")
-          .eq("user_id", user.id)
+          .from('artist_profiles')
+          .select('artist_name')
+          .eq('user_id', user.id)
           .maybeSingle();
-
-        const replierName = replierArtist?.artist_name || replierProfile?.full_name || "ผู้ใช้";
+        
+        const replierName = replierArtist?.artist_name || replierProfile?.full_name || 'ผู้ใช้';
 
         // Check if replier is muted by comment owner
         const { data: isMuted } = await supabase
-          .from("user_mutes")
-          .select("id")
-          .eq("muter_id", parentComment.user_id)
-          .eq("muted_id", user.id)
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', parentComment.user_id)
+          .eq('muted_id', user.id)
           .maybeSingle();
 
         if (!isMuted) {
-          await supabase.from("notifications").insert({
+          await supabase.from('notifications').insert({
             user_id: parentComment.user_id,
-            title: "มีคนตอบกลับความคิดเห็นของคุณ 💬",
-            message: `${replierName} ตอบกลับความคิดเห็นของคุณ: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? "..." : ""}"`,
-            type: "comment",
-            reference_id: actualPostId,
+            title: 'มีคนตอบกลับความคิดเห็นของคุณ 💬',
+            message: `${replierName} ตอบกลับความคิดเห็นของคุณ: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? '...' : ''}"`,
+            type: 'comment',
+            reference_id: actualPostId
           });
         }
       }
@@ -1434,27 +1554,27 @@ export default function Community() {
       // Send notifications to mentioned users
       const mentionedUserIds = await getMentionedUserIds(replyContent);
       const { data: replierProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
         .maybeSingle();
-
+      
       const { data: replierArtist } = await supabase
-        .from("artist_profiles")
-        .select("artist_name")
-        .eq("user_id", user.id)
+        .from('artist_profiles')
+        .select('artist_name')
+        .eq('user_id', user.id)
         .maybeSingle();
-
-      const replierName = replierArtist?.artist_name || replierProfile?.full_name || "ผู้ใช้";
-
+      
+      const replierName = replierArtist?.artist_name || replierProfile?.full_name || 'ผู้ใช้';
+      
       for (const mentionedUserId of mentionedUserIds) {
         if (mentionedUserId !== user.id) {
-          await supabase.from("notifications").insert({
+          await supabase.from('notifications').insert({
             user_id: mentionedUserId,
-            title: "คุณถูกแท็กในความคิดเห็น 💬",
-            message: `${replierName} แท็กคุณในความคิดเห็น: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? "..." : ""}"`,
-            type: "mention",
-            reference_id: actualPostId,
+            title: 'คุณถูกแท็กในความคิดเห็น 💬',
+            message: `${replierName} แท็กคุณในความคิดเห็น: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? '...' : ''}"`,
+            type: 'mention',
+            reference_id: actualPostId
           });
         }
       }
@@ -1462,21 +1582,19 @@ export default function Community() {
       setReplyContent("");
       setReplyingToComment(null);
       fetchComments(actualPostId);
-
-      setPosts(
-        posts.map((post) => {
-          const postActualId = post.original_post_id || post.id;
-          if (postActualId === actualPostId) {
-            return { ...post, comments_count: (post.comments_count || 0) + 1 };
-          }
-          return post;
-        }),
-      );
+      
+      setPosts(posts.map(post => {
+        const postActualId = post.original_post_id || post.id;
+        if (postActualId === actualPostId) {
+          return { ...post, comments_count: (post.comments_count || 0) + 1 };
+        }
+        return post;
+      }));
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSubmittingReply(false);
@@ -1488,21 +1606,25 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "กรุณาเข้าสู่ระบบ",
-        description: "เข้าสู่ระบบเพื่อบันทึก",
+        description: "เข้าสู่ระบบเพื่อบันทึก"
       });
       return;
     }
-
+    
     // Use originalPostId for database operations (for reposts)
     const actualPostId = originalPostId || postId;
     const isSaved = savedPosts.has(actualPostId);
-
+    
     try {
       if (isSaved) {
         // Unsave
-        await supabase.from("saved_posts").delete().eq("user_id", user.id).eq("post_id", actualPostId);
-
-        setSavedPosts((prev) => {
+        await supabase
+          .from('saved_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', actualPostId);
+        
+        setSavedPosts(prev => {
           const newSet = new Set(prev);
           newSet.delete(actualPostId);
           return newSet;
@@ -1510,30 +1632,32 @@ export default function Community() {
         toast({ title: "ยกเลิกการบันทึกแล้ว" });
       } else {
         // Save
-        await supabase.from("saved_posts").insert({ user_id: user.id, post_id: actualPostId });
-
-        setSavedPosts((prev) => new Set(prev).add(actualPostId));
+        await supabase
+          .from('saved_posts')
+          .insert({ user_id: user.id, post_id: actualPostId });
+        
+        setSavedPosts(prev => new Set(prev).add(actualPostId));
         toast({ title: "บันทึกแล้ว ✓" });
       }
     } catch (error) {
-      console.error("Error saving post:", error);
+      console.error('Error saving post:', error);
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถบันทึกได้",
+        description: "ไม่สามารถบันทึกได้"
       });
     }
   };
 
   const handleShare = async (post: CommunityPost) => {
     const url = `${window.location.origin}/community?post=${post.id}`;
-
+    
     if (navigator.share) {
       try {
         await navigator.share({
           title: post.title,
           text: `ดูผลงาน "${post.title}"`,
-          url: url,
+          url: url
         });
       } catch (error) {
         // User cancelled
@@ -1542,117 +1666,119 @@ export default function Community() {
       await navigator.clipboard.writeText(url);
       toast({
         title: "คัดลอกลิงก์แล้ว!",
-        description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด",
+        description: "ลิงก์โพสต์ถูกคัดลอกไปยังคลิปบอร์ด"
       });
     }
   };
 
   const handleRepost = async () => {
     if (!user || !shareDialogPost) return;
-
+    
     const postId = shareDialogPost.original_post_id || shareDialogPost.id;
     const alreadyReposted = repostedPosts.has(postId);
-
+    
     setSharingPost(true);
     try {
       if (alreadyReposted) {
         // Remove repost
-        await supabase.from("shared_posts").delete().eq("user_id", user.id).eq("post_id", postId);
+        await supabase
+          .from('shared_posts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('post_id', postId);
 
-        setRepostedPosts((prev) => {
+        setRepostedPosts(prev => {
           const newSet = new Set(prev);
           newSet.delete(postId);
           return newSet;
         });
 
         // Update shares count in UI
-        setPosts(
-          posts.map((post) => {
-            const actualId = post.original_post_id || post.id;
-            if (actualId === postId) {
-              return { ...post, shares_count: Math.max(0, (post.shares_count || 1) - 1) };
-            }
-            return post;
-          }),
-        );
+        setPosts(posts.map(post => {
+          const actualId = post.original_post_id || post.id;
+          if (actualId === postId) {
+            return { ...post, shares_count: Math.max(0, (post.shares_count || 1) - 1) };
+          }
+          return post;
+        }));
 
         toast({
           title: "ยกเลิก Repost แล้ว",
-          description: "โพสต์ถูกลบออกจากโปรไฟล์ของคุณแล้ว",
+          description: "โพสต์ถูกลบออกจากโปรไฟล์ของคุณแล้ว"
         });
       } else {
         // Create new repost
-        await supabase.from("shared_posts").insert({
-          user_id: user.id,
-          post_id: postId,
-          caption: shareCaption.trim() || null,
-        });
+        await supabase
+          .from('shared_posts')
+          .insert({
+            user_id: user.id,
+            post_id: postId,
+            caption: shareCaption.trim() || null
+          });
 
-        setRepostedPosts((prev) => new Set(prev).add(postId));
+        setRepostedPosts(prev => new Set(prev).add(postId));
 
         // Notify original poster (with cooldown check)
         if (shareDialogPost.user_id !== user.id) {
           // Check if sharer is muted by post owner
           const { data: isMuted } = await supabase
-            .from("user_mutes")
-            .select("id")
-            .eq("muter_id", shareDialogPost.user_id)
-            .eq("muted_id", user.id)
+            .from('user_mutes')
+            .select('id')
+            .eq('muter_id', shareDialogPost.user_id)
+            .eq('muted_id', user.id)
             .maybeSingle();
 
           if (!isMuted) {
             // Check cooldown - don't send if notification was sent within last hour
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
             const { data: recentNotification } = await supabase
-              .from("notifications")
-              .select("id")
-              .eq("user_id", shareDialogPost.user_id)
-              .eq("type", "share")
-              .eq("reference_id", postId)
-              .gte("created_at", oneHourAgo)
+              .from('notifications')
+              .select('id')
+              .eq('user_id', shareDialogPost.user_id)
+              .eq('type', 'share')
+              .eq('reference_id', postId)
+              .gte('created_at', oneHourAgo)
               .maybeSingle();
 
             // Only send notification if no recent notification exists
             if (!recentNotification) {
               const { data: sharerProfile } = await supabase
-                .from("profiles")
-                .select("full_name")
-                .eq("id", user.id)
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
                 .maybeSingle();
-
+              
               const { data: sharerArtist } = await supabase
-                .from("artist_profiles")
-                .select("artist_name")
-                .eq("user_id", user.id)
+                .from('artist_profiles')
+                .select('artist_name')
+                .eq('user_id', user.id)
                 .maybeSingle();
-
-              const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || "ผู้ใช้";
-
-              await supabase.from("notifications").insert({
+              
+              const sharerName = sharerArtist?.artist_name || sharerProfile?.full_name || 'ผู้ใช้';
+              
+              await supabase.from('notifications').insert({
                 user_id: shareDialogPost.user_id,
-                title: "โพสต์ของคุณถูกแชร์! 🔁",
+                title: 'โพสต์ของคุณถูกแชร์! 🔁',
                 message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
-                type: "share",
-                reference_id: postId,
+                type: 'share',
+                reference_id: postId
               });
             }
           }
         }
 
         // Update shares count in UI
-        setPosts(
-          posts.map((post) => {
-            const actualId = post.original_post_id || post.id;
-            if (actualId === postId) {
-              return { ...post, shares_count: (post.shares_count || 0) + 1 };
-            }
-            return post;
-          }),
-        );
+        setPosts(posts.map(post => {
+          const actualId = post.original_post_id || post.id;
+          if (actualId === postId) {
+            return { ...post, shares_count: (post.shares_count || 0) + 1 };
+          }
+          return post;
+        }));
 
         toast({
           title: "แชร์โพสต์สำเร็จ! 🔁",
-          description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว",
+          description: "โพสต์ถูกแชร์ไปยังโปรไฟล์ของคุณแล้ว"
         });
       }
 
@@ -1663,7 +1789,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSharingPost(false);
@@ -1683,24 +1809,23 @@ export default function Community() {
 
   const handleSaveEdit = async () => {
     if (!user || !editingPost) return;
-
+    
     setSavingEdit(true);
     try {
       const toolsArray = editToolsUsed
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+      
       // Parse edit hashtags
       const parsedEditHashtags = editHashtags
-        ? editHashtags
-            .split(/[,\s]+/)
-            .map((t) => t.trim().replace(/^#/, ""))
-            .filter((t) => t.length > 0)
+        ? editHashtags.split(/[,\s]+/)
+            .map(t => t.trim().replace(/^#/, ''))
+            .filter(t => t.length > 0)
         : [];
 
       const { error } = await supabase
-        .from("community_posts")
+        .from('community_posts')
         .update({
           title: editTitle,
           description: editDescription || null,
@@ -1708,26 +1833,17 @@ export default function Community() {
           tools_used: toolsArray,
           hashtags: parsedEditHashtags,
         })
-        .eq("id", editingPost.id)
-        .eq("user_id", user.id);
+        .eq('id', editingPost.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       // Update local state
-      setPosts(
-        posts.map((p) =>
-          p.id === editingPost.id
-            ? {
-                ...p,
-                title: editTitle,
-                description: editDescription,
-                category: editCategory,
-                tools_used: toolsArray,
-                hashtags: parsedEditHashtags,
-              }
-            : p,
-        ),
-      );
+      setPosts(posts.map(p => 
+        p.id === editingPost.id 
+          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: toolsArray, hashtags: parsedEditHashtags }
+          : p
+      ));
 
       // Update selected post if it's the same
       if (selectedPost && selectedPost.id === editingPost.id) {
@@ -1737,13 +1853,13 @@ export default function Community() {
           description: editDescription,
           category: editCategory,
           tools_used: toolsArray,
-          hashtags: parsedEditHashtags,
+          hashtags: parsedEditHashtags
         });
       }
 
       toast({
         title: "แก้ไขโพสต์สำเร็จ ✓",
-        description: "โพสต์ของคุณถูกอัปเดตแล้ว",
+        description: "โพสต์ของคุณถูกอัปเดตแล้ว"
       });
 
       setEditDialogOpen(false);
@@ -1752,7 +1868,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSavingEdit(false);
@@ -1767,26 +1883,26 @@ export default function Community() {
 
   const handleConfirmDelete = async () => {
     if (!user || !deletingPost) return;
-
+    
     setConfirmingDelete(true);
     try {
       // Delete related data first
-      await supabase.from("community_comments").delete().eq("post_id", deletingPost.id);
-      await supabase.from("community_likes").delete().eq("post_id", deletingPost.id);
-      await supabase.from("saved_posts").delete().eq("post_id", deletingPost.id);
-      await supabase.from("shared_posts").delete().eq("post_id", deletingPost.id);
-
+      await supabase.from('community_comments').delete().eq('post_id', deletingPost.id);
+      await supabase.from('community_likes').delete().eq('post_id', deletingPost.id);
+      await supabase.from('saved_posts').delete().eq('post_id', deletingPost.id);
+      await supabase.from('shared_posts').delete().eq('post_id', deletingPost.id);
+      
       // Delete the post
       const { error } = await supabase
-        .from("community_posts")
+        .from('community_posts')
         .delete()
-        .eq("id", deletingPost.id)
-        .eq("user_id", user.id);
+        .eq('id', deletingPost.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       // Update local state
-      setPosts(posts.filter((p) => p.id !== deletingPost.id && p.original_post_id !== deletingPost.id));
+      setPosts(posts.filter(p => p.id !== deletingPost.id && p.original_post_id !== deletingPost.id));
 
       // Close post detail if viewing the deleted post
       if (selectedPost && selectedPost.id === deletingPost.id) {
@@ -1795,7 +1911,7 @@ export default function Community() {
 
       toast({
         title: "ลบโพสต์สำเร็จ",
-        description: "โพสต์ของคุณถูกลบแล้ว",
+        description: "โพสต์ของคุณถูกลบแล้ว"
       });
 
       setDeleteDialogOpen(false);
@@ -1804,7 +1920,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setConfirmingDelete(false);
@@ -1824,13 +1940,13 @@ export default function Community() {
     if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`;
     if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`;
     if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
-    return date.toLocaleDateString("th-TH");
+    return date.toLocaleDateString('th-TH');
   };
 
   // Get display name based on user type (artist uses artist_name, buyer uses display_name or full_name)
   const getDisplayName = (
     userProfile?: { full_name: string | null; display_name: string | null } | null,
-    artistProfile?: { artist_name: string; is_verified: boolean } | null,
+    artistProfile?: { artist_name: string; is_verified: boolean } | null
   ) => {
     if (artistProfile?.artist_name) {
       return artistProfile.artist_name;
@@ -1846,22 +1962,26 @@ export default function Community() {
   // Handle edit comment
   const handleEditComment = async () => {
     if (!user || !editingComment || !editCommentContent.trim()) return;
-
+    
     setSavingCommentEdit(true);
     try {
       const { error } = await supabase
-        .from("community_comments")
+        .from('community_comments')
         .update({ content: editCommentContent.trim() })
-        .eq("id", editingComment.id)
-        .eq("user_id", user.id);
+        .eq('id', editingComment.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       // Update local state
-      setComments(comments.map((c) => (c.id === editingComment.id ? { ...c, content: editCommentContent.trim() } : c)));
+      setComments(comments.map(c => 
+        c.id === editingComment.id 
+          ? { ...c, content: editCommentContent.trim() }
+          : c
+      ));
 
       toast({
-        title: "แก้ไขความคิดเห็นสำเร็จ ✓",
+        title: "แก้ไขความคิดเห็นสำเร็จ ✓"
       });
 
       setEditingComment(null);
@@ -1870,7 +1990,7 @@ export default function Community() {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setSavingCommentEdit(false);
@@ -1880,37 +2000,41 @@ export default function Community() {
   // Handle delete comment
   const handleDeleteComment = async (commentId: string) => {
     if (!user) return;
-
+    
     setDeletingCommentId(commentId);
     try {
-      const { error } = await supabase.from("community_comments").delete().eq("id", commentId).eq("user_id", user.id);
+      const { error } = await supabase
+        .from('community_comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       // Update local state
-      setComments(comments.filter((c) => c.id !== commentId));
+      setComments(comments.filter(c => c.id !== commentId));
 
       // Update comments count in posts
       if (selectedPost) {
-        setPosts(
-          posts.map((p) =>
-            p.id === selectedPost.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p,
-          ),
-        );
+        setPosts(posts.map(p => 
+          p.id === selectedPost.id 
+            ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) }
+            : p
+        ));
         setSelectedPost({
           ...selectedPost,
-          comments_count: Math.max(0, (selectedPost.comments_count || 0) - 1),
+          comments_count: Math.max(0, (selectedPost.comments_count || 0) - 1)
         });
       }
 
       toast({
-        title: "ลบความคิดเห็นสำเร็จ",
+        title: "ลบความคิดเห็นสำเร็จ"
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "เกิดข้อผิดพลาด",
-        description: error.message,
+        description: error.message
       });
     } finally {
       setDeletingCommentId(null);
@@ -1922,18 +2046,18 @@ export default function Community() {
     if (!selectedPost) return;
 
     const channel = supabase
-      .channel("community-comments")
+      .channel('community-comments')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "INSERT",
-          schema: "public",
-          table: "community_comments",
-          filter: `post_id=eq.${selectedPost.id}`,
+          event: 'INSERT',
+          schema: 'public',
+          table: 'community_comments',
+          filter: `post_id=eq.${selectedPost.id}`
         },
         () => {
           fetchComments(selectedPost.id);
-        },
+        }
       )
       .subscribe();
 
@@ -1943,68 +2067,107 @@ export default function Community() {
   }, [selectedPost]);
 
   const tabs = [
-    { id: "discover" as FeedTab, label: "Discover", icon: Sparkles },
-    { id: "following" as FeedTab, label: "Following", icon: Users },
-    { id: "latest" as FeedTab, label: "Latest", icon: Clock },
+    { id: 'discover' as FeedTab, label: 'Discover' },
+    { id: 'following' as FeedTab, label: 'Following' },
+    { id: 'latest' as FeedTab, label: 'Latest' },
   ];
 
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Sticky Header */}
+        {/* Sticky Header - Cara style tabs */}
         <div className="border-b border-border bg-background/95 backdrop-blur sticky top-20 z-40">
-          <div className="container mx-auto max-w-6xl px-4">
-            <div className="max-w-2xl mx-auto lg:mx-0 lg:max-w-none lg:pr-[340px]">
-              {/* Search Bar */}
-              <div className="py-3">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="ค้นหาผลงาน..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-12 h-11 bg-muted/50 border-0 rounded-full"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
-                      onClick={() => setSearchQuery("")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+          <div className="container mx-auto max-w-7xl px-4">
+            <div className="flex items-center justify-center">
+            {/* Tabs - Cara style */}
+            <div className="flex items-center justify-center gap-8">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative py-3 text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground"
+                    />
                   )}
-                </div>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex items-center justify-center gap-1 border-t border-border">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`relative flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${
-                      activeTab === tab.id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <tab.icon className="h-4 w-4" />
-                    {tab.label}
-                    {activeTab === tab.id && (
-                      <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                    )}
-                  </button>
-                ))}
-              </div>
+                </button>
+              ))}
+            </div>
             </div>
           </div>
         </div>
 
-        {/* Main Content with Sidebar */}
-        <div className="container mx-auto max-w-6xl px-4 py-4">
-          <div className="flex gap-6 items-stretch">
-            {/* Feed Content */}
-            <div ref={feedRef} className="flex-1 max-w-2xl">
+        {/* Recommended Works Section - Full Width Masonry like Cara */}
+        {recommendedPosts.length > 0 && activeTab === 'discover' && (
+          <div className="bg-background">
+            <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
+              {recommendedPosts.map((post, index) => {
+                // Make posts with higher likes larger (span 2 rows visually by not constraining height)
+                const isPopular = (post.likes_count || 0) >= 3;
+                
+                return (
+                  <motion.div
+                    key={`rec-${post.id}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.015 }}
+                    className="group relative cursor-pointer break-inside-avoid"
+                    onClick={() => handleOpenPost(post)}
+                  >
+                    <div className="relative overflow-hidden">
+                      <OptimizedImage
+                        src={post.image_url}
+                        variants={{
+                          blur: post.image_blur_url || undefined,
+                          small: post.image_small_url || undefined,
+                          medium: post.image_medium_url || undefined,
+                          large: post.image_large_url || undefined,
+                        }}
+                        alt={post.title}
+                        variant="feed"
+                        className={`w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300 ${
+                          isPopular ? 'ring-2 ring-primary/50' : ''
+                        }`}
+                      />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200" />
+                      {/* Like button overlay */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLike(post.id, post.is_liked || false);
+                        }}
+                        className="absolute bottom-2 right-2 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                      </button>
+                      {/* Popular badge */}
+                      {isPopular && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          🔥 Popular
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="flex justify-center px-4 py-6">
+          <div className="flex gap-8 w-full max-w-[900px]">
+            {/* Feed Content - Vertical scrolling feed */}
+            <div ref={feedRef} className="flex-1 min-w-0 max-w-[560px]">
               {loading ? (
                 <div className="py-20 text-center">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -2017,130 +2180,48 @@ export default function Community() {
                   </div>
                   <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
                   <p className="text-muted-foreground mb-4">
-                    {activeTab === "following"
-                      ? "ยังไม่มีโพสต์จากคนที่คุณติดตาม"
-                      : searchQuery
-                        ? "ลองค้นหาด้วยคำอื่น"
-                        : "ยังไม่มีโพสต์ในคอมมูนิตี้"}
+                    {activeTab === 'following' 
+                      ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
+                      : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
                   </p>
-                  {searchQuery && (
-                    <Button variant="outline" onClick={() => setSearchQuery("")}>
-                      ล้างการค้นหา
-                    </Button>
-                  )}
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <AnimatePresence>
-                    {filteredPosts.map((post, index) => (
-                      <motion.article
-                        key={post.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="bg-card border border-border rounded-xl overflow-hidden"
-                      >
-                        {/* Repost Header */}
-                        {post.is_repost && post.repost_user_id && (
-                          <Link
-                            to={`/profile/${post.repost_user_id}`}
-                            className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50 hover:bg-muted/30 transition-colors"
-                          >
-                            <Repeat2 className="h-4 w-4" />
-                            <Avatar className="h-5 w-5">
-                              <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
-                              <AvatarFallback className="text-[10px]">
-                                {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium text-foreground">
-                              {getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
-                            </span>
-                            {isBuyerUser(post.repost_artist_profile) && (
-                              <Badge
-                                variant="secondary"
-                                className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0"
-                              >
-                                Buyer
+                <div className="space-y-0 divide-y divide-border">
+                  {filteredPosts.map((post, index) => (
+                    <motion.article
+                      key={post.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: index * 0.02 }}
+                      className="py-5 first:pt-0"
+                    >
+                      {/* Post Header */}
+                      <div className="flex items-start gap-3 mb-2">
+                        <Link to={`/profile/${post.user_id}`}>
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                            <AvatarFallback>
+                              {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Link to={`/profile/${post.user_id}`} className="font-semibold text-foreground hover:underline">
+                              {getDisplayName(post.user_profile, post.artist_profile)}
+                            </Link>
+                            {post.artist_profile?.is_verified && (
+                              <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
+                                ✓
                               </Badge>
                             )}
-                            <span>รีโพสต์</span>
-                            <span className="text-xs">
-                              • {formatTimeAgo(post.repost_created_at || post.created_at)}
+                            <span className="text-muted-foreground text-sm">
+                              · {formatTimeAgo(post.created_at)}
                             </span>
-                          </Link>
-                        )}
-
-                        {/* Repost Caption */}
-                        {post.is_repost && post.repost_caption && (
-                          <div className="px-4 py-2 bg-muted/30">
-                            <p className="text-sm">{post.repost_caption}</p>
-                          </div>
-                        )}
-
-                        {/* Post Header */}
-                        <div className="flex items-center justify-between p-4">
-                          <Link
-                            to={`/profile/${post.user_id}`}
-                            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                          >
-                            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                              <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                              <AvatarFallback>
-                                {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-foreground">
-                                  {getDisplayName(post.user_profile, post.artist_profile)}
-                                </span>
-                                {post.artist_profile?.is_verified && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0"
-                                  >
-                                    ✓
-                                  </Badge>
-                                )}
-                                {isBuyerUser(post.artist_profile) && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0"
-                                  >
-                                    Buyer
-                                  </Badge>
-                                )}
-                              </div>
-                              <span className="text-xs text-muted-foreground">{formatTimeAgo(post.created_at)}</span>
-                            </div>
-                          </Link>
-
-                          <div className="flex items-center gap-2">
-                            {user && user.id !== post.user_id && (
-                              <Button
-                                variant={followingUsers.has(post.user_id) ? "secondary" : "default"}
-                                size="sm"
-                                className="h-8"
-                                onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
-                              >
-                                {followingUsers.has(post.user_id) ? (
-                                  <>
-                                    <UserCheck className="h-3.5 w-3.5 mr-1" />
-                                    Following
-                                  </>
-                                ) : (
-                                  <>
-                                    <UserPlus className="h-3.5 w-3.5 mr-1" />
-                                    Follow
-                                  </>
-                                )}
-                              </Button>
-                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreHorizontal className="h-5 w-5" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto -mr-2">
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -2156,14 +2237,13 @@ export default function Community() {
                                   <Bookmark className="h-4 w-4 mr-2" />
                                   {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
                                 </DropdownMenuItem>
-                                {/* Edit/Delete for own posts */}
                                 {user && user.id === post.user_id && !post.is_repost && (
                                   <>
                                     <DropdownMenuItem onClick={() => openEditDialog(post)}>
                                       <Pencil className="h-4 w-4 mr-2" />
                                       แก้ไขโพสต์
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem
+                                    <DropdownMenuItem 
                                       onClick={() => openDeleteDialog(post)}
                                       className="text-destructive focus:text-destructive"
                                     >
@@ -2173,7 +2253,7 @@ export default function Community() {
                                   </>
                                 )}
                                 {user && user.id !== post.user_id && (
-                                  <DropdownMenuItem
+                                  <DropdownMenuItem 
                                     onClick={() => {
                                       setReportingPost(post);
                                       setReportDialogOpen(true);
@@ -2187,181 +2267,112 @@ export default function Community() {
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
+                          
+                          {/* Title */}
+                          <h3 className="font-semibold text-foreground">{post.title}</h3>
+                          
+                          {/* Description */}
+                          {post.description && (
+                            <p className="text-muted-foreground text-sm mt-0.5">
+                              {renderTextWithMentions(post.description)}
+                            </p>
+                          )}
                         </div>
+                      </div>
 
-                        {/* Image */}
-                        <div
-                          className="relative aspect-square bg-muted cursor-pointer"
+                      {/* Image */}
+                      <div 
+                        className="relative cursor-pointer rounded-2xl overflow-hidden mt-3 border border-border/50"
+                        onClick={() => handleOpenPost(post)}
+                      >
+                        <OptimizedImage
+                          src={post.image_url}
+                          variants={{
+                            blur: post.image_blur_url || undefined,
+                            small: post.image_small_url || undefined,
+                            medium: post.image_medium_url || undefined,
+                            large: post.image_large_url || undefined,
+                          }}
+                          alt={post.title}
+                          variant="feed"
+                          className="w-full"
+                        />
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between mt-3 px-1 text-muted-foreground">
+                        <button 
+                          className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
                           onClick={() => handleOpenPost(post)}
                         >
-                          <img
-                            src={post.image_url}
-                            alt={post.title}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-
-                        {/* Actions */}
-                        <div className="px-4 py-3 flex items-center justify-between">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10"
-                              onClick={() =>
-                                handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)
-                              }
-                            >
-                              <Heart
-                                className={`h-6 w-6 transition-colors ${
-                                  post.is_liked ? "fill-red-500 text-red-500" : "text-foreground"
-                                }`}
-                              />
-                            </Button>
-                            <div className="flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10"
-                                onClick={() => handleOpenPost(post)}
-                              >
-                                <MessageCircle className="h-6 w-6" />
-                              </Button>
-                              {(post.comments_count || 0) > 0 && (
-                                <span className="text-sm text-muted-foreground -ml-1">{post.comments_count}</span>
-                              )}
-                            </div>
-                            <div className="flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10"
-                                onClick={() =>
-                                  user
-                                    ? setShareDialogPost(post)
-                                    : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })
-                                }
-                              >
-                                <Repeat2 className="h-6 w-6" />
-                              </Button>
-                              {(post.shares_count || 0) > 0 && (
-                                <span className="text-sm text-muted-foreground -ml-1">{post.shares_count}</span>
-                              )}
-                            </div>
-                            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleShare(post)}>
-                              <Share2 className="h-6 w-6" />
-                            </Button>
-                          </div>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10"
-                            onClick={() => handleSave(post.id, post.original_post_id)}
-                          >
-                            <Bookmark
-                              className={`h-6 w-6 transition-colors ${
-                                savedPosts.has(post.original_post_id || post.id) ? "fill-foreground" : ""
-                              }`}
-                            />
-                          </Button>
-                        </div>
-
-                        {/* Likes & Reposts count */}
-                        <div className="px-4 pb-2 flex items-center gap-4">
-                          <span className="font-semibold text-sm">{post.likes_count.toLocaleString()} ถูกใจ</span>
-                          {(post.shares_count || 0) > 0 && (
-                            <span className="text-muted-foreground text-sm flex items-center gap-1">
-                              <Repeat2 className="h-4 w-4" />
-                              {post.shares_count} รีโพสต์
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="px-4 pb-4 space-y-2">
-                          {/* Title & Description */}
-                          <div>
-                            <span className="font-semibold mr-2">
-                              {getDisplayName(post.user_profile, post.artist_profile)}
-                            </span>
-                            <span className="text-foreground">{post.title}</span>
-                            {post.description && (
-                              <p className="text-muted-foreground text-sm mt-1">
-                                {renderTextWithMentions(post.description)}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Category, Tools & Tags */}
-                          {(post.category ||
-                            (post.tools_used && post.tools_used.length > 0) ||
-                            (post.hashtags && post.hashtags.length > 0)) && (
-                            <div className="flex flex-wrap gap-1">
-                              {post.category && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {post.category}
-                                </Badge>
-                              )}
-                              {post.tools_used?.slice(0, 3).map((tool, i) => (
-                                <Badge
-                                  key={`tool-${i}`}
-                                  variant="outline"
-                                  className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
-                                >
-                                  🛠 {tool}
-                                </Badge>
-                              ))}
-                              {post.hashtags?.slice(0, 5).map((tag, i) => (
-                                <button
-                                  key={`tag-${i}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTag(tag);
-                                  }}
-                                  className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
-                                >
-                                  #{tag}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* View comments */}
-                          {(post.comments_count || 0) > 0 && (
-                            <button className="text-muted-foreground text-sm" onClick={() => handleOpenPost(post)}>
-                              ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
-                            </button>
-                          )}
-                        </div>
-                      </motion.article>
-                    ))}
-                  </AnimatePresence>
-
-                  {/* Load More Trigger */}
-                  <div ref={loadMoreRef} className="py-8 text-center">
-                    {loadingMore && (
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                        <span className="text-muted-foreground">กำลังโหลดเพิ่ม...</span>
+                          <MessageCircle className="h-5 w-5 group-hover:text-blue-500" />
+                          <span className="text-sm">{post.comments_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-green-500 transition-colors group ${
+                            repostedPosts.has(post.original_post_id || post.id) ? 'text-green-500' : ''
+                          }`}
+                          onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                        >
+                          <Repeat2 className="h-5 w-5" />
+                          <span className="text-sm">{post.shares_count || 0}</span>
+                        </button>
+                        
+                        <button 
+                          className={`flex items-center gap-1.5 hover:text-red-500 transition-colors group ${
+                            post.is_liked ? 'text-red-500' : ''
+                          }`}
+                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
+                        >
+                          <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500' : ''}`} />
+                          <span className="text-sm">{post.likes_count}</span>
+                        </button>
+                        
+                        <button 
+                          className={`hover:text-foreground transition-colors ${
+                            savedPosts.has(post.original_post_id || post.id) ? 'text-foreground' : ''
+                          }`}
+                          onClick={() => handleSave(post.id, post.original_post_id)}
+                        >
+                          <Bookmark className={`h-5 w-5 ${savedPosts.has(post.original_post_id || post.id) ? 'fill-foreground' : ''}`} />
+                        </button>
+                        
+                        <button 
+                          className="hover:text-foreground transition-colors"
+                          onClick={() => handleShare(post)}
+                        >
+                          <Share2 className="h-5 w-5" />
+                        </button>
                       </div>
-                    )}
-                    {!hasMore && posts.length > 0 && (
-                      <p className="text-muted-foreground text-sm">คุณดูโพสต์ทั้งหมดแล้ว ✨</p>
-                    )}
-                  </div>
+                    </motion.article>
+                  ))}
                 </div>
               )}
+              
+              {/* Load More Trigger */}
+              <div ref={loadMoreRef} className="py-8 text-center">
+                {loadingMore && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="text-muted-foreground">กำลังโหลดเพิ่ม...</span>
+                  </div>
+                )}
+                {!hasMore && posts.length > 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    คุณดูโพสต์ทั้งหมดแล้ว ✨
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Sidebar (desktop): sticky + internal scroll (scrollbar hidden) */}
-            <aside className="hidden lg:block w-80 shrink-0">
+            <aside className="hidden lg:block w-72 shrink-0">
               <div
                 ref={sidebarScrollRef}
-                className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-hidden pr-1"
+                className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-hidden"
               >
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {/* Active Filters Display */}
                   {(selectedTag || selectedCategory) && (
                     <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
@@ -2461,21 +2472,21 @@ export default function Community() {
                   </div>
                 </div>
               )}
-              <CommunitySidebar
+              <CommunitySidebar 
                 selectedTag={selectedTag}
                 selectedCategory={selectedCategory}
                 onTagSelect={(tag) => {
                   setSelectedTag(tag);
                   setMobileDrawerOpen(false);
                   setTimeout(() => {
-                    feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    feedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }, 150);
                 }}
                 onCategorySelect={(cat) => {
                   setSelectedCategory(cat);
                   setMobileDrawerOpen(false);
                   setTimeout(() => {
-                    feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    feedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }, 150);
                 }}
               />
@@ -2499,38 +2510,41 @@ export default function Community() {
                 <DialogTitle>โพสต์ผลงานใหม่</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                {/* Buyer warning - show create button that opens warning */}
-                {user && isBuyer && !isArtist && (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        size="lg"
-                        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-50"
-                      >
-                        <Plus className="h-6 w-6" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-orange-600">
-                          <AlertTriangle className="h-5 w-5" />
-                          ไม่สามารถโพสต์ได้
-                        </DialogTitle>
-                      </DialogHeader>
-                      <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950 dark:border-orange-800">
-                        <AlertTriangle className="h-4 w-4 text-orange-600" />
-                        <AlertDescription className="text-orange-700 dark:text-orange-300">
-                          <strong>การโพสต์ผลงานสำหรับศิลปินเท่านั้น</strong>
-                          <p className="mt-2 text-sm">
-                            คุณสามารถดู กดถูกใจ แสดงความคิดเห็น และแชร์ผลงานของศิลปินได้
-                            แต่การโพสต์ผลงานใหม่จำกัดเฉพาะศิลปินที่ลงทะเบียนแล้วเท่านั้น
-                          </p>
-                          <p className="mt-2 text-sm">หากคุณต้องการเป็นศิลปิน สามารถสมัครได้ที่หน้าการตั้งค่าบัญชี</p>
-                        </AlertDescription>
-                      </Alert>
-                    </DialogContent>
-                  </Dialog>
-                )}
+
+        {/* Buyer warning - show create button that opens warning */}
+        {user && isBuyer && !isArtist && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                size="lg"
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-shadow z-50"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  ไม่สามารถโพสต์ได้
+                </DialogTitle>
+              </DialogHeader>
+              <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950 dark:border-orange-800">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-700 dark:text-orange-300">
+                  <strong>การโพสต์ผลงานสำหรับศิลปินเท่านั้น</strong>
+                  <p className="mt-2 text-sm">
+                    คุณสามารถดู กดถูกใจ แสดงความคิดเห็น และแชร์ผลงานของศิลปินได้ 
+                    แต่การโพสต์ผลงานใหม่จำกัดเฉพาะศิลปินที่ลงทะเบียนแล้วเท่านั้น
+                  </p>
+                  <p className="mt-2 text-sm">
+                    หากคุณต้องการเป็นศิลปิน สามารถสมัครได้ที่หน้าการตั้งค่าบัญชี
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </DialogContent>
+          </Dialog>
+        )}
                 <div>
                   <Label htmlFor="title">ชื่อผลงาน *</Label>
                   <Input
@@ -2540,7 +2554,7 @@ export default function Community() {
                     placeholder="ตั้งชื่อผลงานของคุณ"
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="description">คำอธิบาย (พิมพ์ @ เพื่อแท็กผู้ใช้)</Label>
                   <MentionInput
@@ -2550,7 +2564,7 @@ export default function Community() {
                     rows={3}
                   />
                 </div>
-
+                
                 <div>
                   <Label htmlFor="category">หมวดหมู่</Label>
                   <Select value={category} onValueChange={setCategory}>
@@ -2559,14 +2573,12 @@ export default function Community() {
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
+                
                 <div>
                   <Label htmlFor="tools">เครื่องมือที่ใช้</Label>
                   <Input
@@ -2588,37 +2600,27 @@ export default function Community() {
                     เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
                   </p>
                 </div>
-
+                
                 <div>
                   <Label htmlFor="image">รูปภาพ *</Label>
                   <div className="mt-2">
-                    {imagePreview ? (
-                      <div className="relative">
-                        <img src={imagePreview} alt="Preview" className="w-full rounded-lg object-cover max-h-64" />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute right-2 top-2"
-                          onClick={() => {
-                            setImageFile(null);
-                            setImagePreview("");
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <label className="flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 hover:border-primary transition-colors">
-                        <Image className="h-10 w-10 text-muted-foreground" />
-                        <span className="mt-2 text-sm text-muted-foreground">คลิกเพื่ออัปโหลดรูปภาพ</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                      </label>
+                    <ImageUploader
+                      onUploadComplete={handleImageUploadComplete}
+                      folder="community"
+                      preview={imagePreview}
+                      onPreviewClear={handleClearUploadedImage}
+                    />
+                    {uploadedImageData && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        อัปโหลดสำเร็จ! รูปภาพถูก optimize เรียบร้อยแล้ว
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Add to Portfolio checkbox */}
-                {artistProfile && imageFile && (
+                {artistProfile && (imageFile || uploadedImageData) && (
                   <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/30">
                     <div className="flex items-center space-x-3">
                       <Checkbox
@@ -2633,7 +2635,7 @@ export default function Community() {
                         </Label>
                       </div>
                     </div>
-
+                    
                     {addToPortfolio && (
                       <div className="pl-6">
                         <Label htmlFor="price" className="text-sm text-muted-foreground">
@@ -2652,10 +2654,10 @@ export default function Community() {
                     )}
                   </div>
                 )}
-
+                
                 <Button
                   onClick={handleSubmitPost}
-                  disabled={submitting || !title || !imageFile}
+                  disabled={submitting || !title || (!imageFile && !uploadedImageData)}
                   className="w-full"
                   size="lg"
                 >
@@ -2700,15 +2702,9 @@ export default function Community() {
           editCommentContent={editCommentContent}
           onEditCommentContentChange={setEditCommentContent}
           onEditComment={handleEditComment}
-          onCancelEditComment={() => {
-            setEditingComment(null);
-            setEditCommentContent("");
-          }}
+          onCancelEditComment={() => { setEditingComment(null); setEditCommentContent(""); }}
           savingCommentEdit={savingCommentEdit}
-          onStartEditComment={(comment) => {
-            setEditingComment(comment);
-            setEditCommentContent(comment.content);
-          }}
+          onStartEditComment={(comment) => { setEditingComment(comment); setEditCommentContent(comment.content); }}
           onDeleteComment={handleDeleteComment}
           deletingCommentId={deletingCommentId}
           replyingToComment={replyingToComment}
@@ -2716,17 +2712,14 @@ export default function Community() {
           onReplyContentChange={setReplyContent}
           onSubmitReply={handleSubmitReply}
           submittingReply={submittingReply}
-          onStartReply={(comment) => {
-            setReplyingToComment(comment);
-            setReplyContent("");
-          }}
+          onStartReply={(comment) => { setReplyingToComment(comment); setReplyContent(""); }}
           onCancelReply={() => setReplyingToComment(null)}
           expandedReplies={expandedReplies}
           onToggleReplies={(commentId, expanded) => {
             if (expanded) {
-              setExpandedReplies((prev) => new Set([...prev, commentId]));
+              setExpandedReplies(prev => new Set([...prev, commentId]));
             } else {
-              setExpandedReplies((prev) => {
+              setExpandedReplies(prev => {
                 const next = new Set(prev);
                 next.delete(commentId);
                 return next;
@@ -2741,12 +2734,12 @@ export default function Community() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Repeat2 className="h-5 w-5" />
-                {shareDialogPost && repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id)
-                  ? "ยกเลิก Repost"
-                  : "แชร์โพสต์"}
+                {shareDialogPost && repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) 
+                  ? 'ยกเลิก Repost' 
+                  : 'แชร์โพสต์'}
               </DialogTitle>
             </DialogHeader>
-
+            
             {shareDialogPost && (
               <div className="space-y-4">
                 {/* Preview of original post */}
@@ -2761,17 +2754,11 @@ export default function Community() {
                       <Avatar className="h-5 w-5">
                         <AvatarImage src={shareDialogPost.user_profile?.avatar_url || undefined} />
                         <AvatarFallback className="text-[10px]">
-                          {
-                            (shareDialogPost.artist_profile?.artist_name ||
-                              shareDialogPost.user_profile?.full_name ||
-                              "U")[0]
-                          }
+                          {(shareDialogPost.artist_profile?.artist_name || shareDialogPost.user_profile?.full_name || "U")[0]}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm font-medium truncate">
-                        {shareDialogPost.artist_profile?.artist_name ||
-                          shareDialogPost.user_profile?.full_name ||
-                          "ผู้ใช้"}
+                        {shareDialogPost.artist_profile?.artist_name || shareDialogPost.user_profile?.full_name || "ผู้ใช้"}
                       </span>
                     </div>
                     <p className="text-sm font-semibold truncate">{shareDialogPost.title}</p>
@@ -2813,11 +2800,7 @@ export default function Community() {
                   </Button>
                   <Button
                     className="flex-1"
-                    variant={
-                      repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id)
-                        ? "destructive"
-                        : "default"
-                    }
+                    variant={repostedPosts.has(shareDialogPost.original_post_id || shareDialogPost.id) ? "destructive" : "default"}
                     onClick={handleRepost}
                     disabled={sharingPost}
                   >
@@ -2845,17 +2828,14 @@ export default function Community() {
         </Dialog>
 
         {/* Report Post Dialog */}
-        <Dialog
-          open={reportDialogOpen}
-          onOpenChange={(open) => {
-            setReportDialogOpen(open);
-            if (!open) {
-              setReportingPost(null);
-              setReportReason("");
-              setReportDescription("");
-            }
-          }}
-        >
+        <Dialog open={reportDialogOpen} onOpenChange={(open) => {
+          setReportDialogOpen(open);
+          if (!open) {
+            setReportingPost(null);
+            setReportReason("");
+            setReportDescription("");
+          }
+        }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>รายงานโพสต์</DialogTitle>
@@ -2870,8 +2850,8 @@ export default function Community() {
                       type="button"
                       onClick={() => setReportReason(reason.value)}
                       className={`text-left px-3 py-2 rounded-lg border transition-colors ${
-                        reportReason === reason.value
-                          ? "border-primary bg-primary/10 text-primary"
+                        reportReason === reason.value 
+                          ? "border-primary bg-primary/10 text-primary" 
                           : "border-border hover:bg-muted"
                       }`}
                     >
@@ -2880,7 +2860,7 @@ export default function Community() {
                   ))}
                 </div>
               </div>
-
+              
               <div className="space-y-2">
                 <Label htmlFor="post-report-description">รายละเอียดเพิ่มเติม (ไม่บังคับ)</Label>
                 <Textarea
@@ -2893,8 +2873,8 @@ export default function Community() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   onClick={() => {
                     setReportDialogOpen(false);
                     setReportingPost(null);
@@ -2911,15 +2891,17 @@ export default function Community() {
                     if (!user || !reportingPost || !reportReason) return;
                     setSubmittingReport(true);
                     try {
-                      await supabase.from("user_reports").insert({
-                        reporter_id: user.id,
-                        reported_id: reportingPost.user_id,
-                        reason: `post_${reportReason}`,
-                        description: `โพสต์: "${reportingPost.title}"\n${reportDescription.trim() || ""}`,
-                      });
+                      await supabase
+                        .from('user_reports')
+                        .insert({ 
+                          reporter_id: user.id, 
+                          reported_id: reportingPost.user_id,
+                          reason: `post_${reportReason}`,
+                          description: `โพสต์: "${reportingPost.title}"\n${reportDescription.trim() || ""}`
+                        });
                       toast({
                         title: "รายงานโพสต์",
-                        description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว",
+                        description: "ขอบคุณสำหรับการรายงาน เราจะตรวจสอบโดยเร็ว"
                       });
                       setReportDialogOpen(false);
                       setReportingPost(null);
@@ -2929,14 +2911,16 @@ export default function Community() {
                       toast({
                         variant: "destructive",
                         title: "เกิดข้อผิดพลาด",
-                        description: "ไม่สามารถส่งรายงานได้",
+                        description: "ไม่สามารถส่งรายงานได้"
                       });
                     } finally {
                       setSubmittingReport(false);
                     }
                   }}
                 >
-                  {submittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  {submittingReport ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
                   ส่งรายงาน
                 </Button>
               </div>
@@ -2945,19 +2929,16 @@ export default function Community() {
         </Dialog>
 
         {/* Edit Post Dialog */}
-        <Dialog
-          open={editDialogOpen}
-          onOpenChange={(open) => {
-            setEditDialogOpen(open);
-            if (!open) {
-              setEditingPost(null);
-              setEditTitle("");
-              setEditDescription("");
-              setEditCategory("");
-              setEditToolsUsed("");
-            }
-          }}
-        >
+        <Dialog open={editDialogOpen} onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setEditingPost(null);
+            setEditTitle("");
+            setEditDescription("");
+            setEditCategory("");
+            setEditToolsUsed("");
+          }
+        }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>แก้ไขโพสต์</DialogTitle>
@@ -3017,12 +2998,14 @@ export default function Community() {
                   onChange={setEditHashtags}
                   placeholder="พิมพ์แล้วกด Enter หรือเลือกจากรายการ"
                 />
-                <p className="text-xs text-muted-foreground">เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก</p>
+                <p className="text-xs text-muted-foreground">
+                  เพิ่ม Tags เพื่อให้ค้นหาได้ง่ายขึ้น ไม่บังคับกรอก
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   onClick={() => {
                     setEditDialogOpen(false);
                     setEditingPost(null);
@@ -3030,8 +3013,13 @@ export default function Community() {
                 >
                   ยกเลิก
                 </Button>
-                <Button disabled={!editTitle.trim() || savingEdit} onClick={handleSaveEdit}>
-                  {savingEdit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                <Button
+                  disabled={!editTitle.trim() || savingEdit}
+                  onClick={handleSaveEdit}
+                >
+                  {savingEdit ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
                   บันทึกการแก้ไข
                 </Button>
               </div>
@@ -3040,15 +3028,12 @@ export default function Community() {
         </Dialog>
 
         {/* Delete Post Confirmation Dialog */}
-        <Dialog
-          open={deleteDialogOpen}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) {
-              setDeletingPost(null);
-            }
-          }}
-        >
+        <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setDeletingPost(null);
+          }
+        }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>ยืนยันการลบโพสต์</DialogTitle>
@@ -3058,8 +3043,8 @@ export default function Community() {
                 คุณต้องการลบโพสต์ "{deletingPost?.title}" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
               </p>
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   onClick={() => {
                     setDeleteDialogOpen(false);
                     setDeletingPost(null);
@@ -3067,7 +3052,11 @@ export default function Community() {
                 >
                   ยกเลิก
                 </Button>
-                <Button variant="destructive" disabled={confirmingDelete} onClick={handleConfirmDelete}>
+                <Button
+                  variant="destructive"
+                  disabled={confirmingDelete}
+                  onClick={handleConfirmDelete}
+                >
                   {confirmingDelete ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
