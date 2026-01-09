@@ -1076,7 +1076,7 @@ export default function UserProfile() {
                     {/* Right side - Action buttons */}
                     <div className="flex items-center gap-2">
                       {user && user.id === userId ? (
-                        <Link to="/artist/edit-profile">
+                        <Link to={artistProfile ? "/artist/edit-profile" : "/edit-profile"}>
                           <Button variant="outline" className="rounded-full px-5">
                             <Settings className="w-4 h-4 mr-2" />
                             แก้ไขโปรไฟล์
