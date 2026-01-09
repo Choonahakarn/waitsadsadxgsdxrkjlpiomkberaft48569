@@ -1597,9 +1597,12 @@ export default function UserProfile() {
                               </Badge>
                             ))}
                             {post.hashtags?.map((tag) => (
-                              <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                              <span
+                                key={`tag-${tag}`}
+                                className="text-sm text-blue-500 dark:text-blue-400"
+                              >
                                 #{tag}
-                              </Badge>
+                              </span>
                             ))}
                           </div>
                         )}
@@ -1791,9 +1794,12 @@ export default function UserProfile() {
                                 </Badge>
                               ))}
                               {post.hashtags?.map((tag) => (
-                                <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                <span
+                                  key={`tag-${tag}`}
+                                  className="text-sm text-blue-500 dark:text-blue-400"
+                                >
                                   #{tag}
-                                </Badge>
+                                </span>
                               ))}
                             </div>
                           )}
@@ -1983,9 +1989,12 @@ export default function UserProfile() {
                                 </Badge>
                               ))}
                               {post.hashtags?.map((tag) => (
-                                <Badge key={`tag-${tag}`} variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                <span
+                                  key={`tag-${tag}`}
+                                  className="text-sm text-blue-500 dark:text-blue-400"
+                                >
                                   #{tag}
-                                </Badge>
+                                </span>
                               ))}
                             </div>
                           )}
