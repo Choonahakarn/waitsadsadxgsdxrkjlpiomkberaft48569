@@ -1,14 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Mail, CheckCircle, RefreshCw, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, CheckCircle, RefreshCw, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
@@ -16,16 +15,84 @@ const VerifyEmail = () => {
   const { toast } = useToast();
   
   const emailFromParams = searchParams.get('email') || '';
-  const [email, setEmail] = useState(emailFromParams);
+  const [email] = useState(emailFromParams);
+  const [otpCode, setOtpCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [resendSuccess, setResendSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [verifySuccess, setVerifySuccess] = useState(false);
 
-  const handleResendEmail = async () => {
+  // Auto verify when OTP is complete
+  useEffect(() => {
+    if (otpCode.length === 6) {
+      handleVerifyOtp();
+    }
+  }, [otpCode]);
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      toast({
+        variant: 'destructive',
+        title: 'กรุณากรอกรหัส OTP ให้ครบ 6 หลัก',
+      });
+      return;
+    }
+
+    if (!email) {
+      toast({
+        variant: 'destructive',
+        title: 'ไม่พบอีเมล กรุณาสมัครสมาชิกใหม่',
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email,
+        token: otpCode,
+        type: 'signup',
+      });
+
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'ยืนยันไม่สำเร็จ',
+          description: error.message === 'Token has expired or is invalid' 
+            ? 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่'
+            : error.message,
+        });
+        setOtpCode('');
+      } else if (data.session) {
+        setVerifySuccess(true);
+        toast({
+          title: '🎉 ยืนยันอีเมลสำเร็จ!',
+          description: 'บัญชีของคุณพร้อมใช้งานแล้ว',
+        });
+        
+        // Redirect to home after 2 seconds
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message,
+      });
+      setOtpCode('');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
     if (!email || !email.includes('@')) {
       toast({
         variant: 'destructive',
-        title: 'กรุณากรอกอีเมลให้ถูกต้อง',
+        title: 'ไม่พบอีเมล กรุณาสมัครสมาชิกใหม่',
       });
       return;
     }
@@ -44,22 +111,18 @@ const VerifyEmail = () => {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
       });
 
       if (error) {
         toast({
           variant: 'destructive',
-          title: 'ส่งอีเมลไม่สำเร็จ',
+          title: 'ส่งรหัสไม่สำเร็จ',
           description: error.message,
         });
       } else {
-        setResendSuccess(true);
         toast({
-          title: '📧 ส่งอีเมลยืนยันสำเร็จ!',
-          description: 'กรุณาตรวจสอบกล่องจดหมายของคุณ',
+          title: '📧 ส่งรหัส OTP สำเร็จ!',
+          description: 'กรุณาตรวจสอบอีเมลของคุณ',
         });
 
         // Start cooldown (60 seconds)
@@ -85,6 +148,40 @@ const VerifyEmail = () => {
     }
   };
 
+  if (verifySuccess) {
+    return (
+      <Layout>
+        <section className="py-16 md:py-24">
+          <div className="container max-w-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Card>
+                <CardContent className="pt-8 pb-8 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                    className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 dark:bg-green-950"
+                  >
+                    <CheckCircle className="h-10 w-10 text-green-600 dark:text-green-400" />
+                  </motion.div>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">ยืนยันอีเมลสำเร็จ!</h2>
+                  <p className="text-muted-foreground mb-4">
+                    บัญชีของคุณพร้อมใช้งานแล้ว กำลังพาคุณไปหน้าหลัก...
+                  </p>
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </section>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <section className="py-16 md:py-24">
@@ -97,52 +194,57 @@ const VerifyEmail = () => {
             <Card>
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                  <Mail className="h-8 w-8 text-primary" />
+                  <ShieldCheck className="h-8 w-8 text-primary" />
                 </div>
                 <CardTitle className="text-2xl">ยืนยันอีเมลของคุณ</CardTitle>
                 <CardDescription className="text-base">
-                  เราได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว
+                  เราได้ส่งรหัส OTP 6 หลักไปที่
                 </CardDescription>
+                {email && (
+                  <p className="font-medium text-foreground mt-1">{email}</p>
+                )}
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="rounded-lg bg-muted p-4 text-center">
                   <p className="text-sm text-muted-foreground">
-                    กรุณาตรวจสอบกล่องจดหมาย (และโฟลเดอร์สแปม) แล้วคลิกลิงก์ยืนยันเพื่อเปิดใช้งานบัญชีของคุณ
+                    กรุณาตรวจสอบกล่องจดหมาย (และโฟลเดอร์สแปม) แล้วกรอกรหัส 6 หลักที่ได้รับ
                   </p>
                 </div>
 
-                {resendSuccess && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-green-700 dark:bg-green-950 dark:text-green-300"
+                {/* OTP Input */}
+                <div className="flex flex-col items-center space-y-4">
+                  <InputOTP
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(value) => setOtpCode(value)}
+                    disabled={isVerifying}
                   >
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="text-sm">ส่งอีเมลยืนยันใหม่เรียบร้อยแล้ว!</span>
-                  </motion.div>
-                )}
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">อีเมลที่ใช้สมัคร</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10"
-                      />
+                  {isVerifying && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">กำลังตรวจสอบ...</span>
                     </div>
-                  </div>
+                  )}
+                </div>
 
+                {/* Resend OTP */}
+                <div className="text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">ไม่ได้รับรหัส?</p>
                   <Button
-                    onClick={handleResendEmail}
+                    onClick={handleResendOtp}
                     disabled={isResending || resendCooldown > 0}
-                    className="w-full"
                     variant="outline"
+                    size="sm"
                   >
                     {isResending ? (
                       <>
@@ -157,33 +259,22 @@ const VerifyEmail = () => {
                     ) : (
                       <>
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        ส่งอีเมลยืนยันอีกครั้ง
+                        ส่งรหัส OTP อีกครั้ง
                       </>
                     )}
                   </Button>
                 </div>
 
-                <div className="border-t pt-4">
-                  <p className="mb-3 text-center text-sm text-muted-foreground">
-                    ยืนยันอีเมลแล้ว?
-                  </p>
+                <div className="border-t pt-4 space-y-3">
                   <Button
                     onClick={() => navigate('/auth')}
-                    variant="default"
+                    variant="ghost"
                     className="w-full"
                   >
-                    เข้าสู่ระบบ
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    กลับไปหน้าเข้าสู่ระบบ
                   </Button>
                 </div>
-
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate('/')}
-                  className="w-full"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  กลับหน้าหลัก
-                </Button>
               </CardContent>
             </Card>
           </motion.div>
