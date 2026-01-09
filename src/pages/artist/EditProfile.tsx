@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, Loader2, ImagePlus, AlertTriangle } from 'lucide-react';
+import { Camera, Save, Loader2, ImagePlus, AlertTriangle, Lock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import { ImagePositioner } from '@/components/ui/ImagePositioner';
@@ -632,6 +633,12 @@ const MyArtistProfile = () => {
                       <Save className="mr-2 h-4 w-4" />
                     )}
                     {t('common.save', 'บันทึก')}
+                  </Button>
+                  <Button variant="outline" asChild className="ml-2">
+                    <Link to="/settings/change-password">
+                      <Lock className="mr-2 h-4 w-4" />
+                      เปลี่ยนรหัสผ่าน
+                    </Link>
                   </Button>
                 </div>
               </CardContent>
