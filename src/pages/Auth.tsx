@@ -203,12 +203,20 @@ const Auth = () => {
       });
     } else {
       toast({
-        title: t('auth.signupSuccess'),
-        description: signupRoles.includes('artist') 
-          ? t('auth.welcomeArtist')
-          : t('auth.welcomeNew'),
+        title: '🎉 สมัครสมาชิกสำเร็จ!',
+        description: 'กรุณาตรวจสอบอีเมลของคุณเพื่อยืนยันบัญชี ก่อนเข้าสู่ระบบ',
+        duration: 10000,
       });
-      navigate('/');
+      // Clear form
+      setSignupEmail('');
+      setSignupPassword('');
+      setSignupFirstName('');
+      setSignupLastName('');
+      setSignupDisplayId('');
+      setSignupDisplayName('');
+      setSignupRealName('');
+      setSignupPhoneNumber('');
+      setSignupArtistName('');
     }
   };
 
