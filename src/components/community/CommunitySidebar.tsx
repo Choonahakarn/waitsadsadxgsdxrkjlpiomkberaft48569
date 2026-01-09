@@ -55,6 +55,7 @@ export function CommunitySidebar({
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [trendingTags, setTrendingTags] = useState<TagCount[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
+  const [showAllTags, setShowAllTags] = useState(false);
 
   useEffect(() => {
     fetchLatestPosts();
@@ -321,24 +322,38 @@ export function CommunitySidebar({
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {trendingTags.map((tag) => (
+        <div className="space-y-1">
+          {trendingTags.slice(0, showAllTags ? 15 : 5).map((tag) => (
             <button
               key={tag.tag}
               onClick={() => onTagSelect?.(selectedTag === tag.tag ? null : tag.tag)}
-              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between group ${
                 selectedTag === tag.tag 
                   ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted hover:bg-primary/10 hover:text-primary'
+                  : 'hover:bg-muted'
               }`}
             >
-              #{tag.tag}
+              <span className={`text-sm ${selectedTag !== tag.tag ? 'group-hover:text-primary' : ''} transition-colors`}>
+                #{tag.tag}
+              </span>
+              <span className={`text-xs ${selectedTag === tag.tag ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                {tag.count}
+              </span>
             </button>
           ))}
           {trendingTags.length === 0 && (
-            <p className="text-sm text-muted-foreground">ยังไม่มี Tags</p>
+            <p className="text-sm text-muted-foreground px-3 py-2">ยังไม่มี Tags</p>
           )}
         </div>
+        {trendingTags.length > 5 && (
+          <button 
+            onClick={() => setShowAllTags(!showAllTags)}
+            className="text-primary text-sm mt-3 hover:underline flex items-center gap-1 w-full justify-center"
+          >
+            {showAllTags ? 'แสดงน้อยลง' : `ดูเพิ่มเติม (${Math.min(trendingTags.length - 5, 10)})`}
+            <ChevronRight className={`h-4 w-4 transition-transform ${showAllTags ? 'rotate-90' : ''}`} />
+          </button>
+        )}
       </div>
 
       {/* Artwork Categories */}
