@@ -39,7 +39,7 @@ const MyArtistProfile = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const [profile, setProfile] = useState<ArtistProfile | null>(null);
-  const [userProfile, setUserProfile] = useState<{ display_id: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ display_id: string | null; first_name: string | null; last_name: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -94,10 +94,10 @@ const MyArtistProfile = () => {
         setYearsExperience(data.years_experience?.toString() || '');
       }
 
-      // Fetch user profile for display_id
+      // Fetch user profile for display_id, first_name, last_name
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('display_id')
+        .select('display_id, first_name, last_name')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -469,16 +469,30 @@ const MyArtistProfile = () => {
                   <p className="text-xs text-muted-foreground">ห้ามมีเว้นวรรค สามารถใช้ขีดล่าง (_) แทนได้</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="real-name">{t('profile.realName', 'ชื่อ-นามสกุล')}</Label>
-                  <Input
-                    id="real-name"
-                    value={realName}
-                    onChange={(e) => setRealName(e.target.value)}
-                    placeholder={t('profile.realNamePlaceholder', 'ชื่อจริง นามสกุลจริง')}
-                  />
-                  <p className="text-xs text-muted-foreground">ข้อมูลนี้จะไม่เปิดเผยต่อสาธารณะ ใช้สำหรับยืนยันตัวตนเท่านั้น</p>
+                {/* First Name and Last Name - Read Only */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="first-name">ชื่อจริง</Label>
+                    <Input
+                      id="first-name"
+                      value={userProfile?.first_name || 'กำลังโหลด...'}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="last-name">นามสกุลจริง</Label>
+                    <Input
+                      id="last-name"
+                      value={userProfile?.last_name || 'กำลังโหลด...'}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground -mt-2">ชื่อ-นามสกุลจริงไม่สามารถแก้ไขได้ (ตั้งตอนสมัครสมาชิก) ข้อมูลนี้ไม่เปิดเผยต่อสาธารณะ</p>
 
                 <div className="space-y-2">
                   <Label htmlFor="bio">{t('profile.bio', 'เกี่ยวกับฉัน')}</Label>
