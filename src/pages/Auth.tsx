@@ -61,7 +61,7 @@ const Auth = () => {
     displayName: z.string().trim()
       .min(2, { message: 'ชื่อที่แสดงต้องมีอย่างน้อย 2 ตัวอักษร' })
       .max(30, { message: 'ชื่อที่แสดงต้องไม่เกิน 30 ตัวอักษร' })
-      .regex(/^\S+$/, { message: 'ชื่อที่แสดงห้ามมีเว้นวรรค' }),
+      .regex(/^[^\s@]+$/, { message: 'ชื่อที่แสดงห้ามมีเว้นวรรคและ @' }),
     roles: z.array(z.enum(['artist', 'buyer'])).min(1, { message: t('validation.roleRequired') }),
     realName: z.string().optional(),
     phoneNumber: z.string().optional(),
@@ -458,7 +458,7 @@ const Auth = () => {
                         placeholder="ชื่อที่จะแสดงในโปรไฟล์"
                         value={signupDisplayName}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/\s/g, '');
+                          const value = e.target.value.replace(/[\s@]/g, '');
                           setSignupDisplayName(value);
                         }}
                         className="pl-10"
@@ -467,7 +467,7 @@ const Auth = () => {
                     {errors.signup_displayName && (
                       <p className="text-sm text-destructive">{errors.signup_displayName}</p>
                     )}
-                    <p className="text-xs text-muted-foreground">ชื่อนี้จะแสดงในโปรไฟล์และคอมมูนิตี้ (ห้ามเว้นวรรค, เปลี่ยนได้ทุก 30 วัน)</p>
+                    <p className="text-xs text-muted-foreground">ชื่อนี้จะแสดงในโปรไฟล์และคอมมูนิตี้ (ห้ามเว้นวรรคและ @, เปลี่ยนได้ทุก 30 วัน)</p>
                   </div>
 
                   {/* First Name and Last Name */}
