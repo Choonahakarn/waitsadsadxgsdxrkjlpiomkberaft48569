@@ -36,6 +36,7 @@ interface CommunityPost {
   description: string | null;
   image_url: string;
   tools_used: string[];
+  hashtags?: string[];
   category: string | null;
   likes_count: number;
   created_at: string;
@@ -816,11 +817,10 @@ export default function Community() {
             .filter(t => t.length > 0)
         : [];
       
-      // Combine tools_used and hashtags for the tools_used field
-      const allTags = [
-        ...(toolsUsed ? toolsUsed.split(',').map(t => t.trim()).filter(t => t.length > 0) : []),
-        ...parsedHashtags
-      ];
+      // Parse tools_used separately
+      const parsedTools = toolsUsed 
+        ? toolsUsed.split(',').map(t => t.trim()).filter(t => t.length > 0) 
+        : [];
 
       const { error: postError } = await supabase
         .from('community_posts')
@@ -830,7 +830,8 @@ export default function Community() {
           description: description || null,
           image_url: urlData.publicUrl,
           category: category || null,
-          tools_used: allTags
+          tools_used: parsedTools,
+          hashtags: parsedHashtags
         });
 
       if (postError) throw postError;
@@ -1643,9 +1644,6 @@ export default function Community() {
             .map(t => t.trim().replace(/^#/, ''))
             .filter(t => t.length > 0)
         : [];
-      
-      // Combine tools_used and hashtags
-      const allEditTags = [...toolsArray, ...parsedEditHashtags];
 
       const { error } = await supabase
         .from('community_posts')
@@ -1653,7 +1651,8 @@ export default function Community() {
           title: editTitle,
           description: editDescription || null,
           category: editCategory || null,
-          tools_used: allEditTags,
+          tools_used: toolsArray,
+          hashtags: parsedEditHashtags,
         })
         .eq('id', editingPost.id)
         .eq('user_id', user.id);
@@ -1663,7 +1662,7 @@ export default function Community() {
       // Update local state
       setPosts(posts.map(p => 
         p.id === editingPost.id 
-          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: allEditTags }
+          ? { ...p, title: editTitle, description: editDescription, category: editCategory, tools_used: toolsArray, hashtags: parsedEditHashtags }
           : p
       ));
 
@@ -1674,7 +1673,8 @@ export default function Community() {
           title: editTitle,
           description: editDescription,
           category: editCategory,
-          tools_used: allEditTags
+          tools_used: toolsArray,
+          hashtags: parsedEditHashtags
         });
       }
 

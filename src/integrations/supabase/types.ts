@@ -239,6 +239,7 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
+          hashtags: string[] | null
           id: string
           image_url: string
           likes_count: number | null
@@ -251,6 +252,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          hashtags?: string[] | null
           id?: string
           image_url: string
           likes_count?: number | null
@@ -263,6 +265,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          hashtags?: string[] | null
           id?: string
           image_url?: string
           likes_count?: number | null
