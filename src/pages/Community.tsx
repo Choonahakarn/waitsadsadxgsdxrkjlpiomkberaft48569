@@ -178,6 +178,9 @@ export default function Community() {
   const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
+  
+  // State to track which comments have their replies expanded
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -2664,106 +2667,130 @@ export default function Community() {
 
                           {/* Nested Replies */}
                           {comment.replies && comment.replies.length > 0 && (
-                            <div className="ml-11 space-y-3 border-l-2 border-muted pl-3">
-                              {comment.replies.map((reply) => (
-                                <div key={reply.id} className="group flex gap-2">
-                                  <Avatar className="h-6 w-6 shrink-0">
-                                    <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
-                                    <AvatarFallback className="text-[10px]">
-                                      {(reply.user_profile?.full_name || "U")[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1 min-w-0">
-                                    {editingComment?.id === reply.id ? (
-                                      // Edit mode for reply
-                                      <div className="space-y-2">
-                                        <Textarea
-                                          value={editCommentContent}
-                                          onChange={(e) => setEditCommentContent(e.target.value)}
-                                          className="min-h-[50px] text-sm"
-                                          autoFocus
-                                        />
-                                        <div className="flex gap-2">
-                                          <Button 
-                                            size="sm" 
-                                            onClick={handleEditComment}
-                                            disabled={!editCommentContent.trim() || savingCommentEdit}
-                                          >
-                                            {savingCommentEdit ? (
-                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                            ) : null}
-                                            บันทึก
-                                          </Button>
-                                          <Button 
-                                            size="sm" 
-                                            variant="ghost"
-                                            onClick={() => {
-                                              setEditingComment(null);
-                                              setEditCommentContent("");
-                                            }}
-                                          >
-                                            ยกเลิก
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      // Display mode for reply
-                                      <>
-                                        <p className="text-sm">
-                                          <span className="font-semibold mr-2 text-xs">
-                                            {reply.user_profile?.full_name || "ผู้ใช้"}
-                                          </span>
-                                          {renderTextWithMentions(reply.content)}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground">
-                                            {formatTimeAgo(reply.created_at)}
-                                          </span>
-                                          {/* Reply button for nested reply - replies to parent comment */}
-                                          {user && (
-                                            <button
-                                              onClick={() => {
-                                                setReplyingToComment(comment);
-                                                setReplyContent(`@${reply.user_profile?.full_name || 'ผู้ใช้'} `);
-                                              }}
-                                              className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                                            >
-                                              ตอบกลับ
-                                            </button>
-                                          )}
-                                          {/* Edit/Delete buttons for own replies */}
-                                          {user && user.id === reply.user_id && (
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                              <button
+                            <>
+                              {/* Show expand button if replies not yet expanded */}
+                              {!expandedReplies.has(comment.id) ? (
+                                <button
+                                  onClick={() => setExpandedReplies(prev => new Set([...prev, comment.id]))}
+                                  className="ml-11 text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1"
+                                >
+                                  <MessageCircle className="h-3 w-3" />
+                                  ดูการตอบกลับทั้ง {comment.replies.length} รายการ
+                                </button>
+                              ) : (
+                                <div className="ml-11 space-y-3 border-l-2 border-muted pl-3">
+                                  {comment.replies.map((reply) => (
+                                    <div key={reply.id} className="group flex gap-2">
+                                      <Avatar className="h-6 w-6 shrink-0">
+                                        <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
+                                        <AvatarFallback className="text-[10px]">
+                                          {(reply.user_profile?.full_name || "U")[0]}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="flex-1 min-w-0">
+                                        {editingComment?.id === reply.id ? (
+                                          // Edit mode for reply
+                                          <div className="space-y-2">
+                                            <Textarea
+                                              value={editCommentContent}
+                                              onChange={(e) => setEditCommentContent(e.target.value)}
+                                              className="min-h-[50px] text-sm"
+                                              autoFocus
+                                            />
+                                            <div className="flex gap-2">
+                                              <Button 
+                                                size="sm" 
+                                                onClick={handleEditComment}
+                                                disabled={!editCommentContent.trim() || savingCommentEdit}
+                                              >
+                                                {savingCommentEdit ? (
+                                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                                ) : null}
+                                                บันทึก
+                                              </Button>
+                                              <Button 
+                                                size="sm" 
+                                                variant="ghost"
                                                 onClick={() => {
-                                                  setEditingComment(reply);
-                                                  setEditCommentContent(reply.content);
+                                                  setEditingComment(null);
+                                                  setEditCommentContent("");
                                                 }}
-                                                className="text-xs text-muted-foreground hover:text-foreground"
                                               >
-                                                แก้ไข
-                                              </button>
-                                              <span className="text-muted-foreground">•</span>
-                                              <button
-                                                onClick={() => handleDeleteComment(reply.id)}
-                                                disabled={deletingCommentId === reply.id}
-                                                className="text-xs text-destructive hover:text-destructive/80"
-                                              >
-                                                {deletingCommentId === reply.id ? (
-                                                  <Loader2 className="h-3 w-3 animate-spin inline" />
-                                                ) : (
-                                                  "ลบ"
-                                                )}
-                                              </button>
+                                                ยกเลิก
+                                              </Button>
                                             </div>
-                                          )}
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
+                                          </div>
+                                        ) : (
+                                          // Display mode for reply
+                                          <>
+                                            <p className="text-sm">
+                                              <span className="font-semibold mr-2 text-xs">
+                                                {reply.user_profile?.full_name || "ผู้ใช้"}
+                                              </span>
+                                              {renderTextWithMentions(reply.content)}
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-muted-foreground">
+                                                {formatTimeAgo(reply.created_at)}
+                                              </span>
+                                              {/* Reply button for nested reply - replies to parent comment */}
+                                              {user && (
+                                                <button
+                                                  onClick={() => {
+                                                    setReplyingToComment(comment);
+                                                    setReplyContent(`@${reply.user_profile?.full_name || 'ผู้ใช้'} `);
+                                                  }}
+                                                  className="text-xs text-muted-foreground hover:text-foreground font-medium"
+                                                >
+                                                  ตอบกลับ
+                                                </button>
+                                              )}
+                                              {/* Edit/Delete buttons for own replies */}
+                                              {user && user.id === reply.user_id && (
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                  <button
+                                                    onClick={() => {
+                                                      setEditingComment(reply);
+                                                      setEditCommentContent(reply.content);
+                                                    }}
+                                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                                  >
+                                                    แก้ไข
+                                                  </button>
+                                                  <span className="text-muted-foreground">•</span>
+                                                  <button
+                                                    onClick={() => handleDeleteComment(reply.id)}
+                                                    disabled={deletingCommentId === reply.id}
+                                                    className="text-xs text-destructive hover:text-destructive/80"
+                                                  >
+                                                    {deletingCommentId === reply.id ? (
+                                                      <Loader2 className="h-3 w-3 animate-spin inline" />
+                                                    ) : (
+                                                      "ลบ"
+                                                    )}
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {/* Collapse button */}
+                                  <button
+                                    onClick={() => setExpandedReplies(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(comment.id);
+                                      return next;
+                                    })}
+                                    className="text-xs text-muted-foreground hover:text-foreground font-medium"
+                                  >
+                                    ซ่อนการตอบกลับ
+                                  </button>
                                 </div>
-                              ))}
-                            </div>
+                              )}
+                            </>
                           )}
 
                           {/* Reply Input Box - Facebook style at bottom */}
