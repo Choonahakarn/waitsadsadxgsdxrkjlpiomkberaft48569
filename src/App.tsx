@@ -36,6 +36,7 @@ import UserProfile from "./pages/UserProfile";
 import PrivacySettings from "./pages/PrivacySettings";
 import ChangePassword from "./pages/ChangePassword";
 import AccountSettings from "./pages/AccountSettings";
+import EditUserProfile from "./pages/EditUserProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -80,6 +81,7 @@ const App = () => (
             <Route path="/settings/privacy" element={<PrivacySettings />} />
             <Route path="/settings/change-password" element={<ChangePassword />} />
             <Route path="/settings/account" element={<AccountSettings />} />
+            <Route path="/settings/edit-profile" element={<EditUserProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

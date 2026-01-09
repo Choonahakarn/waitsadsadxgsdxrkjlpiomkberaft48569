@@ -24,13 +24,21 @@ interface MenuItem {
   artistOnly?: boolean;
 }
 
-const menuItems: MenuItem[] = [
+const artistMenuItems: MenuItem[] = [
+  {
+    title: 'แก้ไขโปรไฟล์ศิลปิน',
+    description: 'แก้ไขข้อมูลโปรไฟล์ศิลปิน ชื่อศิลปิน และผลงาน',
+    icon: Palette,
+    href: '/artist/edit-profile',
+  },
+];
+
+const commonMenuItems: MenuItem[] = [
   {
     title: 'แก้ไขโปรไฟล์',
     description: 'แก้ไขข้อมูลโปรไฟล์ รูปภาพ และข้อมูลส่วนตัว',
     icon: User,
-    href: '/artist/edit-profile',
-    artistOnly: true,
+    href: '/settings/edit-profile',
   },
   {
     title: 'ความเป็นส่วนตัว',
@@ -73,10 +81,11 @@ const AccountSettings = () => {
     );
   }
 
-  const filteredMenuItems = menuItems.filter(item => {
-    if (item.artistOnly && !isArtist) return false;
-    return true;
-  });
+  // Build menu items based on user role
+  const menuItems: MenuItem[] = [
+    ...(isArtist ? artistMenuItems : []),
+    ...commonMenuItems,
+  ];
 
   return (
     <Layout>
@@ -104,7 +113,7 @@ const AccountSettings = () => {
             <Card>
               <CardContent className="p-0">
                 <div className="divide-y divide-border">
-                  {filteredMenuItems.map((item, index) => {
+                  {menuItems.map((item, index) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.href;
                     
@@ -131,12 +140,6 @@ const AccountSettings = () => {
                           <div className="flex-1">
                             <h3 className="font-medium text-foreground">
                               {item.title}
-                              {item.artistOnly && (
-                                <span className="ml-2 inline-flex items-center text-xs text-primary">
-                                  <Palette className="h-3 w-3 mr-1" />
-                                  ศิลปิน
-                                </span>
-                              )}
                             </h3>
                             <p className="text-sm text-muted-foreground">
                               {item.description}
