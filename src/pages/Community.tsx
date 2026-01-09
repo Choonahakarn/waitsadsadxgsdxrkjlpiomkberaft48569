@@ -2074,27 +2074,8 @@ export default function Community() {
     { id: 'latest' as FeedTab, label: 'Latest' },
   ];
 
-  // Show disabled page for non-admins when community is disabled
-  if (!appSettingsLoading && !appSettings.community_enabled && !isAdmin) {
-    return (
-      <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center max-w-md mx-auto px-4">
-            <div className="mx-auto w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6">
-              <Lock className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h1 className="text-2xl font-bold mb-3">คอมมูนิตี้ปิดชั่วคราว</h1>
-            <p className="text-muted-foreground mb-6">
-              หน้าคอมมูนิตี้ถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ กรุณาลองเข้ามาใหม่ภายหลัง
-            </p>
-            <Button asChild>
-              <a href="/">กลับหน้าหลัก</a>
-            </Button>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  // Check if Discover section should be shown
+  const showDiscoverSection = appSettings.community_enabled;
 
   return (
     <Layout>
@@ -2130,7 +2111,7 @@ export default function Community() {
         </div>
 
         {/* Recommended Works Section - Full Width Masonry like Cara */}
-        {recommendedPosts.length > 0 && activeTab === 'discover' && (
+        {showDiscoverSection && recommendedPosts.length > 0 && activeTab === 'discover' && (
           <div className="bg-background">
             <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
               {recommendedPosts.map((post, index) => {
