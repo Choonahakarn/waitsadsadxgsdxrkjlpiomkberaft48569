@@ -306,19 +306,26 @@ export default function Community() {
     }
   }, [user]);
 
-  // Fetch recommended posts (top liked posts)
+  // Fetch discover posts (mix of random + popular for new artists visibility)
   const fetchRecommendedPosts = useCallback(async () => {
     try {
+      // Fetch more posts to shuffle and include variety
       const { data: postsData, error } = await supabase
         .from('community_posts')
         .select('*')
-        .order('likes_count', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
+      // Shuffle posts but keep some popular ones prominent
+      const shuffled = [...(postsData || [])].sort(() => Math.random() - 0.5);
+      
+      // Take first 20 for display
+      const selectedPosts = shuffled.slice(0, 20);
+
       const postsWithDetails = await Promise.all(
-        (postsData || []).map(async (post) => {
+        selectedPosts.map(async (post) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, avatar_url, display_name')
@@ -2101,18 +2108,21 @@ export default function Community() {
         {/* Recommended Works Section - Full Width Masonry like Cara */}
         {recommendedPosts.length > 0 && activeTab === 'discover' && (
           <div className="bg-background">
-            <div className="px-1">
-              <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-1">
-                {recommendedPosts.map((post, index) => (
+            <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-6 xl:columns-8 2xl:columns-10 gap-0">
+              {recommendedPosts.map((post, index) => {
+                // Make posts with higher likes larger (span 2 rows visually by not constraining height)
+                const isPopular = (post.likes_count || 0) >= 3;
+                
+                return (
                   <motion.div
                     key={`rec-${post.id}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.02 }}
-                    className="group relative cursor-pointer break-inside-avoid mb-1"
+                    transition={{ delay: index * 0.015 }}
+                    className="group relative cursor-pointer break-inside-avoid"
                     onClick={() => handleOpenPost(post)}
                   >
-                    <div className="relative overflow-hidden bg-muted">
+                    <div className="relative overflow-hidden">
                       <OptimizedImage
                         src={post.image_url}
                         variants={{
@@ -2123,10 +2133,12 @@ export default function Community() {
                         }}
                         alt={post.title}
                         variant="feed"
-                        className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                        className={`w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300 ${
+                          isPopular ? 'ring-2 ring-primary/50' : ''
+                        }`}
                       />
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200" />
                       {/* Like button overlay */}
                       <button
                         onClick={(e) => {
@@ -2137,10 +2149,16 @@ export default function Community() {
                       >
                         <Heart className={`h-4 w-4 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
                       </button>
+                      {/* Popular badge */}
+                      {isPopular && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          🔥 Popular
+                        </div>
+                      )}
                     </div>
                   </motion.div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         )}
