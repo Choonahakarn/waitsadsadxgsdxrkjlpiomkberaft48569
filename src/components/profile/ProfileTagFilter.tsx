@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface CommunityPost {
   id: string;
   tools_used?: string[] | null;
+  hashtags?: string[] | null;
   description?: string | null;
 }
 
@@ -28,30 +29,17 @@ interface ProfileTagFilterProps {
   onTagSelect: (tag: string | null) => void;
 }
 
-// Extract hashtags from description
-const extractHashtags = (text: string | null | undefined): string[] => {
-  if (!text) return [];
-  const matches = text.match(/#[\wก-๙]+/g);
-  return matches ? matches.map(tag => tag.substring(1)) : [];
-};
-
-// Get all unique tags from posts (tools_used + hashtags from description)
+// Get all unique hashtags from posts (only from hashtags field, not tools_used)
 const getAllTagsFromPosts = (posts: CommunityPost[]): Map<string, number> => {
   const tagCounts = new Map<string, number>();
   
   posts.forEach(post => {
-    // Add tools_used
-    if (post.tools_used) {
-      post.tools_used.forEach(tool => {
-        tagCounts.set(tool, (tagCounts.get(tool) || 0) + 1);
+    // Only add hashtags from the hashtags field
+    if (post.hashtags) {
+      post.hashtags.forEach(tag => {
+        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
       });
     }
-    
-    // Add hashtags from description
-    const hashtags = extractHashtags(post.description);
-    hashtags.forEach(tag => {
-      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-    });
   });
   
   return tagCounts;

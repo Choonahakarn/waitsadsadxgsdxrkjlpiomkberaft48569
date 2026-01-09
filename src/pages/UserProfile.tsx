@@ -66,6 +66,7 @@ interface CommunityPost {
   created_at: string;
   category: string | null;
   tools_used: string[] | null;
+  hashtags?: string[] | null;
   comments_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
@@ -955,30 +956,19 @@ export default function UserProfile() {
     }
   };
 
-  // Helper function to extract hashtags from description
-  const extractHashtags = (text: string | null | undefined): string[] => {
-    if (!text) return [];
-    const matches = text.match(/#[\wก-๙]+/g);
-    return matches ? matches.map(tag => tag.substring(1)) : [];
-  };
-
-  // Filter posts by tag
+  // Filter posts by tag (only use hashtags field, not tools_used or description)
   const filteredPosts = useMemo(() => {
     if (!selectedPostsTag) return posts;
     return posts.filter(post => {
-      const hasToolTag = post.tools_used?.includes(selectedPostsTag);
-      const hasHashtag = extractHashtags(post.description).includes(selectedPostsTag);
-      return hasToolTag || hasHashtag;
+      return post.hashtags?.includes(selectedPostsTag);
     });
   }, [posts, selectedPostsTag]);
 
-  // Filter saved posts by tag
+  // Filter saved posts by tag (only use hashtags field)
   const filteredSavedPosts = useMemo(() => {
     if (!selectedSavedTag) return savedPostsList;
     return savedPostsList.filter(post => {
-      const hasToolTag = post.tools_used?.includes(selectedSavedTag);
-      const hasHashtag = extractHashtags(post.description).includes(selectedSavedTag);
-      return hasToolTag || hasHashtag;
+      return post.hashtags?.includes(selectedSavedTag);
     });
   }, [savedPostsList, selectedSavedTag]);
 
