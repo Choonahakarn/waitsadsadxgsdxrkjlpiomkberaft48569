@@ -36,15 +36,21 @@ export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_T
       .filter(t => t.length > 0);
   }, [value]);
 
-  // Fetch popular tags on mount
+  // Fetch popular tags from today only
   useEffect(() => {
     const fetchPopularTags = async () => {
       setLoading(true);
       try {
+        // Get start of today (midnight)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayISO = today.toISOString();
+
         const { data } = await supabase
           .from('community_posts')
           .select('hashtags')
-          .not('hashtags', 'is', null);
+          .not('hashtags', 'is', null)
+          .gte('created_at', todayISO);
 
         if (data) {
           const tagCounts = new Map<string, number>();
@@ -238,7 +244,7 @@ export function TagInput({ value, onChange, placeholder, maxTags = DEFAULT_MAX_T
               <>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 px-2">
                   <TrendingUp className="h-3 w-3" />
-                  <span>Tags ยอดนิยม</span>
+                  <span>Tags ยอดนิยมวันนี้</span>
                 </div>
                 {filteredSuggestions.map((suggestion) => (
                   <button
