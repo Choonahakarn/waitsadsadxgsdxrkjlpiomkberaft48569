@@ -220,18 +220,23 @@ export default function ArtworkDetail() {
         <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
           {/* Mobile: Stack vertically */}
           <div className="block lg:hidden space-y-6">
-            {/* Image */}
+            {/* Image - Scrollable on mobile */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="w-full bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 flex items-center justify-center"
+              className="w-full bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 overflow-auto"
+              style={{ maxHeight: "80vh" }}
             >
               <img
                 src={artwork.image_large_url || artwork.image_url}
                 alt={artwork.title}
-                className="max-w-full h-auto rounded-lg"
-                style={{ maxHeight: "70vh" }}
+                className="rounded-lg mx-auto"
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  display: "block",
+                }}
               />
             </motion.div>
 
@@ -248,20 +253,29 @@ export default function ArtworkDetail() {
           </div>
 
           {/* Desktop: Side by side with proper spacing */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8 lg:items-start">
-            {/* Image Column - Takes available space, scrollable */}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-8 lg:items-start">
+            {/* Image Column - Scrollable container */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
               className="w-full"
             >
-              <div className="sticky top-20 bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-6 flex items-center justify-center">
-                <div className="relative max-h-[calc(100vh-10rem)] overflow-auto">
+              {/* ✅ FIX: เอา sticky ออก, ให้เลื่อนได้อย่างอิสระ */}
+              <div
+                className="bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-6 overflow-auto"
+                style={{ maxHeight: "calc(100vh - 8rem)" }}
+              >
+                <div className="relative w-full flex items-center justify-center">
                   <img
                     src={artwork.image_large_url || artwork.image_url}
                     alt={artwork.title}
-                    className="max-w-full h-auto rounded-lg"
+                    className="rounded-lg"
+                    style={{
+                      maxWidth: "100%",
+                      height: "auto",
+                      maxHeight: "none", // ✅ ไม่จำกัดความสูง ให้เลื่อนได้
+                    }}
                   />
                   {artwork.is_sold && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
@@ -272,14 +286,14 @@ export default function ArtworkDetail() {
               </div>
             </motion.div>
 
-            {/* Info Column - Fixed width, scrollable */}
+            {/* Info Column - Fixed width, scrollable independently */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               className="w-full"
             >
-              <div className="sticky top-20 max-h-[calc(100vh-10rem)] overflow-y-auto pr-2">
+              <div className="sticky top-20 overflow-y-auto pr-2" style={{ maxHeight: "calc(100vh - 8rem)" }}>
                 <ArtworkInfo
                   artwork={artwork}
                   user={user}
