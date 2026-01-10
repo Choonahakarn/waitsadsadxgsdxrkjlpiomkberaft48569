@@ -225,19 +225,15 @@ export default function ArtworkDetail() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="w-full bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 overflow-auto"
-              style={{ maxHeight: "80vh" }}
+              className="w-full"
             >
-              <img
-                src={artwork.image_large_url || artwork.image_url}
-                alt={artwork.title}
-                className="rounded-lg mx-auto"
-                style={{
-                  maxWidth: "100%",
-                  height: "auto",
-                  display: "block",
-                }}
-              />
+              <div className="artwork-detail-image-container" style={{ maxHeight: "75vh" }}>
+                <img
+                  src={artwork.image_large_url || artwork.image_url}
+                  alt={artwork.title}
+                  className="artwork-detail-image"
+                />
+              </div>
             </motion.div>
 
             {/* Info */}
@@ -254,35 +250,25 @@ export default function ArtworkDetail() {
 
           {/* Desktop: Side by side with proper spacing */}
           <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-8 lg:items-start">
-            {/* Image Column - Scrollable container */}
+            {/* Image Column - Scrollable with custom class */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
               className="w-full"
             >
-              {/* ✅ FIX: เอา sticky ออก, ให้เลื่อนได้อย่างอิสระ */}
-              <div
-                className="bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-6 overflow-auto"
-                style={{ maxHeight: "calc(100vh - 8rem)" }}
-              >
-                <div className="relative w-full flex items-center justify-center">
-                  <img
-                    src={artwork.image_large_url || artwork.image_url}
-                    alt={artwork.title}
-                    className="rounded-lg"
-                    style={{
-                      maxWidth: "100%",
-                      height: "auto",
-                      maxHeight: "none", // ✅ ไม่จำกัดความสูง ให้เลื่อนได้
-                    }}
-                  />
-                  {artwork.is_sold && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
-                      <Badge className="text-2xl py-3 px-6 bg-red-500">ขายแล้ว</Badge>
-                    </div>
-                  )}
-                </div>
+              {/* ✅ ใช้ CSS class ที่กำหนดไว้ */}
+              <div className="artwork-detail-image-container">
+                <img
+                  src={artwork.image_large_url || artwork.image_url}
+                  alt={artwork.title}
+                  className="artwork-detail-image"
+                />
+                {artwork.is_sold && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
+                    <Badge className="text-2xl py-3 px-6 bg-red-500">ขายแล้ว</Badge>
+                  </div>
+                )}
               </div>
             </motion.div>
 
