@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MentionInput, renderTextWithMentions } from "@/components/ui/MentionInput";
 import OptimizedImage from "@/components/ui/OptimizedImage";
+import { ZoomableImage } from "@/components/ui/ZoomableImage"; // ✅ เพิ่ม import
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -187,6 +188,12 @@ export function PostDetailDialog({
   const isReposted = repostedPosts.has(post.original_post_id || post.id);
   const isFollowing = followingUsers.has(post.user_id);
 
+  // ✅ PROGRESSIVE LOADING URLS
+  // VIEW_IMAGE = large variant (2400px) - loads immediately
+  // ORIGINAL = image_url (full resolution) - loads only on zoom
+  const viewImageUrl = post.image_large_url || post.image_medium_url || post.image_url;
+  const originalImageUrl = post.image_url; // Full resolution
+
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/community?post=${post.id}`;
     await navigator.clipboard.writeText(url);
@@ -225,26 +232,21 @@ export function PostDetailDialog({
               <X className="h-6 w-6" />
             </button>
 
-            {/* Main Image - Scrollable for tall images */}
+            {/* ✅ ZOOMABLE IMAGE - Progressive Loading */}
             <div className="relative z-10 w-full h-full overflow-y-auto flex justify-center">
-              <OptimizedImage
-                src={post.image_url}
-                variants={{
-                  blur: post.image_blur_url || undefined,
-                  small: post.image_small_url || undefined,
-                  medium: post.image_medium_url || undefined,
-                  large: post.image_large_url || undefined,
-                }}
+              <ZoomableImage
+                viewImageUrl={viewImageUrl}
+                originalImageUrl={originalImageUrl}
+                blurUrl={post.image_blur_url || undefined}
+                mediumUrl={post.image_medium_url || undefined}
                 alt={post.title}
-                variant="fullscreen"
-                className="w-auto max-w-full"
-                priority
+                onClose={onClose}
               />
             </div>
 
             {/* Bottom Action Bar - Pixiv Style */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6">
-              <div className="max-w-4xl mx-auto">
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pointer-events-none">
+              <div className="max-w-4xl mx-auto pointer-events-auto">
                 {/* Title */}
                 <h2 className="text-white text-xl font-bold mb-2">{post.title}</h2>
                 
@@ -338,23 +340,20 @@ export function PostDetailDialog({
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Section - Center - with blurred background showing through */}
+          {/* ✅ ZOOMABLE IMAGE SECTION - Progressive Loading */}
           <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative">
             {/* Semi-transparent dark overlay */}
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            <OptimizedImage
-              src={post.image_url}
-              variants={{
-                blur: post.image_blur_url || undefined,
-                small: post.image_small_url || undefined,
-                medium: post.image_medium_url || undefined,
-                large: post.image_large_url || undefined,
-              }}
-              alt={post.title}
-              variant="fullscreen"
-              className="relative z-10 max-h-full max-w-full"
-              priority
-            />
+            <div className="relative z-10 w-full h-full">
+              <ZoomableImage
+                viewImageUrl={viewImageUrl}
+                originalImageUrl={originalImageUrl}
+                blurUrl={post.image_blur_url || undefined}
+                mediumUrl={post.image_medium_url || undefined}
+                alt={post.title}
+                onClose={onClose}
+              />
+            </div>
           </div>
 
           {/* Content Section - Right - Fixed width panel */}
@@ -582,145 +581,4 @@ export function PostDetailDialog({
                                 </button>
                               )}
                               {user && (user.id === comment.user_id || user.id === post.user_id) && (
-                                <button onClick={() => onDeleteComment(comment.id)} disabled={deletingCommentId === comment.id} className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin inline" /> : "ลบ"}
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Nested Replies */}
-                    {comment.replies && comment.replies.length > 0 && (
-                      <>
-                        {!expandedReplies.has(comment.id) ? (
-                          <button
-                            onClick={() => onToggleReplies(comment.id, true)}
-                            className="ml-11 text-xs text-primary hover:underline flex items-center gap-1"
-                          >
-                            <ChevronDown className="h-3 w-3" />
-                            ดูการตอบกลับ {comment.replies.length} รายการ
-                          </button>
-                        ) : (
-                          <div className="ml-8 pl-3 border-l-2 border-muted space-y-3">
-                            <button
-                              onClick={() => onToggleReplies(comment.id, false)}
-                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                            >
-                              <ChevronUp className="h-3 w-3" />
-                              ซ่อนการตอบกลับ
-                            </button>
-                            {comment.replies.map((reply) => (
-                              <div key={reply.id} className="group flex gap-2">
-                                <Avatar className="h-6 w-6 shrink-0">
-                                  <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
-                                  <AvatarFallback className="text-[10px]">
-                                    {getDisplayName(reply.user_profile, reply.artist_profile)[0]}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm">
-                                    <span className="font-semibold mr-1 text-xs">
-                                      {getDisplayName(reply.user_profile, reply.artist_profile)}
-                                    </span>
-                                    {reply.artist_profile?.is_verified && (
-                                      <Badge className="h-3 px-1 text-[8px] bg-blue-500 text-white border-0 mr-1">✓</Badge>
-                                    )}
-                                    <span className="text-xs">{renderTextWithMentions(reply.content)}</span>
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-muted-foreground">{formatTimeAgo(reply.created_at)}</span>
-                                    {user && (user.id === reply.user_id || user.id === post.user_id) && (
-                                      <button onClick={() => onDeleteComment(reply.id)} disabled={deletingCommentId === reply.id} className="text-[10px] text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {deletingCommentId === reply.id ? <Loader2 className="h-2 w-2 animate-spin inline" /> : "ลบ"}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Reply Input */}
-                    {replyingToComment?.id === comment.id && user && (
-                      <div className="ml-8 pl-3 border-l-2 border-primary/30">
-                        <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
-                          <span>ตอบกลับ {getDisplayName(comment.user_profile, comment.artist_profile)}</span>
-                          <button onClick={onCancelReply} className="text-muted-foreground hover:text-foreground">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                          <Avatar className="h-6 w-6 shrink-0">
-                            <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
-                            <AvatarFallback className="text-[10px]">
-                              {(user?.user_metadata?.full_name || user?.email || "U")[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <input
-                            type="text"
-                            value={replyContent}
-                            onChange={(e) => onReplyContentChange(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey && replyContent.trim() && !submittingReply) {
-                                e.preventDefault();
-                                onSubmitReply(comment);
-                              }
-                            }}
-                            placeholder="เขียนการตอบกลับ..."
-                            className="flex-1 bg-background border border-border rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            autoFocus
-                            disabled={submittingReply}
-                          />
-                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => onSubmitReply(comment)} disabled={!replyContent.trim() || submittingReply}>
-                            {submittingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Comment Input */}
-            {user && (
-              <div className="p-4 border-t border-border shrink-0">
-                <div className="flex gap-2 items-center">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {(user?.user_metadata?.full_name || user?.email || "U")[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <MentionInput
-                      value={newComment}
-                      onChange={onNewCommentChange}
-                      placeholder="เขียนความคิดเห็น... พิมพ์ @ เพื่อแท็กผู้ใช้"
-                      rows={1}
-                      className="min-h-[40px] resize-none rounded-full"
-                    />
-                  </div>
-                  <Button
-                    size="icon"
-                    className="shrink-0 rounded-full"
-                    onClick={onSubmitComment}
-                    disabled={!newComment.trim() || submittingComment}
-                  >
-                    {submittingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+                                <button onClick={() => onDeleteComment(comment.id)} disabled={deletingCommentId === comment.id} className="text-xs text-destructive hover:text-destructive/80
