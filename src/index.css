@@ -197,6 +197,81 @@
     gap: 1.5rem;
   }
 
+  /* =============================================
+   * MASONRY GRID STYLES
+   * Pinterest/Cara-style layout
+   * ============================================= */
+  
+  .masonry-grid {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .masonry-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Desktop: 260px columns */
+  @media (min-width: 1024px) {
+    .masonry-column {
+      width: 260px;
+    }
+  }
+
+  /* Tablet: 240px columns */
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .masonry-column {
+      width: 240px;
+    }
+  }
+
+  /* Mobile: 2 flexible columns */
+  @media (max-width: 639px) {
+    .masonry-grid {
+      gap: 12px;
+    }
+    
+    .masonry-column {
+      width: calc(50% - 6px);
+      gap: 12px;
+    }
+  }
+
+  /* Masonry item hover effects */
+  .masonry-item {
+    @apply relative overflow-hidden rounded-lg bg-muted cursor-pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .masonry-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .masonry-item img {
+    @apply w-full h-full object-cover;
+    transition: transform 0.3s ease;
+  }
+
+  .masonry-item:hover img {
+    transform: scale(1.03);
+  }
+
+  /* Image viewer overlay */
+  .image-viewer-overlay {
+    @apply fixed inset-0 z-50 bg-black/95 flex items-center justify-center;
+    backdrop-filter: blur(8px);
+  }
+
+  .image-viewer-controls {
+    @apply absolute bottom-0 left-0 right-0 flex items-center justify-center gap-2 p-4;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+  }
+
   /* Artwork card */
   .artwork-card {
     @apply relative overflow-hidden rounded-lg bg-card transition-all duration-300;
