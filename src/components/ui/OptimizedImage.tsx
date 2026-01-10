@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
+// =============================================
+// PROFESSIONAL OPTIMIZED IMAGE COMPONENT
+// =============================================
+// Supports the image system variants:
+// - blur: Tiny placeholder for progressive loading
+// - small (FEED_PREVIEW): 600px for feed/grid
+// - medium: 1200px for intermediate viewing
+// - large (VIEW_IMAGE): 2400px for full-screen
+// =============================================
+
 interface ImageVariants {
   blur?: string;
   small?: string;
@@ -17,7 +27,8 @@ interface OptimizedImageProps {
   containerClassName?: string;
   onClick?: () => void;
   priority?: boolean; // Disable lazy loading for above-fold images
-  aspectRatio?: 'auto' | 'square' | '4/3' | '3/4' | '16/9' | '4/5';
+  aspectRatio?: 'auto' | 'square' | '4/3' | '3/4' | '16/9' | '4/5' | 'original';
+  objectFit?: 'cover' | 'contain';
 }
 
 const OptimizedImage: React.FC<OptimizedImageProps> = ({
@@ -30,10 +41,13 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
   onClick,
   priority = false,
   aspectRatio = 'auto',
+  objectFit = 'cover',
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isInView, setIsInView] = useState(priority);
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Select appropriate URL based on variant
   const getImageUrl = (): string => {
@@ -41,15 +55,19 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
 
     switch (variant) {
       case 'thumbnail':
+        // FEED_PREVIEW: 600px for thumbnails and grid items
         return variants.small || variants.medium || src;
       case 'feed':
-        return variants.medium || variants.large || src;
+        // FEED_PREVIEW: 600px optimized for feed scrolling
+        return variants.small || variants.medium || src;
       case 'fullscreen':
+        // VIEW_IMAGE: 2400px for full-screen viewing
         return variants.large || variants.medium || src;
       case 'zoom':
+        // Largest available (original via signed URL handled separately)
         return variants.large || src;
       default:
-        return variants.medium || src;
+        return variants.small || variants.medium || src;
     }
   };
 
@@ -60,7 +78,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     const srcSetParts: string[] = [];
     
     if (variants.small) {
-      srcSetParts.push(`${variants.small} 400w`);
+      srcSetParts.push(`${variants.small} 600w`);
     }
     if (variants.medium) {
       srcSetParts.push(`${variants.medium} 1200w`);
@@ -72,13 +90,13 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     return srcSetParts.length > 0 ? srcSetParts.join(', ') : undefined;
   };
 
-  // Get sizes attribute based on variant
+  // Get sizes attribute based on variant for optimal loading
   const getSizes = (): string | undefined => {
     switch (variant) {
       case 'thumbnail':
-        return '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px';
+        return '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 260px';
       case 'feed':
-        return '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 800px';
+        return '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 600px';
       case 'fullscreen':
       case 'zoom':
         return '100vw';
@@ -92,29 +110,29 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const srcSet = getSrcSet();
   const sizes = getSizes();
 
-  // Handle intersection observer for lazy loading
+  // Intersection Observer for lazy loading
   useEffect(() => {
-    if (priority || !imgRef.current) return;
+    if (priority || !containerRef.current) {
+      setIsInView(true);
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const img = entry.target as HTMLImageElement;
-            if (img.dataset.src) {
-              img.src = img.dataset.src;
-              if (img.dataset.srcset) {
-                img.srcset = img.dataset.srcset;
-              }
-            }
-            observer.unobserve(img);
+            setIsInView(true);
+            observer.disconnect();
           }
         });
       },
-      { rootMargin: '50px 0px' }
+      { 
+        rootMargin: '100px 0px', // Load 100px before entering viewport
+        threshold: 0.01 
+      }
     );
 
-    observer.observe(imgRef.current);
+    observer.observe(containerRef.current);
 
     return () => observer.disconnect();
   }, [priority]);
@@ -126,63 +144,68 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     '3/4': 'aspect-[3/4]',
     '16/9': 'aspect-video',
     '4/5': 'aspect-[4/5]',
+    'original': '',
   }[aspectRatio];
+
+  const objectFitClass = objectFit === 'contain' ? 'object-contain' : 'object-cover';
 
   return (
     <div 
+      ref={containerRef}
       className={cn(
-        'relative overflow-hidden',
+        'relative overflow-hidden bg-muted',
         aspectRatioClass,
         containerClassName
       )}
     >
-      {/* Blur placeholder */}
-      {blurUrl && !isLoaded && (
+      {/* Blur placeholder - always visible until loaded */}
+      {blurUrl && (
         <img
           src={blurUrl}
           alt=""
           aria-hidden="true"
           className={cn(
             'absolute inset-0 w-full h-full object-cover scale-110 blur-xl',
-            'transition-opacity duration-300',
+            'transition-opacity duration-500',
             isLoaded ? 'opacity-0' : 'opacity-100'
           )}
         />
       )}
 
-      {/* Main image */}
-      <img
-        ref={imgRef}
-        src={priority ? mainUrl : undefined}
-        data-src={!priority ? mainUrl : undefined}
-        srcSet={priority ? srcSet : undefined}
-        data-srcset={!priority ? srcSet : undefined}
-        sizes={sizes}
-        alt={alt}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        onLoad={() => setIsLoaded(true)}
-        onError={() => setHasError(true)}
-        onClick={onClick}
-        className={cn(
-          'w-full h-full object-cover',
-          'transition-opacity duration-500',
-          isLoaded ? 'opacity-100' : 'opacity-0',
-          onClick && 'cursor-pointer',
-          className
-        )}
-      />
+      {/* Loading skeleton when no blur placeholder */}
+      {!blurUrl && !isLoaded && !hasError && (
+        <div className="absolute inset-0 bg-muted animate-pulse" />
+      )}
+
+      {/* Main image - only load when in view */}
+      {isInView && (
+        <img
+          ref={imgRef}
+          src={mainUrl}
+          srcSet={srcSet}
+          sizes={sizes}
+          alt={alt}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+          onClick={onClick}
+          className={cn(
+            'w-full h-full',
+            objectFitClass,
+            'transition-opacity duration-500',
+            isLoaded ? 'opacity-100' : 'opacity-0',
+            onClick && 'cursor-pointer hover:opacity-95',
+            className
+          )}
+        />
+      )}
 
       {/* Error state */}
       {hasError && (
         <div className="absolute inset-0 flex items-center justify-center bg-muted">
           <span className="text-muted-foreground text-sm">Failed to load image</span>
         </div>
-      )}
-
-      {/* Loading skeleton */}
-      {!isLoaded && !hasError && !blurUrl && (
-        <div className="absolute inset-0 bg-muted animate-pulse" />
       )}
     </div>
   );
