@@ -220,16 +220,17 @@ export default function ArtworkDetail() {
       {/* Main Content */}
       <section className="py-12 lg:py-16">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+          {/* ✅ CHANGED: From grid to flex-col on mobile, keeps grid on desktop */}
+          <div className="flex flex-col gap-12 lg:grid lg:grid-cols-2 lg:gap-16 lg:items-start">
             {/* Artwork Image - PIXIV STYLE: Full image, scrollable */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
-              className="flex items-start justify-center"
+              className="w-full"
             >
-              {/* ✅ FIXED: Removed overflow-hidden, removed fixed aspect ratio */}
-              <div className="relative w-full rounded-2xl shadow-elevated bg-neutral-50 dark:bg-neutral-900">
+              {/* ✅ FIXED: Sticky on desktop, scrollable on mobile */}
+              <div className="relative w-full rounded-2xl shadow-elevated bg-neutral-50 dark:bg-neutral-900 lg:sticky lg:top-20">
                 <OptimizedImage
                   src={artwork.image_url}
                   variants={{
@@ -242,7 +243,7 @@ export default function ArtworkDetail() {
                   variant="fullscreen"
                   aspectRatio="original"
                   objectFit="contain"
-                  className="w-full h-auto rounded-2xl"
+                  className="w-full h-auto rounded-2xl max-h-[85vh] lg:max-h-[calc(100vh-8rem)]"
                   containerClassName="!aspect-auto !bg-transparent"
                   priority
                 />
