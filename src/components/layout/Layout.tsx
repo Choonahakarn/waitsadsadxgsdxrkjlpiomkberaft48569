@@ -10,7 +10,8 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1">{children}</main>
+      {/* ✅ FIX: เอา flex-1 ออก ให้ขยายตามเนื้อหาได้ */}
+      <main className="flex-grow">{children}</main>
       <Footer />
     </div>
   );
