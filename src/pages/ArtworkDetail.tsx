@@ -35,7 +35,6 @@ interface Artwork {
   is_verified: boolean | null;
   is_sold: boolean | null;
   artist_id: string;
-  // Cloudinary optimized image variants
   image_blur_url?: string | null;
   image_small_url?: string | null;
   image_medium_url?: string | null;
@@ -91,7 +90,6 @@ export default function ArtworkDetail() {
       if (error) throw error;
       setArtwork(data);
 
-      // Fetch other artworks by the same artist
       if (data?.artist_id) {
         const { data: others } = await supabase
           .from("artworks")
@@ -217,185 +215,81 @@ export default function ArtworkDetail() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <section className="py-12 lg:py-16">
-        <div className="container mx-auto px-4 lg:px-8">
-          {/* ✅ CHANGED: From grid to flex-col on mobile, keeps grid on desktop */}
-          <div className="flex flex-col gap-12 lg:grid lg:grid-cols-2 lg:gap-16 lg:items-start">
-            {/* Artwork Image - PIXIV STYLE: Full image, scrollable */}
+      {/* Main Content - CARA STYLE */}
+      <section className="py-8 lg:py-12">
+        <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
+          {/* Mobile: Stack vertically */}
+          <div className="block lg:hidden space-y-6">
+            {/* Image */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 flex items-center justify-center"
+            >
+              <img
+                src={artwork.image_large_url || artwork.image_url}
+                alt={artwork.title}
+                className="max-w-full h-auto rounded-lg"
+                style={{ maxHeight: "70vh" }}
+              />
+            </motion.div>
+
+            {/* Info */}
+            <ArtworkInfo
+              artwork={artwork}
+              user={user}
+              walletBalance={walletBalance}
+              canAfford={canAfford}
+              translatedDescription={translatedDescription}
+              setTranslatedDescription={setTranslatedDescription}
+              handleBuyClick={handleBuyClick}
+            />
+          </div>
+
+          {/* Desktop: Side by side with proper spacing */}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8 lg:items-start">
+            {/* Image Column - Takes available space, scrollable */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.5 }}
               className="w-full"
             >
-              {/* ✅ FIXED: Sticky on desktop, scrollable on mobile */}
-              <div className="relative w-full rounded-2xl shadow-elevated bg-neutral-50 dark:bg-neutral-900 lg:sticky lg:top-20">
-                <OptimizedImage
-                  src={artwork.image_url}
-                  variants={{
-                    blur: artwork.image_blur_url || undefined,
-                    small: artwork.image_small_url || undefined,
-                    medium: artwork.image_medium_url || undefined,
-                    large: artwork.image_large_url || undefined,
-                  }}
-                  alt={artwork.title}
-                  variant="fullscreen"
-                  aspectRatio="original"
-                  objectFit="contain"
-                  className="w-full h-auto rounded-2xl max-h-[85vh] lg:max-h-[calc(100vh-8rem)]"
-                  containerClassName="!aspect-auto !bg-transparent"
-                  priority
-                />
-                {artwork.is_sold && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl">
-                    <Badge className="text-2xl py-3 px-6 bg-red-500">ขายแล้ว</Badge>
-                  </div>
-                )}
+              <div className="sticky top-20 bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-6 flex items-center justify-center">
+                <div className="relative max-h-[calc(100vh-10rem)] overflow-auto">
+                  <img
+                    src={artwork.image_large_url || artwork.image_url}
+                    alt={artwork.title}
+                    className="max-w-full h-auto rounded-lg"
+                  />
+                  {artwork.is_sold && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
+                      <Badge className="text-2xl py-3 px-6 bg-red-500">ขายแล้ว</Badge>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
 
-            {/* Artwork Info */}
+            {/* Info Column - Fixed width, scrollable */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="flex flex-col"
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="w-full"
             >
-              {artwork.is_verified && <VerificationBadge variant="verified" className="mb-4 w-fit" />}
-
-              <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">{artwork.title}</h1>
-
-              <Link
-                to={`/artist/${artwork.artist_id}`}
-                className="mt-3 text-lg text-muted-foreground transition-colors hover:text-foreground"
-              >
-                by {artwork.artist_profiles?.artist_name || "Unknown Artist"}
-              </Link>
-
-              <div className="mt-6 flex items-baseline gap-2">
-                <span className="font-serif text-3xl font-bold text-foreground">฿{artwork.price.toLocaleString()}</span>
+              <div className="sticky top-20 max-h-[calc(100vh-10rem)] overflow-y-auto pr-2">
+                <ArtworkInfo
+                  artwork={artwork}
+                  user={user}
+                  walletBalance={walletBalance}
+                  canAfford={canAfford}
+                  translatedDescription={translatedDescription}
+                  setTranslatedDescription={setTranslatedDescription}
+                  handleBuyClick={handleBuyClick}
+                />
               </div>
-
-              {artwork.description && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <TranslateButton
-                      text={artwork.description}
-                      onTranslated={(text) => setTranslatedDescription(text)}
-                    />
-                    {translatedDescription && (
-                      <button
-                        onClick={() => setTranslatedDescription(null)}
-                        className="text-sm text-muted-foreground hover:text-foreground"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  <p className="leading-relaxed text-muted-foreground">
-                    {translatedDescription || artwork.description}
-                  </p>
-                </div>
-              )}
-
-              {/* Details */}
-              <div className="mt-8 grid grid-cols-2 gap-4">
-                {artwork.medium && (
-                  <div className="rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Palette className="h-4 w-4" />
-                      <span className="text-sm">Medium</span>
-                    </div>
-                    <p className="mt-1 font-medium text-foreground">{artwork.medium}</p>
-                  </div>
-                )}
-
-                {artwork.dimensions && (
-                  <div className="rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Ruler className="h-4 w-4" />
-                      <span className="text-sm">Dimensions</span>
-                    </div>
-                    <p className="mt-1 font-medium text-foreground">{artwork.dimensions}</p>
-                  </div>
-                )}
-
-                {artwork.year && (
-                  <div className="rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span className="text-sm">Year</span>
-                    </div>
-                    <p className="mt-1 font-medium text-foreground">{artwork.year}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Tools Used */}
-              {artwork.tools_used && artwork.tools_used.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-muted-foreground">Tools Used</h3>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {artwork.tools_used.map((tool) => (
-                      <span
-                        key={tool}
-                        className="rounded-full bg-secondary px-3 py-1 text-sm text-secondary-foreground"
-                      >
-                        {tool}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Verification Section */}
-              {artwork.is_verified && (
-                <div className="mt-8 rounded-xl border border-primary/20 bg-primary/5 p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Check className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-lg font-semibold text-foreground">ผลงานผ่านการยืนยัน</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        ผลงานนี้ผ่านการยืนยันว่าเป็นผลงานที่วาดโดยมนุษย์จริง ผ่านระบบตรวจสอบภาพร่างและกระบวนการทำงาน
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                {artwork.is_sold ? (
-                  <Button disabled className="flex-1">
-                    ขายแล้ว
-                  </Button>
-                ) : (
-                  <Button onClick={handleBuyClick} className="btn-hero-primary flex-1">
-                    <ShoppingCart className="h-5 w-5" />
-                    ซื้อเลย
-                  </Button>
-                )}
-                <Button variant="outline" className="flex-1 gap-2">
-                  <MessageCircle className="h-5 w-5" />
-                  สอบถาม/จ้างงาน
-                </Button>
-              </div>
-
-              {/* Wallet Balance Info */}
-              {user && !artwork.is_sold && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Wallet className="h-4 w-4" />
-                  <span>ยอดเงินในกระเป๋า: ฿{walletBalance.toLocaleString()}</span>
-                  {!canAfford && (
-                    <Link to="/wallet" className="text-primary hover:underline ml-2">
-                      เติมเงิน
-                    </Link>
-                  )}
-                </div>
-              )}
             </motion.div>
           </div>
         </div>
@@ -438,7 +332,7 @@ export default function ArtworkDetail() {
         </section>
       )}
 
-      {/* Purchase Confirmation Dialog */}
+      {/* Purchase Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
@@ -496,5 +390,156 @@ export default function ArtworkDetail() {
         </DialogContent>
       </Dialog>
     </Layout>
+  );
+}
+
+// Artwork Info Component (ถูกแยกออกมาเพื่อใช้ซ้ำ)
+function ArtworkInfo({
+  artwork,
+  user,
+  walletBalance,
+  canAfford,
+  translatedDescription,
+  setTranslatedDescription,
+  handleBuyClick,
+}: {
+  artwork: Artwork;
+  user: any;
+  walletBalance: number;
+  canAfford: boolean;
+  translatedDescription: string | null;
+  setTranslatedDescription: (text: string | null) => void;
+  handleBuyClick: () => void;
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col space-y-6">
+      {artwork.is_verified && <VerificationBadge variant="verified" className="w-fit" />}
+
+      <div>
+        <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">{artwork.title}</h1>
+        <Link
+          to={`/artist/${artwork.artist_id}`}
+          className="mt-2 inline-block text-lg text-muted-foreground transition-colors hover:text-foreground"
+        >
+          by {artwork.artist_profiles?.artist_name || "Unknown Artist"}
+        </Link>
+      </div>
+
+      <div className="flex items-baseline gap-2">
+        <span className="font-serif text-3xl font-bold text-foreground">฿{artwork.price.toLocaleString()}</span>
+      </div>
+
+      {artwork.description && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <TranslateButton text={artwork.description} onTranslated={(text) => setTranslatedDescription(text)} />
+            {translatedDescription && (
+              <button
+                onClick={() => setTranslatedDescription(null)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <p className="leading-relaxed text-muted-foreground">{translatedDescription || artwork.description}</p>
+        </div>
+      )}
+
+      {/* Details Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        {artwork.medium && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Palette className="h-4 w-4" />
+              <span className="text-sm">Medium</span>
+            </div>
+            <p className="mt-1 font-medium text-foreground">{artwork.medium}</p>
+          </div>
+        )}
+
+        {artwork.dimensions && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Ruler className="h-4 w-4" />
+              <span className="text-sm">Dimensions</span>
+            </div>
+            <p className="mt-1 font-medium text-foreground">{artwork.dimensions}</p>
+          </div>
+        )}
+
+        {artwork.year && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span className="text-sm">Year</span>
+            </div>
+            <p className="mt-1 font-medium text-foreground">{artwork.year}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Tools Used */}
+      {artwork.tools_used && artwork.tools_used.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Tools Used</h3>
+          <div className="flex flex-wrap gap-2">
+            {artwork.tools_used.map((tool) => (
+              <span key={tool} className="rounded-full bg-secondary px-3 py-1 text-sm text-secondary-foreground">
+                {tool}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Verification */}
+      {artwork.is_verified && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Check className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-semibold text-foreground">ผลงานผ่านการยืนยัน</h3>
+              <p className="mt-1 text-sm text-muted-foreground">ผลงานนี้ผ่านการยืนยันว่าเป็นผลงานที่วาดโดยมนุษย์จริง</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-col gap-4 sm:flex-row">
+        {artwork.is_sold ? (
+          <Button disabled className="flex-1">
+            ขายแล้ว
+          </Button>
+        ) : (
+          <Button onClick={handleBuyClick} className="btn-hero-primary flex-1">
+            <ShoppingCart className="h-5 w-5" />
+            ซื้อเลย
+          </Button>
+        )}
+        <Button variant="outline" className="flex-1 gap-2">
+          <MessageCircle className="h-5 w-5" />
+          สอบถาม/จ้างงาน
+        </Button>
+      </div>
+
+      {/* Wallet Balance */}
+      {user && !artwork.is_sold && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Wallet className="h-4 w-4" />
+          <span>ยอดเงินในกระเป๋า: ฿{walletBalance.toLocaleString()}</span>
+          {!canAfford && (
+            <Link to="/wallet" className="text-primary hover:underline ml-2">
+              เติมเงิน
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
