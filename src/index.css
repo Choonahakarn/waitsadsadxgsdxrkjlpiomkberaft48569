@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fontsource/playfair-display/400.css';
-@import '@fontsource/playfair-display/500.css';
-@import '@fontsource/playfair-display/600.css';
-@import '@fontsource/playfair-display/700.css';
-@import '@fontsource/inter/300.css';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
+@import "@fontsource/playfair-display/400.css";
+@import "@fontsource/playfair-display/500.css";
+@import "@fontsource/playfair-display/600.css";
+@import "@fontsource/playfair-display/700.css";
+@import "@fontsource/inter/300.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
 
 @layer base {
   :root {
@@ -57,12 +57,12 @@
     --terracotta-dark: 16 70% 40%;
     --forest: 150 30% 30%;
     --gold: 42 80% 55%;
-    
+
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(40 25% 97%) 0%, hsl(35 20% 93%) 100%);
     --gradient-card-hover: linear-gradient(180deg, transparent 0%, hsl(16 65% 50% / 0.03) 100%);
     --gradient-badge: linear-gradient(135deg, hsl(16 65% 50%) 0%, hsl(16 70% 40%) 100%);
-    
+
     /* Shadows */
     --shadow-soft: 0 2px 8px -2px hsl(30 10% 12% / 0.06);
     --shadow-medium: 0 4px 20px -4px hsl(30 10% 12% / 0.1);
@@ -144,22 +144,27 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Playfair Display", serif;
     @apply tracking-tight;
   }
 }
 
 @layer components {
   .font-serif {
-    font-family: 'Playfair Display', serif;
+    font-family: "Playfair Display", serif;
   }
 
   .font-sans {
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
   }
 
   .text-balance {
@@ -201,7 +206,7 @@
    * MASONRY GRID STYLES
    * Pinterest/Cara-style layout
    * ============================================= */
-  
+
   .masonry-grid {
     display: flex;
     justify-content: center;
@@ -234,7 +239,7 @@
     .masonry-grid {
       gap: 12px;
     }
-    
+
     .masonry-column {
       width: calc(50% - 6px);
       gap: 12px;
@@ -244,7 +249,9 @@
   /* Masonry item hover effects */
   .masonry-item {
     @apply relative overflow-hidden rounded-lg bg-muted cursor-pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   .masonry-item:hover {
@@ -269,7 +276,7 @@
 
   .image-viewer-controls {
     @apply absolute bottom-0 left-0 right-0 flex items-center justify-center gap-2 p-4;
-    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
   }
 
   /* Artwork card */
@@ -352,6 +359,37 @@
   .filter-chip.active {
     @apply border-primary bg-primary text-primary-foreground;
   }
+}
+
+/* ✅ Artwork detail scrollable container */
+.artwork-detail-image-container {
+  @apply bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-6;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.artwork-detail-image-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.artwork-detail-image-container::-webkit-scrollbar-track {
+  @apply bg-muted rounded-full;
+}
+
+.artwork-detail-image-container::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+.artwork-detail-image-container::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+.artwork-detail-image {
+  @apply rounded-lg mx-auto block;
+  max-width: 100%;
+  height: auto;
+  width: auto;
 }
 
 @layer utilities {
