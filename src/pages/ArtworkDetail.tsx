@@ -227,11 +227,26 @@ export default function ArtworkDetail() {
               transition={{ duration: 0.5 }}
               className="w-full"
             >
-              <div className="artwork-detail-image-container" style={{ maxHeight: "75vh" }}>
+              <div
+                style={{
+                  backgroundColor: "var(--muted)",
+                  borderRadius: "1rem",
+                  padding: "1rem",
+                  maxHeight: "75vh",
+                  overflowY: "scroll",
+                  overflowX: "hidden",
+                }}
+              >
                 <img
                   src={artwork.image_large_url || artwork.image_url}
                   alt={artwork.title}
-                  className="artwork-detail-image"
+                  style={{
+                    display: "block",
+                    margin: "0 auto",
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: "0.5rem",
+                  }}
                 />
               </div>
             </motion.div>
@@ -249,20 +264,35 @@ export default function ArtworkDetail() {
           </div>
 
           {/* Desktop: Side by side with proper spacing */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-8 lg:items-start">
-            {/* Image Column - Scrollable with custom class */}
+          <div className="hidden lg:grid lg:grid-cols-[1fr_420px] lg:gap-8 lg:items-start">
+            {/* Image Column - Simple scrollable div */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
               className="w-full"
             >
-              {/* ✅ ใช้ CSS class ที่กำหนดไว้ */}
-              <div className="artwork-detail-image-container">
+              {/* ✅ ใช้ div ธรรมดา + inline style */}
+              <div
+                style={{
+                  backgroundColor: "var(--muted)",
+                  borderRadius: "1rem",
+                  padding: "1.5rem",
+                  maxHeight: "calc(100vh - 8rem)",
+                  overflowY: "scroll",
+                  overflowX: "hidden",
+                }}
+              >
                 <img
                   src={artwork.image_large_url || artwork.image_url}
                   alt={artwork.title}
-                  className="artwork-detail-image"
+                  style={{
+                    display: "block",
+                    margin: "0 auto",
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: "0.5rem",
+                  }}
                 />
                 {artwork.is_sold && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
@@ -272,14 +302,21 @@ export default function ArtworkDetail() {
               </div>
             </motion.div>
 
-            {/* Info Column - Fixed width, scrollable independently */}
+            {/* Info Column */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               className="w-full"
             >
-              <div className="sticky top-20 overflow-y-auto pr-2" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+              <div
+                className="sticky top-20"
+                style={{
+                  maxHeight: "calc(100vh - 8rem)",
+                  overflowY: "auto",
+                  paddingRight: "0.5rem",
+                }}
+              >
                 <ArtworkInfo
                   artwork={artwork}
                   user={user}
