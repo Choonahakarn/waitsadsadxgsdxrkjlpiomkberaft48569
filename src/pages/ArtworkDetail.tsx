@@ -53,7 +53,7 @@ export default function ArtworkDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [otherArtworks, setOtherArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,10 +79,12 @@ export default function ArtworkDetail() {
     try {
       const { data, error } = await supabase
         .from("artworks")
-        .select(`
+        .select(
+          `
           *,
           artist_profiles (id, artist_name, is_verified)
-        `)
+        `,
+        )
         .eq("id", id)
         .maybeSingle();
 
@@ -93,14 +95,16 @@ export default function ArtworkDetail() {
       if (data?.artist_id) {
         const { data: others } = await supabase
           .from("artworks")
-          .select(`
+          .select(
+            `
             *,
             artist_profiles (id, artist_name, is_verified)
-          `)
+          `,
+          )
           .eq("artist_id", data.artist_id)
           .neq("id", id)
           .limit(4);
-        
+
         setOtherArtworks(others || []);
       }
     } catch (error) {
@@ -112,13 +116,9 @@ export default function ArtworkDetail() {
 
   const fetchWalletBalance = async () => {
     if (!user) return;
-    
-    const { data } = await supabase
-      .from("wallets")
-      .select("balance")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    
+
+    const { data } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
+
     setWalletBalance(data?.balance || 0);
   };
 
@@ -191,9 +191,7 @@ export default function ArtworkDetail() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="font-serif text-3xl font-bold text-foreground">
-            ไม่พบผลงาน
-          </h1>
+          <h1 className="font-serif text-3xl font-bold text-foreground">ไม่พบผลงาน</h1>
           <Link to="/marketplace" className="mt-4 inline-block text-primary hover:underline">
             กลับไปหน้า Marketplace
           </Link>
@@ -223,13 +221,15 @@ export default function ArtworkDetail() {
       <section className="py-12 lg:py-16">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
-            {/* Artwork Image */}
+            {/* Artwork Image - PIXIV STYLE: Full image, scrollable */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
+              className="flex items-start justify-center"
             >
-              <div className="overflow-hidden rounded-2xl shadow-elevated relative">
+              {/* ✅ FIXED: Removed overflow-hidden, removed fixed aspect ratio */}
+              <div className="relative w-full rounded-2xl shadow-elevated bg-neutral-50 dark:bg-neutral-900">
                 <OptimizedImage
                   src={artwork.image_url}
                   variants={{
@@ -240,11 +240,14 @@ export default function ArtworkDetail() {
                   }}
                   alt={artwork.title}
                   variant="fullscreen"
-                  className="w-full"
+                  aspectRatio="original"
+                  objectFit="contain"
+                  className="w-full h-auto rounded-2xl"
+                  containerClassName="!aspect-auto !bg-transparent"
                   priority
                 />
                 {artwork.is_sold && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl">
                     <Badge className="text-2xl py-3 px-6 bg-red-500">ขายแล้ว</Badge>
                   </div>
                 )}
@@ -258,13 +261,9 @@ export default function ArtworkDetail() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="flex flex-col"
             >
-              {artwork.is_verified && (
-                <VerificationBadge variant="verified" className="mb-4 w-fit" />
-              )}
+              {artwork.is_verified && <VerificationBadge variant="verified" className="mb-4 w-fit" />}
 
-              <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
-                {artwork.title}
-              </h1>
+              <h1 className="font-serif text-3xl font-bold text-foreground md:text-4xl">{artwork.title}</h1>
 
               <Link
                 to={`/artist/${artwork.artist_id}`}
@@ -274,20 +273,18 @@ export default function ArtworkDetail() {
               </Link>
 
               <div className="mt-6 flex items-baseline gap-2">
-                <span className="font-serif text-3xl font-bold text-foreground">
-                  ฿{artwork.price.toLocaleString()}
-                </span>
+                <span className="font-serif text-3xl font-bold text-foreground">฿{artwork.price.toLocaleString()}</span>
               </div>
 
               {artwork.description && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-2">
-                    <TranslateButton 
-                      text={artwork.description} 
-                      onTranslated={(text) => setTranslatedDescription(text)} 
+                    <TranslateButton
+                      text={artwork.description}
+                      onTranslated={(text) => setTranslatedDescription(text)}
                     />
                     {translatedDescription && (
-                      <button 
+                      <button
                         onClick={() => setTranslatedDescription(null)}
                         className="text-sm text-muted-foreground hover:text-foreground"
                       >
@@ -359,9 +356,7 @@ export default function ArtworkDetail() {
                       <Check className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-serif text-lg font-semibold text-foreground">
-                        ผลงานผ่านการยืนยัน
-                      </h3>
+                      <h3 className="font-serif text-lg font-semibold text-foreground">ผลงานผ่านการยืนยัน</h3>
                       <p className="mt-1 text-sm text-muted-foreground">
                         ผลงานนี้ผ่านการยืนยันว่าเป็นผลงานที่วาดโดยมนุษย์จริง ผ่านระบบตรวจสอบภาพร่างและกระบวนการทำงาน
                       </p>
@@ -377,10 +372,7 @@ export default function ArtworkDetail() {
                     ขายแล้ว
                   </Button>
                 ) : (
-                  <Button 
-                    onClick={handleBuyClick}
-                    className="btn-hero-primary flex-1"
-                  >
+                  <Button onClick={handleBuyClick} className="btn-hero-primary flex-1">
                     <ShoppingCart className="h-5 w-5" />
                     ซื้อเลย
                   </Button>
@@ -450,9 +442,7 @@ export default function ArtworkDetail() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ยืนยันการซื้อ</DialogTitle>
-            <DialogDescription>
-              คุณต้องการซื้อผลงาน "{artwork.title}" ใช่หรือไม่?
-            </DialogDescription>
+            <DialogDescription>คุณต้องการซื้อผลงาน "{artwork.title}" ใช่หรือไม่?</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
