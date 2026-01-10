@@ -264,7 +264,7 @@ export function PostDetailDialog({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={handleShareFacebook}>Facebook</DropdownMenuItem>
                         <DropdownMenuItem onClick={handleShareTwitter}>X (Twitter)</DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleShareLine}>LINE</DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleShareLine} className="bg-primary-foreground">LINE</DropdownMenuItem>
                         <DropdownMenuItem onClick={handleCopyLink}>คัดลอกลิงก์</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
