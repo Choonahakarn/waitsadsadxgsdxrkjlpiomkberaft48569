@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, MessageCircle, Send, X, Loader2, 
   Share2, Bookmark, MoreHorizontal, Repeat2, Link2,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, ZoomIn
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MentionInput, renderTextWithMentions } from "@/components/ui/MentionInput";
 import OptimizedImage from "@/components/ui/OptimizedImage";
+import ImageViewer from "@/components/ui/ImageViewer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -169,6 +170,7 @@ export function PostDetailDialog({
 }: PostDetailDialogProps) {
   const { toast } = useToast();
   const [imgAspect, setImgAspect] = useState<'normal' | 'tall'>('normal');
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   useEffect(() => {
     if (post?.image_url) {
@@ -225,8 +227,11 @@ export function PostDetailDialog({
               <X className="h-6 w-6" />
             </button>
 
-            {/* Main Image - Scrollable for tall images */}
-            <div className="relative z-10 w-full h-full overflow-y-auto flex justify-center">
+            {/* Main Image - Clickable for full-screen zoom */}
+            <div 
+              className="relative z-10 w-full h-full overflow-y-auto flex justify-center cursor-zoom-in"
+              onClick={() => setIsImageViewerOpen(true)}
+            >
               <OptimizedImage
                 src={post.image_url}
                 variants={{
@@ -240,7 +245,29 @@ export function PostDetailDialog({
                 className="w-auto max-w-full"
                 priority
               />
+              {/* Zoom hint */}
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white/80 text-sm opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                <ZoomIn className="h-4 w-4" />
+                <span>คลิกเพื่อซูม</span>
+              </div>
             </div>
+
+            {/* Full-screen Image Viewer for zoom */}
+            <ImageViewer
+              isOpen={isImageViewerOpen}
+              onClose={() => setIsImageViewerOpen(false)}
+              imageUrl={post.image_url}
+              variants={{
+                blur: post.image_blur_url || undefined,
+                small: post.image_small_url || undefined,
+                medium: post.image_medium_url || undefined,
+                large: post.image_large_url || undefined,
+              }}
+              alt={post.title}
+              imageAssetId={post.image_asset_id || undefined}
+              title={post.title}
+              artist={getDisplayName(post.user_profile, post.artist_profile)}
+            />
 
             {/* Bottom Action Bar - Pixiv Style */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6">
@@ -338,8 +365,11 @@ export function PostDetailDialog({
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Section - Center - with blurred background showing through */}
-          <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative">
+          {/* Image Section - Center - Clickable for full-screen zoom */}
+          <div 
+            className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative cursor-zoom-in group"
+            onClick={() => setIsImageViewerOpen(true)}
+          >
             {/* Semi-transparent dark overlay */}
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <OptimizedImage
@@ -355,7 +385,29 @@ export function PostDetailDialog({
               className="relative z-10 max-h-full max-w-full"
               priority
             />
+            {/* Zoom hint on hover */}
+            <div className="absolute z-20 bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <ZoomIn className="h-4 w-4" />
+              <span>คลิกเพื่อซูม</span>
+            </div>
           </div>
+
+          {/* Full-screen Image Viewer for zoom */}
+          <ImageViewer
+            isOpen={isImageViewerOpen}
+            onClose={() => setIsImageViewerOpen(false)}
+            imageUrl={post.image_url}
+            variants={{
+              blur: post.image_blur_url || undefined,
+              small: post.image_small_url || undefined,
+              medium: post.image_medium_url || undefined,
+              large: post.image_large_url || undefined,
+            }}
+            alt={post.title}
+            imageAssetId={post.image_asset_id || undefined}
+            title={post.title}
+            artist={getDisplayName(post.user_profile, post.artist_profile)}
+          />
 
           {/* Content Section - Right - Fixed width panel */}
           <div className="w-full lg:w-[420px] xl:w-[480px] flex flex-col bg-background border-l border-border max-h-[55vh] lg:max-h-full lg:h-full shrink-0">
