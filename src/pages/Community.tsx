@@ -7,6 +7,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from 
 import { Layout } from "@/components/layout/Layout";
 import { CommunitySidebar } from "@/components/community/CommunitySidebar";
 import { PostDetailDialog } from "@/components/community/PostDetailDialog";
+import CommunityMasonryFeed from "@/components/community/CommunityMasonryFeed";
 import { TagInput } from "@/components/ui/TagInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2017,8 +2018,8 @@ export default function Community() {
       <div className="min-h-screen bg-background">
         {/* Sticky Header */}
         <div className="border-b border-border bg-background/95 backdrop-blur sticky top-20 z-40">
-          <div className="container mx-auto max-w-6xl px-4">
-            <div className="max-w-2xl mx-auto lg:mx-0 lg:max-w-none lg:pr-[340px]">
+          <div className="container mx-auto max-w-7xl px-4">
+            <div className="lg:pr-[340px]">
             {/* Search Bar */}
             <div className="py-3">
               <div className="relative">
@@ -2070,352 +2071,72 @@ export default function Community() {
         </div>
 
         {/* Main Content with Sidebar */}
-        <div className="container mx-auto max-w-6xl px-4 py-4">
+        <div className="container mx-auto max-w-7xl px-4 py-4">
           <div className="flex gap-6 items-stretch">
-            {/* Feed Content */}
-            <div ref={feedRef} className="flex-1 max-w-2xl">
-          {loading ? (
-            <div className="py-20 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-              <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
-            </div>
-          ) : filteredPosts.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
-                <Search className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
-              <p className="text-muted-foreground mb-4">
-                {activeTab === 'following' 
-                  ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
-                  : searchQuery ? 'ลองค้นหาด้วยคำอื่น' : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
-              </p>
-              {searchQuery && (
-                <Button variant="outline" onClick={() => setSearchQuery("")}>
-                  ล้างการค้นหา
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <AnimatePresence>
-                {filteredPosts.map((post, index) => (
-                  <motion.article
-                    key={post.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-card border border-border rounded-xl overflow-hidden"
-                  >
-                    {/* Repost Header */}
-                    {post.is_repost && post.repost_user_id && (
-                      <Link to={`/profile/${post.repost_user_id}`} className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <Repeat2 className="h-4 w-4" />
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium text-foreground">
-                          {getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
-                        </span>
-                        {isBuyerUser(post.repost_artist_profile) && (
-                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                            Buyer
-                          </Badge>
-                        )}
-                        <span>รีโพสต์</span>
-                        <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
-                      </Link>
-                    )}
-
-                    {/* Repost Caption */}
-                    {post.is_repost && post.repost_caption && (
-                      <div className="px-4 py-2 bg-muted/30">
-                        <p className="text-sm">{post.repost_caption}</p>
-                      </div>
-                    )}
-
-                    {/* Post Header */}
-                    <div className="flex items-center justify-between p-4">
-                      <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-foreground">
-                              {getDisplayName(post.user_profile, post.artist_profile)}
-                            </span>
-                            {post.artist_profile?.is_verified && (
-                              <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
-                                ✓
-                              </Badge>
-                            )}
-                            {isBuyerUser(post.artist_profile) && (
-                              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                                Buyer
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimeAgo(post.created_at)}
-                          </span>
-                        </div>
-                      </Link>
-                      
-                      <div className="flex items-center gap-2">
-                        {user && user.id !== post.user_id && (
-                          <Button
-                            variant={followingUsers.has(post.user_id) ? "secondary" : "default"}
-                            size="sm"
-                            className="h-8"
-                            onClick={(e) => handleFollow(post.user_id, followingUsers.has(post.user_id), e)}
-                          >
-                            {followingUsers.has(post.user_id) ? (
-                              <>
-                                <UserCheck className="h-3.5 w-3.5 mr-1" />
-                                Following
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                                Follow
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setShareDialogPost(post)}>
-                              <Repeat2 className="h-4 w-4 mr-2" />
-                              แชร์โพสต์ภายใน
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleShare(post)}>
-                              <Share2 className="h-4 w-4 mr-2" />
-                              แชร์ลิงก์
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave(post.id, post.original_post_id)}>
-                              <Bookmark className="h-4 w-4 mr-2" />
-                              {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
-                            </DropdownMenuItem>
-                            {/* Edit/Delete for own posts */}
-                            {user && user.id === post.user_id && !post.is_repost && (
-                              <>
-                                <DropdownMenuItem onClick={() => openEditDialog(post)}>
-                                  <Pencil className="h-4 w-4 mr-2" />
-                                  แก้ไขโพสต์
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => openDeleteDialog(post)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  ลบโพสต์
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {user && user.id !== post.user_id && (
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  setReportingPost(post);
-                                  setReportDialogOpen(true);
-                                }}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Flag className="h-4 w-4 mr-2" />
-                                รายงานโพสต์
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-
-                    {/* Image */}
-                    <div 
-                      className="relative aspect-square cursor-pointer overflow-hidden"
-                      onClick={() => handleOpenPost(post)}
-                    >
-                      <OptimizedImage
-                        src={post.image_url}
-                        variants={{
-                          blur: post.image_blur_url || undefined,
-                          small: post.image_small_url || undefined,
-                          medium: post.image_medium_url || undefined,
-                          large: post.image_large_url || undefined,
-                        }}
-                        alt={post.title}
-                        variant="feed"
-                        className="w-full h-full"
-                        aspectRatio="square"
-                      />
-                    </div>
-
-                    {/* Actions */}
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10"
-                          onClick={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
-                        >
-                          <Heart 
-                            className={`h-6 w-6 transition-colors ${
-                              post.is_liked 
-                                ? "fill-red-500 text-red-500" 
-                                : "text-foreground"
-                            }`} 
-                          />
-                        </Button>
-                        <div className="flex items-center">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10"
-                            onClick={() => handleOpenPost(post)}
-                          >
-                            <MessageCircle className="h-6 w-6" />
-                          </Button>
-                          {(post.comments_count || 0) > 0 && (
-                            <span className="text-sm text-muted-foreground -ml-1">{post.comments_count}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10"
-                            onClick={() => user ? setShareDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
-                          >
-                            <Repeat2 className="h-6 w-6" />
-                          </Button>
-                          {(post.shares_count || 0) > 0 && (
-                            <span className="text-sm text-muted-foreground -ml-1">{post.shares_count}</span>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10"
-                          onClick={() => handleShare(post)}
-                        >
-                          <Share2 className="h-6 w-6" />
-                        </Button>
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={() => handleSave(post.id, post.original_post_id)}
-                      >
-                        <Bookmark 
-                          className={`h-6 w-6 transition-colors ${
-                            savedPosts.has(post.original_post_id || post.id) 
-                              ? "fill-foreground"
-                              : ""
-                          }`} 
-                        />
-                      </Button>
-                    </div>
-
-                    {/* Likes & Reposts count */}
-                    <div className="px-4 pb-2 flex items-center gap-4">
-                      <span className="font-semibold text-sm">
-                        {post.likes_count.toLocaleString()} ถูกใจ
-                      </span>
-                      {(post.shares_count || 0) > 0 && (
-                        <span className="text-muted-foreground text-sm flex items-center gap-1">
-                          <Repeat2 className="h-4 w-4" />
-                          {post.shares_count} รีโพสต์
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="px-4 pb-4 space-y-2">
-                      {/* Title & Description */}
-                      <div>
-                        <span className="font-semibold mr-2">
-                          {getDisplayName(post.user_profile, post.artist_profile)}
-                        </span>
-                        <span className="text-foreground">{post.title}</span>
-                        {post.description && (
-                          <p className="text-muted-foreground text-sm mt-1">
-                            {renderTextWithMentions(post.description)}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Category, Tools & Tags */}
-                      {(post.category || (post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
-                        <div className="flex flex-wrap gap-1">
-                          {post.category && (
-                            <Badge variant="secondary" className="text-xs">
-                              {post.category}
-                            </Badge>
-                          )}
-                          {post.tools_used?.slice(0, 3).map((tool, i) => (
-                            <Badge key={`tool-${i}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                              🛠 {tool}
-                            </Badge>
-                          ))}
-                          {post.hashtags?.slice(0, 5).map((tag, i) => (
-                            <button
-                              key={`tag-${i}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTag(tag);
-                              }}
-                              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
-                            >
-                              #{tag}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* View comments */}
-                      {(post.comments_count || 0) > 0 && (
-                        <button 
-                          className="text-muted-foreground text-sm"
-                          onClick={() => handleOpenPost(post)}
-                        >
-                          ดูความคิดเห็นทั้งหมด {post.comments_count} รายการ
-                        </button>
-                      )}
-                    </div>
-                  </motion.article>
-                ))}
-              </AnimatePresence>
-
-              {/* Load More Trigger */}
-              <div ref={loadMoreRef} className="py-8 text-center">
-                {loadingMore && (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    <span className="text-muted-foreground">กำลังโหลดเพิ่ม...</span>
+            {/* Feed Content - Masonry Grid */}
+            <div ref={feedRef} className="flex-1">
+              {loading ? (
+                <div className="py-20 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
+                </div>
+              ) : filteredPosts.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+                    <Search className="h-10 w-10 text-muted-foreground" />
                   </div>
-                )}
-                {!hasMore && posts.length > 0 && (
-                  <p className="text-muted-foreground text-sm">
-                    คุณดูโพสต์ทั้งหมดแล้ว ✨
+                  <h3 className="text-xl font-semibold mb-2">ไม่พบผลงาน</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {activeTab === 'following' 
+                      ? 'ยังไม่มีโพสต์จากคนที่คุณติดตาม'
+                      : searchQuery ? 'ลองค้นหาด้วยคำอื่น' : 'ยังไม่มีโพสต์ในคอมมูนิตี้'}
                   </p>
-                )}
-              </div>
-            </div>
-          )}
+                  {searchQuery && (
+                    <Button variant="outline" onClick={() => setSearchQuery("")}>
+                      ล้างการค้นหา
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Pinterest-style Masonry Grid */}
+                  <CommunityMasonryFeed
+                    posts={filteredPosts}
+                    savedPosts={savedPosts}
+                    repostedPosts={repostedPosts}
+                    followingUsers={followingUsers}
+                    currentUserId={user?.id}
+                    onPostClick={handleOpenPost}
+                    onLike={handleLike}
+                    onSave={handleSave}
+                    onFollow={handleFollow}
+                    onShare={handleShare}
+                    onRepost={(post) => setShareDialogPost(post)}
+                    onEditPost={openEditDialog}
+                    onDeletePost={openDeleteDialog}
+                    onReportPost={(post) => {
+                      setReportingPost(post);
+                      setReportDialogOpen(true);
+                    }}
+                    onTagClick={setSelectedTag}
+                  />
+
+                  {/* Load More Trigger */}
+                  <div ref={loadMoreRef} className="py-8 text-center">
+                    {loadingMore && (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <span className="text-muted-foreground">กำลังโหลดเพิ่ม...</span>
+                      </div>
+                    )}
+                    {!hasMore && posts.length > 0 && (
+                      <p className="text-muted-foreground text-sm">
+                        คุณดูโพสต์ทั้งหมดแล้ว ✨
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Sidebar (desktop): sticky + internal scroll (scrollbar hidden) */}
