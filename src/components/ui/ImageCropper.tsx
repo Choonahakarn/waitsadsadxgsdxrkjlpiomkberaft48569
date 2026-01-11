@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Button } from '@/components/ui/button';
@@ -48,15 +48,20 @@ export function ImageCropper({
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Load image when file changes
-  useState(() => {
-    if (imageFile) {
+  useEffect(() => {
+    if (imageFile && open) {
       const reader = new FileReader();
       reader.onload = () => {
         setImageSrc(reader.result as string);
       };
       reader.readAsDataURL(imageFile);
+    } else if (!open) {
+      // Reset when dialog closes
+      setImageSrc('');
+      setCrop(undefined);
+      setCompletedCrop(undefined);
     }
-  });
+  }, [imageFile, open]);
 
   // Reset when dialog opens with new file
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -107,21 +112,19 @@ export function ImageCropper({
   }, [completedCrop]);
 
   const handleConfirm = async () => {
+    if (!completedCrop) {
+      console.error('No crop selected');
+      return;
+    }
+    
     const croppedBlob = await getCroppedImg();
     if (croppedBlob) {
       onCropComplete(croppedBlob);
       onClose();
+    } else {
+      console.error('Failed to crop image');
     }
   };
-
-  // Load image src when file changes
-  if (imageFile && !imageSrc) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageSrc(reader.result as string);
-    };
-    reader.readAsDataURL(imageFile);
-  }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>

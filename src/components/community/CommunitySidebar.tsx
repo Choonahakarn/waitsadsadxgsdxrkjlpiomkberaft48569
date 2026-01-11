@@ -21,6 +21,7 @@ interface Post {
   artist_profile?: {
     artist_name: string;
     is_verified: boolean;
+    avatar_url?: string | null;
   };
 }
 
@@ -84,7 +85,7 @@ export function CommunitySidebar({
 
             const { data: artist } = await supabase
               .from('artist_profiles')
-              .select('artist_name, is_verified')
+              .select('artist_name, is_verified, avatar_url')
               .eq('user_id', post.user_id)
               .maybeSingle();
 
@@ -127,7 +128,7 @@ export function CommunitySidebar({
 
             const { data: artist } = await supabase
               .from('artist_profiles')
-              .select('artist_name, is_verified')
+              .select('artist_name, is_verified, avatar_url')
               .eq('user_id', post.user_id)
               .maybeSingle();
 
@@ -202,6 +203,76 @@ export function CommunitySidebar({
     }
   };
 
+  // Helper function to normalize avatar URL
+  const normalizeAvatarUrl = (avatarUrl: string | null | undefined, size: number = 64): string | undefined => {
+    if (!avatarUrl) return undefined;
+    
+    // If it's already a full URL, add transform parameters for the specified size
+    if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+      // Check if it's a Cloudinary URL
+      if (avatarUrl.includes('res.cloudinary.com')) {
+        try {
+          const urlObj = new URL(avatarUrl);
+          const pathParts = urlObj.pathname.split('/');
+          const uploadIndex = pathParts.indexOf('upload');
+          
+          if (uploadIndex !== -1 && uploadIndex < pathParts.length - 1) {
+            const afterUpload = pathParts.slice(uploadIndex + 1).join('/');
+            const cloudName = pathParts[1]; // After empty string and before 'image'
+            const baseUrl = `${urlObj.protocol}//res.cloudinary.com/${cloudName}/image/upload`;
+            const parts = afterUpload.split('/');
+            const publicId = parts[0].includes('w_') && parts.length > 1 
+              ? parts.slice(1).join('/') 
+              : afterUpload;
+            
+            return `${baseUrl}/w_${size},h_${size},c_limit,f_auto,q_auto/${publicId}`;
+          }
+        } catch (e) {
+          console.warn('Failed to parse Cloudinary URL:', e);
+        }
+      }
+      
+      // For other URLs (Supabase storage or other), use query parameters
+      const url = new URL(avatarUrl);
+      // Remove existing transform parameters first
+      url.searchParams.delete('width');
+      url.searchParams.delete('height');
+      url.searchParams.delete('resize');
+      url.searchParams.delete('quality');
+      // Add size transform parameters
+      url.searchParams.set('width', size.toString());
+      url.searchParams.set('height', size.toString());
+      url.searchParams.set('resize', 'cover');
+      return url.toString();
+    }
+    
+    // If it's a Supabase storage path, construct the public URL with transform
+    // Format could be: avatars/user_id/filename.jpg or user_id/filename.jpg
+    let storagePath = avatarUrl;
+    if (avatarUrl.startsWith('avatars/')) {
+      storagePath = avatarUrl.replace('avatars/', '');
+    }
+    
+    // Get public URL from Supabase storage
+    try {
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(storagePath);
+      
+      // Add transform parameters as query string
+      const url = new URL(publicUrl);
+      url.searchParams.set('width', size.toString());
+      url.searchParams.set('height', size.toString());
+      url.searchParams.set('resize', 'cover');
+      
+      return url.toString();
+    } catch (error) {
+      console.error('Error normalizing avatar URL:', error, avatarUrl);
+      // Fallback: return original URL if normalization fails
+      return avatarUrl;
+    }
+  };
+
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -228,7 +299,17 @@ export function CommunitySidebar({
           {latestPosts.map((post) => (
             <div key={post.id} className="flex gap-3 group cursor-pointer">
               <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                <AvatarImage 
+                  src={
+                    // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+                    post.artist_profile?.avatar_url 
+                      ? normalizeAvatarUrl(post.artist_profile.avatar_url)
+                      : normalizeAvatarUrl(post.user_profile?.avatar_url)
+                  } 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
                 <AvatarFallback className="text-xs">
                   {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
                 </AvatarFallback>
@@ -275,7 +356,17 @@ export function CommunitySidebar({
           {popularPosts.map((post) => (
             <div key={post.id} className="flex gap-3 group cursor-pointer">
               <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                <AvatarImage 
+                  src={
+                    // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+                    post.artist_profile?.avatar_url 
+                      ? normalizeAvatarUrl(post.artist_profile.avatar_url)
+                      : normalizeAvatarUrl(post.user_profile?.avatar_url)
+                  } 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
                 <AvatarFallback className="text-xs">
                   {(post.artist_profile?.artist_name || post.user_profile?.full_name || "U")[0]}
                 </AvatarFallback>

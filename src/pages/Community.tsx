@@ -98,6 +98,7 @@ interface Comment {
   artist_profile?: {
     artist_name: string;
     is_verified: boolean;
+    avatar_url?: string | null;
   } | null;
   replies?: Comment[];
   is_liked?: boolean;
@@ -123,7 +124,7 @@ const ITEMS_PER_PAGE = 5;
 
 export default function Community() {
   const { t } = useTranslation();
-  const { user, isArtist, isBuyer } = useAuth();
+  const { user, isArtist, isBuyer, isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isUserHidden } = useBlockedUsers();
@@ -195,6 +196,7 @@ export default function Community() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState<CommunityPost | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [adminDeleteReason, setAdminDeleteReason] = useState("");
 
   const reportReasons = [
     { value: "spam", label: "สแปมหรือโฆษณา" },
@@ -366,9 +368,10 @@ export default function Community() {
         .in('id', uniqueUserIds);
 
       // ✅ Batch fetch all artist profiles (single query)
+      // Include avatar_url from artist_profiles as artists may upload avatars via artist profile page
       const { data: artistProfiles } = await supabase
         .from('artist_profiles')
-        .select('user_id, artist_name, is_verified')
+        .select('user_id, artist_name, is_verified, avatar_url')
         .in('user_id', uniqueUserIds);
 
       // ✅ Batch fetch all likes for current user (single query)
@@ -442,16 +445,132 @@ export default function Community() {
       const artistProfilesMap = new Map((artistProfiles || []).map(a => [a.user_id, a]));
       const likesSet = new Set(userLikes);
 
+      // Helper function to normalize avatar URL and ensure high quality
+      const normalizeAvatarUrl = (avatarUrl: string | null | undefined, size: number = 64): string | undefined => {
+        if (!avatarUrl) return undefined;
+        
+        // If it's already a full URL, add transform parameters for the specified size
+        if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+          // Check if it's a Cloudinary URL
+          if (avatarUrl.includes('res.cloudinary.com')) {
+            try {
+              const urlObj = new URL(avatarUrl);
+              const pathParts = urlObj.pathname.split('/');
+              const uploadIndex = pathParts.indexOf('upload');
+              
+              if (uploadIndex !== -1 && uploadIndex < pathParts.length - 1) {
+                const afterUpload = pathParts.slice(uploadIndex + 1).join('/');
+                const cloudName = pathParts[1]; // After empty string and before 'image'
+                const baseUrl = `${urlObj.protocol}//res.cloudinary.com/${cloudName}/image/upload`;
+                const parts = afterUpload.split('/');
+                const publicId = parts[0].includes('w_') && parts.length > 1 
+                  ? parts.slice(1).join('/') 
+                  : afterUpload;
+                
+                return `${baseUrl}/w_${size},h_${size},c_limit,f_auto,q_auto/${publicId}`;
+              }
+            } catch (e) {
+              console.warn('Failed to parse Cloudinary URL:', e);
+            }
+          }
+          
+          // For other URLs (Supabase storage or other), use query parameters
+          const url = new URL(avatarUrl);
+          // Remove existing transform parameters first
+          url.searchParams.delete('width');
+          url.searchParams.delete('height');
+          url.searchParams.delete('resize');
+          url.searchParams.delete('quality');
+          // Add size transform parameters
+          url.searchParams.set('width', size.toString());
+          url.searchParams.set('height', size.toString());
+          url.searchParams.set('resize', 'cover');
+          return url.toString();
+        }
+        
+        // If it's a Supabase storage path, construct the public URL with transform
+        // Format could be: avatars/user_id/filename.jpg or user_id/filename.jpg
+        let storagePath = avatarUrl;
+        if (avatarUrl.startsWith('avatars/')) {
+          storagePath = avatarUrl.replace('avatars/', '');
+        }
+        
+        // Get public URL from Supabase storage
+        try {
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(storagePath);
+          
+          // Add transform parameters as query string
+          const url = new URL(publicUrl);
+          url.searchParams.set('width', size.toString());
+          url.searchParams.set('height', size.toString());
+          url.searchParams.set('resize', 'cover');
+          
+          return url.toString();
+        } catch (error) {
+          console.error('Error normalizing avatar URL:', error, avatarUrl);
+          // Fallback: return original URL if normalization fails
+          return avatarUrl;
+        }
+      };
+
+      // Debug: Log profiles and avatars
+      if (profiles && profiles.length > 0) {
+        console.log('=== Avatar Debug Info ===');
+        console.log('Fetched profiles:', profiles.length);
+        profiles.forEach(p => {
+          const normalizedUrl = normalizeAvatarUrl(p.avatar_url);
+          console.log(`Profile ${p.id} (${p.full_name || p.display_name || 'No name'}):`, {
+            original_avatar_url: p.avatar_url,
+            normalized_avatar_url: normalizedUrl,
+            has_avatar: !!p.avatar_url
+          });
+        });
+        console.log('=== End Avatar Debug ===');
+      }
+
       // Process original posts (now just mapping, no queries)
       const originalPostsWithDetails = (postsData || []).map((post) => {
         const profile = profilesMap.get(post.user_id);
         const artistProfile = artistProfilesMap.get(post.user_id);
         const isLiked = likesSet.has(post.id);
 
+        // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+        // This handles the case where artist uploads avatar via artist profile page
+        let avatarUrl = null;
+        if (artistProfile && (artistProfile as any).avatar_url) {
+          avatarUrl = (artistProfile as any).avatar_url;
+          console.log(`Using avatar from artist_profiles for user ${post.user_id}:`, avatarUrl);
+        } else if (profile?.avatar_url) {
+          avatarUrl = profile.avatar_url;
+          console.log(`Using avatar from profiles for user ${post.user_id}:`, avatarUrl);
+        }
+
+        // Normalize avatar URL if profile exists
+        // Note: avatar_url from database is already a full URL (from getPublicUrl)
+        // So we just use it directly, but we can still normalize if needed
+        const normalizedProfile = profile ? {
+          ...profile,
+          avatar_url: avatarUrl ? (normalizeAvatarUrl(avatarUrl) || avatarUrl) : null
+        } : undefined;
+
+        // Debug: Log profile mapping
+        if (normalizedProfile) {
+          console.log(`Post ${post.id}: user ${post.user_id} (${normalizedProfile.full_name || normalizedProfile.display_name || 'No name'})`, {
+            profile_avatar_url: profile?.avatar_url,
+            artist_avatar_url: (artistProfile as any)?.avatar_url,
+            final_avatar_url: normalizedProfile.avatar_url,
+            has_avatar: !!normalizedProfile.avatar_url
+          });
+        } else {
+          console.warn(`Post ${post.id}: user ${post.user_id} has no profile`);
+        }
+
         return {
           ...post,
           likes_count: likesCounts[post.id] || 0,
-          user_profile: profile,
+          user_profile: normalizedProfile,
           artist_profile: artistProfile || null,
           is_liked: isLiked,
           is_following: followingUsers.has(post.user_id),
@@ -474,12 +593,37 @@ export default function Community() {
         const originalArtist = artistProfilesMap.get(originalPost.user_id);
         const isLiked = likesSet.has(originalPost.id);
 
+        // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+        let reposterAvatarUrl = null;
+        if (reposterArtist && (reposterArtist as any).avatar_url) {
+          reposterAvatarUrl = (reposterArtist as any).avatar_url;
+        } else if (reposterProfile?.avatar_url) {
+          reposterAvatarUrl = reposterProfile.avatar_url;
+        }
+
+        let originalAvatarUrl = null;
+        if (originalArtist && (originalArtist as any).avatar_url) {
+          originalAvatarUrl = (originalArtist as any).avatar_url;
+        } else if (originalProfile?.avatar_url) {
+          originalAvatarUrl = originalProfile.avatar_url;
+        }
+
+        // Normalize avatar URLs for repost profiles
+        const normalizedReposterProfile = reposterProfile ? {
+          ...reposterProfile,
+          avatar_url: reposterAvatarUrl ? (normalizeAvatarUrl(reposterAvatarUrl) || reposterAvatarUrl) : null
+        } : undefined;
+        const normalizedOriginalProfile = originalProfile ? {
+          ...originalProfile,
+          avatar_url: originalAvatarUrl ? (normalizeAvatarUrl(originalAvatarUrl) || originalAvatarUrl) : null
+        } : undefined;
+
         return {
           ...originalPost,
           id: `repost-${share.id}`, // Unique key for repost
           original_post_id: originalPost.id,
           likes_count: likesCounts[originalPost.id] || 0,
-          user_profile: originalProfile,
+          user_profile: normalizedOriginalProfile,
           artist_profile: originalArtist || null,
           is_liked: isLiked,
           is_following: followingUsers.has(originalPost.user_id),
@@ -490,7 +634,7 @@ export default function Community() {
           repost_user_id: share.user_id,
           repost_caption: share.caption,
           repost_created_at: share.created_at,
-          repost_user_profile: reposterProfile,
+          repost_user_profile: normalizedReposterProfile,
           repost_artist_profile: reposterArtist || null
         };
       });
@@ -548,6 +692,48 @@ export default function Community() {
     fetchRepostedPosts();
     fetchArtistProfile();
   }, [fetchFollowing, fetchSavedPosts, fetchRepostedPosts, fetchArtistProfile]);
+
+  // Listen for follow status changes from other pages (UserProfile, etc.)
+  useEffect(() => {
+    if (!user) return;
+    
+    const handleFollowStatusChange = (event: CustomEvent) => {
+      const { userId, isFollowing } = event.detail || {};
+      if (!userId) return;
+      
+      console.log('Follow status changed externally:', { userId, isFollowing });
+      
+      setFollowingUsers(prev => {
+        const newSet = new Set(prev);
+        if (isFollowing) {
+          newSet.add(userId);
+        } else {
+          newSet.delete(userId);
+        }
+        return newSet;
+      });
+      
+      // Also update posts state
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.user_id === userId) {
+          return {
+            ...post,
+            is_following: isFollowing,
+            followers_count: isFollowing 
+              ? (post.followers_count || 0) + 1 
+              : Math.max(0, (post.followers_count || 1) - 1)
+          };
+        }
+        return post;
+      }));
+    };
+
+    window.addEventListener('followStatusChanged', handleFollowStatusChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('followStatusChanged', handleFollowStatusChange as EventListener);
+    };
+  }, [user]);
 
   useEffect(() => {
     fetchPosts(true);
@@ -1236,12 +1422,27 @@ export default function Community() {
           newSet.delete(userId);
           return newSet;
         });
+        
+        // Dispatch event to sync state across pages
+        window.dispatchEvent(new CustomEvent('followStatusChanged', {
+          detail: { userId, isFollowing: false }
+        }));
       } else {
-        await supabase
+        const { error: insertError } = await supabase
           .from('follows')
           .insert({ follower_id: user.id, following_id: userId });
         
+        if (insertError) {
+          console.error('Error following user:', insertError);
+          return;
+        }
+        
         setFollowingUsers(prev => new Set(prev).add(userId));
+        
+        // Dispatch event to sync state across pages
+        window.dispatchEvent(new CustomEvent('followStatusChanged', {
+          detail: { userId, isFollowing: true }
+        }));
 
         const { data: followerProfile } = await supabase
           .from('profiles')
@@ -1358,7 +1559,7 @@ export default function Community() {
           
           const { data: commentArtistProfile } = await supabase
             .from('artist_profiles')
-            .select('artist_name, is_verified')
+            .select('artist_name, is_verified, avatar_url')
             .eq('user_id', comment.user_id)
             .maybeSingle();
           
@@ -2099,36 +2300,112 @@ export default function Community() {
     
     setConfirmingDelete(true);
     try {
-      // Delete related data first
-      await supabase.from('community_comments').delete().eq('post_id', deletingPost.id);
-      await supabase.from('community_likes').delete().eq('post_id', deletingPost.id);
-      await supabase.from('saved_posts').delete().eq('post_id', deletingPost.id);
-      await supabase.from('shared_posts').delete().eq('post_id', deletingPost.id);
+      // Delete related data first (admin can delete all, users can only delete their own post's data)
+      if (isAdmin && deletingPost.user_id !== user.id) {
+        // Admin deleting someone else's post - delete all related data
+        await supabase.from('community_comments').delete().eq('post_id', deletingPost.id);
+        await supabase.from('community_likes').delete().eq('post_id', deletingPost.id);
+        await supabase.from('saved_posts').delete().eq('post_id', deletingPost.id);
+        await supabase.from('shared_posts').delete().eq('post_id', deletingPost.id);
+      } else {
+        // User deleting their own post - normal deletion
+        await supabase.from('community_comments').delete().eq('post_id', deletingPost.id);
+        await supabase.from('community_likes').delete().eq('post_id', deletingPost.id);
+        await supabase.from('saved_posts').delete().eq('post_id', deletingPost.id);
+        await supabase.from('shared_posts').delete().eq('post_id', deletingPost.id);
+      }
       
-      // Delete the post
-      const { error } = await supabase
+      // Delete the post (admin can delete any post, users can only delete their own)
+      const deleteQuery = supabase
         .from('community_posts')
         .delete()
+        .eq('id', deletingPost.id);
+      
+      // Only add user_id check if not admin
+      if (!isAdmin) {
+        deleteQuery.eq('user_id', user.id);
+      }
+      
+      const { error, data } = await deleteQuery;
+      
+      console.log('Delete post result:', { error, data, isAdmin, postUserId: deletingPost.user_id, currentUserId: user.id });
+
+      if (error) {
+        console.error('Error deleting post:', error);
+        throw error;
+      }
+
+      // Verify deletion was successful by checking if post still exists
+      const { data: verifyPost } = await supabase
+        .from('community_posts')
+        .select('id')
         .eq('id', deletingPost.id)
-        .eq('user_id', user.id);
+        .maybeSingle();
+      
+      if (verifyPost) {
+        console.error('Post still exists after delete attempt:', verifyPost);
+        throw new Error('ไม่สามารถลบโพสต์ได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงหรือ RLS policies');
+      }
 
-      if (error) throw error;
+      console.log('Post deleted successfully, post no longer exists in database');
 
-      // Update local state
-      setPosts(posts.filter(p => p.id !== deletingPost.id && p.original_post_id !== deletingPost.id));
+      // If admin deleted someone else's post, send notification with reason
+      if (isAdmin && deletingPost.user_id !== user.id) {
+        const reason = adminDeleteReason.trim() || "โพสต์นี้ละเมิดกฎของชุมชน";
+        
+        console.log('Sending notification to user:', deletingPost.user_id, 'Reason:', reason);
+        
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: deletingPost.user_id,
+            title: 'โพสต์ของคุณถูกลบโดยแอดมิน',
+            message: reason,
+            type: 'post_deleted',
+            reference_id: deletingPost.id,
+            actor_id: user.id
+          });
+        
+        if (notifError) {
+          console.error('Error sending notification:', notifError);
+          // Don't throw - notification is not critical
+        } else {
+          console.log('Notification sent successfully');
+        }
+      }
+
+      // Update local state - remove deleted post and any reposts
+      setPosts(posts.filter(p => {
+        // Remove the deleted post itself
+        if (p.id === deletingPost.id) return false;
+        // Remove reposts of the deleted post
+        if (p.original_post_id === deletingPost.id) return false;
+        return true;
+      }));
+
+      // Refresh posts to ensure consistency
+      await fetchPosts(true);
 
       // Close post detail if viewing the deleted post
       if (selectedPost && selectedPost.id === deletingPost.id) {
         setSelectedPost(null);
       }
 
+      // Dispatch event to refresh other pages (UserProfile, etc.)
+      window.dispatchEvent(new CustomEvent('postDeleted', {
+        detail: { postId: deletingPost.id, userId: deletingPost.user_id }
+      }));
+
       toast({
         title: "ลบโพสต์สำเร็จ",
-        description: "โพสต์ของคุณถูกลบแล้ว"
+        description: isAdmin && deletingPost.user_id !== user.id 
+          ? "โพสต์ถูกลบแล้ว และได้ส่งการแจ้งเตือนไปยังเจ้าของโพสต์แล้ว"
+          : "โพสต์ของคุณถูกลบแล้ว"
       });
 
       setDeleteDialogOpen(false);
       setDeletingPost(null);
+      setAdminDeleteReason("");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -2253,6 +2530,7 @@ export default function Community() {
         onTouchStart={handleTouchStart}
       >
         <OptimizedImage
+          key={`post-image-${post.id}`}
           src={post.image_url}
           variants={{
             blur: post.image_blur_url || undefined,
@@ -2327,14 +2605,14 @@ export default function Community() {
     
     setDeletingCommentId(commentId);
     try {
-      // Check if user is the post owner
+      // Check if user is the post owner or admin
       const isPostOwner = selectedPost && selectedPost.user_id === user.id;
       
-      // If user is post owner, they can delete any comment
-      // Otherwise, they can only delete their own comments
+      // Admin and post owner can delete any comment
+      // Otherwise, users can only delete their own comments
       let error;
-      if (isPostOwner) {
-        // Post owner can delete any comment - no user_id restriction
+      if (isPostOwner || isAdmin) {
+        // Post owner or admin can delete any comment - no user_id restriction
         const result = await supabase
           .from('community_comments')
           .delete()
@@ -2513,19 +2791,24 @@ export default function Community() {
                       <Link to={`/profile/${post.repost_user_id}`} className="px-4 pt-3 pb-2 flex items-center gap-2 text-muted-foreground text-sm border-b border-border/50 hover:bg-muted/30 transition-colors">
                         <Repeat2 className="h-4 w-4" />
                         <Avatar className="h-5 w-5">
-                          <AvatarImage src={post.repost_user_profile?.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]}
+                          <AvatarImage 
+                            src={post.repost_user_profile?.avatar_url || undefined}
+                            alt={getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
+                            onError={(e) => {
+                              console.warn('Repost avatar image failed to load:', {
+                                avatar_url: post.repost_user_profile?.avatar_url,
+                                user_id: post.repost_user_id
+                              });
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
+                            {getDisplayName(post.repost_user_profile, post.repost_artist_profile)[0]?.toUpperCase() || '?'}
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-medium text-foreground">
                           {getDisplayName(post.repost_user_profile, post.repost_artist_profile)}
                         </span>
-                        {isBuyerUser(post.repost_artist_profile) && (
-                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                            Buyer
-                          </Badge>
-                        )}
                         <span>รีโพสต์</span>
                         <span className="text-xs">• {formatTimeAgo(post.repost_created_at || post.created_at)}</span>
                       </Link>
@@ -2541,10 +2824,32 @@ export default function Community() {
                     {/* Post Header */}
                     <div className="flex items-center justify-between p-4">
                       <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                          <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                        <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                          <AvatarImage 
+                            src={post.user_profile?.avatar_url || undefined}
+                            alt={getDisplayName(post.user_profile, post.artist_profile)}
+                            onError={(e) => {
+                              console.error('❌ Avatar image failed to load:', {
+                                avatar_url: post.user_profile?.avatar_url,
+                                user_id: post.user_id,
+                                post_id: post.id,
+                                profile: post.user_profile,
+                                actualSrc: e.currentTarget.src,
+                                error: e
+                              });
+                              // Hide the image element on error, fallback will show
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            onLoad={(e) => {
+                              console.log('✅ Avatar image loaded successfully:', {
+                                avatar_url: post.user_profile?.avatar_url,
+                                user_id: post.user_id,
+                                actualSrc: e.currentTarget.src
+                              });
+                            }}
+                          />
+                          <AvatarFallback className="bg-muted text-muted-foreground font-semibold">
+                            {getDisplayName(post.user_profile, post.artist_profile)[0]?.toUpperCase() || '?'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
@@ -2558,11 +2863,6 @@ export default function Community() {
                             {post.artist_profile?.is_verified && (
                               <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
                                 ✓
-                              </Badge>
-                            )}
-                            {isBuyerUser(post.artist_profile) && (
-                              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0">
-                                Buyer
                               </Badge>
                             )}
                           </div>
@@ -2624,19 +2924,21 @@ export default function Community() {
                               <Bookmark className="h-4 w-4 mr-2" />
                               {savedPosts.has(post.original_post_id || post.id) ? "ยกเลิกบันทึก" : "บันทึก"}
                             </DropdownMenuItem>
-                            {/* Edit/Delete for own posts */}
-                            {user && user.id === post.user_id && !post.is_repost && (
+                            {/* Edit/Delete for own posts or admin */}
+                            {user && (user.id === post.user_id || isAdmin) && !post.is_repost && (
                               <>
-                                <DropdownMenuItem onClick={() => openEditDialog(post)}>
-                                  <Pencil className="h-4 w-4 mr-2" />
-                                  แก้ไขโพสต์
-                                </DropdownMenuItem>
+                                {user.id === post.user_id && (
+                                  <DropdownMenuItem onClick={() => openEditDialog(post)}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    แก้ไขโพสต์
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem 
                                   onClick={() => openDeleteDialog(post)}
                                   className="text-destructive focus:text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
-                                  ลบโพสต์
+                                  {isAdmin && user.id !== post.user_id ? "ลบโพสต์ (Admin)" : "ลบโพสต์"}
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -3161,6 +3463,7 @@ export default function Community() {
             }
           }}
           onLikeComment={handleLikeComment}
+          isAdmin={isAdmin}
         />
 
         {/* Share/Repost Dialog */}
@@ -3467,29 +3770,55 @@ export default function Community() {
           setDeleteDialogOpen(open);
           if (!open) {
             setDeletingPost(null);
+            setAdminDeleteReason("");
           }
         }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>ยืนยันการลบโพสต์</DialogTitle>
+              <DialogTitle>
+                {isAdmin && deletingPost && deletingPost.user_id !== user?.id 
+                  ? "ลบโพสต์ (Admin)" 
+                  : "ยืนยันการลบโพสต์"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-muted-foreground">
-                คุณต้องการลบโพสต์ "{deletingPost?.title}" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                {isAdmin && deletingPost && deletingPost.user_id !== user?.id
+                  ? `คุณกำลังจะลบโพสต์ "${deletingPost?.title}" ของผู้ใช้อื่น กรุณาระบุเหตุผลที่ลบโพสต์นี้ (จะส่งไปยังการแจ้งเตือนของเจ้าของโพสต์)`
+                  : `คุณต้องการลบโพสต์ "${deletingPost?.title}" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`}
               </p>
+              
+              {isAdmin && deletingPost && deletingPost.user_id !== user?.id && (
+                <div className="space-y-2">
+                  <Label htmlFor="adminDeleteReason">เหตุผลที่ลบโพสต์ *</Label>
+                  <Textarea
+                    id="adminDeleteReason"
+                    placeholder="เช่น: โพสต์นี้ละเมิดกฎของชุมชน เนื้อหาไม่เหมาะสม ฯลฯ"
+                    value={adminDeleteReason}
+                    onChange={(e) => setAdminDeleteReason(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    เหตุผลนี้จะถูกส่งไปยังการแจ้งเตือนของเจ้าของโพสต์
+                  </p>
+                </div>
+              )}
+              
               <div className="flex justify-end gap-2">
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setDeleteDialogOpen(false);
                     setDeletingPost(null);
+                    setAdminDeleteReason("");
                   }}
                 >
                   ยกเลิก
                 </Button>
                 <Button
                   variant="destructive"
-                  disabled={confirmingDelete}
+                  disabled={confirmingDelete || (isAdmin && deletingPost && deletingPost.user_id !== user?.id && !adminDeleteReason.trim())}
                   onClick={handleConfirmDelete}
                 >
                   {confirmingDelete ? (

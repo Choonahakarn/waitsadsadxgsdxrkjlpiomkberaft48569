@@ -34,6 +34,7 @@ interface UserProfile {
 interface ArtistProfile {
   artist_name: string;
   is_verified: boolean;
+  avatar_url?: string | null;
 }
 
 interface CommunityPost {
@@ -114,6 +115,7 @@ interface PostDetailDialogProps {
   expandedReplies: Set<string>;
   onToggleReplies: (commentId: string, expanded: boolean) => void;
   onLikeComment: (commentId: string, isLiked: boolean) => void;
+  isAdmin?: boolean; // Add admin prop
 }
 
 const formatTimeAgo = (dateString: string) => {
@@ -128,8 +130,83 @@ const formatTimeAgo = (dateString: string) => {
   return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 };
 
+// Helper function to normalize avatar URL
+const normalizeAvatarUrl = (avatarUrl: string | null | undefined, size: number = 64): string | undefined => {
+  if (!avatarUrl) return undefined;
+  
+  // If it's already a full URL, add transform parameters for the specified size
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    // Check if it's a Cloudinary URL
+    if (avatarUrl.includes('res.cloudinary.com')) {
+      try {
+        const urlObj = new URL(avatarUrl);
+        const pathParts = urlObj.pathname.split('/');
+        const uploadIndex = pathParts.indexOf('upload');
+        
+        if (uploadIndex !== -1 && uploadIndex < pathParts.length - 1) {
+          const afterUpload = pathParts.slice(uploadIndex + 1).join('/');
+          const cloudName = pathParts[1]; // After empty string and before 'image'
+          const baseUrl = `${urlObj.protocol}//res.cloudinary.com/${cloudName}/image/upload`;
+          const parts = afterUpload.split('/');
+          const publicId = parts[0].includes('w_') && parts.length > 1 
+            ? parts.slice(1).join('/') 
+            : afterUpload;
+          
+          return `${baseUrl}/w_${size},h_${size},c_limit,f_auto,q_auto/${publicId}`;
+        }
+      } catch (e) {
+        console.warn('Failed to parse Cloudinary URL:', e);
+      }
+    }
+    
+    // For other URLs (Supabase storage or other), use query parameters
+    const url = new URL(avatarUrl);
+    // Remove existing transform parameters first
+    url.searchParams.delete('width');
+    url.searchParams.delete('height');
+    url.searchParams.delete('resize');
+    url.searchParams.delete('quality');
+    // Add size transform parameters
+    url.searchParams.set('width', size.toString());
+    url.searchParams.set('height', size.toString());
+    url.searchParams.set('resize', 'cover');
+    return url.toString();
+  }
+  
+  // If it's a Supabase storage path, construct the public URL with transform
+  // Format could be: avatars/user_id/filename.jpg or user_id/filename.jpg
+  let storagePath = avatarUrl;
+  if (avatarUrl.startsWith('avatars/')) {
+    storagePath = avatarUrl.replace('avatars/', '');
+  }
+  
+  // Get public URL from Supabase storage
+  try {
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(storagePath);
+    
+    // Add transform parameters as query string
+    const url = new URL(publicUrl);
+    url.searchParams.set('width', size.toString());
+    url.searchParams.set('height', size.toString());
+    url.searchParams.set('resize', 'cover');
+    
+    return url.toString();
+  } catch (error) {
+    console.error('Error normalizing avatar URL:', error, avatarUrl);
+    // Fallback: return original URL if normalization fails
+    return avatarUrl;
+  }
+};
+
 const getDisplayName = (userProfile?: UserProfile, artistProfile?: ArtistProfile | null) => {
-  return artistProfile?.artist_name || userProfile?.full_name || 'ผู้ใช้';
+  // ถ้าเป็นศิลปิน ให้แสดงเฉพาะชื่อศิลปินเท่านั้น ไม่แสดงชื่อผู้ซื้อ
+  if (artistProfile?.artist_name) {
+    return artistProfile.artist_name;
+  }
+  // ถ้าไม่ใช่ศิลปิน ให้แสดง display_name ก่อน ถ้าไม่มีค่อยใช้ full_name
+  return userProfile?.display_name || userProfile?.full_name || 'ผู้ใช้';
 };
 
 const isBuyerUser = (artistProfile?: ArtistProfile | null) => {
@@ -174,6 +251,7 @@ export function PostDetailDialog({
   expandedReplies,
   onToggleReplies,
   onLikeComment,
+  isAdmin = false,
 }: PostDetailDialogProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -189,7 +267,7 @@ export function PostDetailDialog({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [hasDragged, setHasDragged] = useState(false);
-  const [ownerArtworks, setOwnerArtworks] = useState<Array<{ id: string; image_url: string; title: string }>>([]);
+  const [ownerArtworks, setOwnerArtworks] = useState<Array<{ id: string; image_url: string; title: string; post_id: string | null }>>([]);
   const [loadingArtworks, setLoadingArtworks] = useState(false);
   const [artworkToPostMap, setArtworkToPostMap] = useState<Map<string, string>>(new Map());
   
@@ -322,7 +400,7 @@ export function PostDetailDialog({
   // Fetch owner's portfolio artworks
   useEffect(() => {
     const fetchOwnerArtworks = async () => {
-      if (!post?.artist_profile?.id || !post?.user_id) {
+      if (!post?.user_id || !post?.artist_profile) {
         setOwnerArtworks([]);
         setArtworkToPostMap(new Map());
         return;
@@ -330,37 +408,48 @@ export function PostDetailDialog({
 
       setLoadingArtworks(true);
       try {
-        // Fetch artworks
+        // First, get the artist_id from artist_profiles using user_id
+        const { data: artistProfileData, error: artistError } = await supabase
+          .from('artist_profiles')
+          .select('id')
+          .eq('user_id', post.user_id)
+          .maybeSingle();
+
+        if (artistError) throw artistError;
+        if (!artistProfileData) {
+          setOwnerArtworks([]);
+          setArtworkToPostMap(new Map());
+          return;
+        }
+
+        // Fetch portfolio artworks (artworks with post_id) for this artist
         const { data: artworksData, error: artworksError } = await supabase
           .from('artworks')
-          .select('id, image_url, title')
-          .eq('artist_id', post.artist_profile.id)
+          .select('id, image_url, title, post_id')
+          .eq('artist_id', artistProfileData.id)
+          .not('post_id', 'is', null) // Only fetch portfolio items (artworks with post_id)
           .order('created_at', { ascending: false })
-          .limit(6); // Show max 6 artworks
+          .limit(4); // Show max 4 artworks
 
         if (artworksError) throw artworksError;
-        setOwnerArtworks(artworksData || []);
 
-        // Fetch community posts by the same user to create mapping
-        const { data: postsData } = await supabase
-          .from('community_posts')
-          .select('id, image_url, title')
-          .eq('user_id', post.user_id);
-
-        // Create mapping between artworks and posts
-        if (artworksData && postsData) {
-          const mapping = new Map<string, string>();
+        // Create mapping between artworks and posts using post_id directly
+        const mapping = new Map<string, string>();
+        if (artworksData) {
           artworksData.forEach((artwork) => {
-            // Find matching post by image_url or title
-            const matchingPost = postsData.find(
-              (p) => p.image_url === artwork.image_url || p.title === artwork.title
-            );
-            if (matchingPost) {
-              mapping.set(artwork.id, matchingPost.id);
+            if (artwork.post_id) {
+              mapping.set(artwork.id, artwork.post_id);
             }
           });
-          setArtworkToPostMap(mapping);
         }
+
+        setOwnerArtworks(artworksData || []);
+        setArtworkToPostMap(mapping);
+
+        console.log('Portfolio artworks fetched:', {
+          count: artworksData?.length || 0,
+          artworks: artworksData?.map(a => ({ id: a.id, post_id: a.post_id }))
+        });
       } catch (error) {
         console.error('Error fetching owner artworks:', error);
         setOwnerArtworks([]);
@@ -371,7 +460,7 @@ export function PostDetailDialog({
     };
 
     fetchOwnerArtworks();
-  }, [post?.artist_profile?.id, post?.user_id]);
+  }, [post?.user_id, post?.artist_profile]);
 
   if (!post) return null;
 
@@ -680,7 +769,31 @@ export function PostDetailDialog({
                     className="flex items-center gap-3 group hover:opacity-80 transition-opacity"
                 >
                     <Avatar className="h-10 w-10 border-2 border-white/30">
-                    <AvatarImage src={post.user_profile?.avatar_url || undefined} />
+                    <AvatarImage 
+                      src={
+                        // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+                        (post.artist_profile as any)?.avatar_url 
+                          ? normalizeAvatarUrl((post.artist_profile as any).avatar_url)
+                          : normalizeAvatarUrl(post.user_profile?.avatar_url)
+                      } 
+                      onError={(e) => {
+                        console.error('❌ Avatar image failed to load in PostDetailDialog:', {
+                          avatar_url: post.user_profile?.avatar_url,
+                          artist_avatar_url: (post.artist_profile as any)?.avatar_url,
+                          user_id: post.user_id,
+                          post_id: post.id,
+                          actualSrc: e.currentTarget.src
+                        });
+                        e.currentTarget.style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        console.log('✅ Avatar image loaded successfully in PostDetailDialog:', {
+                          avatar_url: post.user_profile?.avatar_url,
+                          artist_avatar_url: (post.artist_profile as any)?.avatar_url,
+                          actualSrc: e.currentTarget.src
+                        });
+                      }}
+                    />
                       <AvatarFallback className="bg-white/20 text-white">
                       {getDisplayName(post.user_profile, post.artist_profile)[0]}
                     </AvatarFallback>
@@ -881,7 +994,17 @@ export function PostDetailDialog({
                           {/* Comment */}
                           <div className="flex gap-3">
                             <Avatar className="h-8 w-8 shrink-0 border border-white/30">
-                        <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
+                        <AvatarImage 
+                          src={
+                            // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+                            (comment.artist_profile as any)?.avatar_url 
+                              ? normalizeAvatarUrl((comment.artist_profile as any).avatar_url)
+                              : normalizeAvatarUrl(comment.user_profile?.avatar_url)
+                          } 
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
                               <AvatarFallback className="bg-white/20 text-white text-xs">
                           {getDisplayName(comment.user_profile, comment.artist_profile)[0]}
                         </AvatarFallback>
@@ -913,9 +1036,6 @@ export function PostDetailDialog({
                               </span>
                               {comment.artist_profile?.is_verified && (
                                       <Badge className="h-3 px-1 text-[8px] bg-blue-500 text-white border-0">✓</Badge>
-                              )}
-                              {isBuyerUser(comment.artist_profile) && (
-                                      <Badge className="h-3 px-1.5 text-[8px] bg-sky-500 text-white border-0">Buyer</Badge>
                               )}
                                     <span className="text-white/50 text-xs">
                                       {formatTimeAgo(comment.created_at)}
@@ -954,13 +1074,13 @@ export function PostDetailDialog({
                                   แก้ไข
                                 </button>
                               )}
-                              {user && (user.id === comment.user_id || user.id === post.user_id) && (
+                              {user && (user.id === comment.user_id || user.id === post.user_id || isAdmin) && (
                                       <button 
                                         onClick={() => onDeleteComment(comment.id)} 
                                         disabled={deletingCommentId === comment.id}
                                         className="text-xs text-red-400 hover:text-red-300"
                                       >
-                                  {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin inline" /> : "ลบ"}
+                                  {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin inline" /> : isAdmin && user.id !== comment.user_id ? "ลบ (Admin)" : "ลบ"}
                                 </button>
                               )}
                             </div>
@@ -992,7 +1112,17 @@ export function PostDetailDialog({
                             {comment.replies.map((reply) => (
                               <div key={reply.id} className="flex gap-2">
                                 <Avatar className="h-6 w-6 shrink-0 border border-white/30">
-                                  <AvatarImage src={reply.user_profile?.avatar_url || undefined} />
+                                  <AvatarImage 
+                                    src={
+                                      // Priority: Use avatar_url from artist_profiles if available, otherwise use from profiles
+                                      (reply.artist_profile as any)?.avatar_url 
+                                        ? normalizeAvatarUrl((reply.artist_profile as any).avatar_url)
+                                        : normalizeAvatarUrl(reply.user_profile?.avatar_url)
+                                    } 
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
                                   <AvatarFallback className="bg-white/20 text-white text-[10px]">
                                     {getDisplayName(reply.user_profile, reply.artist_profile)[0]}
                                   </AvatarFallback>
@@ -1030,13 +1160,13 @@ export function PostDetailDialog({
                                         ตอบกลับ
                                       </button>
                                     )}
-                                    {user && (user.id === reply.user_id || user.id === post.user_id) && (
+                                    {user && (user.id === reply.user_id || user.id === post.user_id || isAdmin) && (
                                       <button 
                                         onClick={() => onDeleteComment(reply.id)} 
                                         disabled={deletingCommentId === reply.id}
                                         className="text-[10px] text-red-400 hover:text-red-300"
                                       >
-                                        {deletingCommentId === reply.id ? <Loader2 className="h-2 w-2 animate-spin inline" /> : "ลบ"}
+                                        {deletingCommentId === reply.id ? <Loader2 className="h-2 w-2 animate-spin inline" /> : isAdmin && user.id !== reply.user_id ? "ลบ (Admin)" : "ลบ"}
                                       </button>
                                     )}
                                   </div>

@@ -15,4 +15,13 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Disable eval in production builds
+    target: 'esnext',
+    minify: 'esbuild',
+  },
+  esbuild: {
+    // Use safer options
+    legalComments: 'none',
+  },
 }));

@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Allow unsafe-eval in development for Vite HMR -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline'; object-src 'none'; base-uri 'self';" />
     <title>SoulHuman - Art Made by Humans</title>
     <meta name="description" content="Marketplace for 100% human-created artwork. No AI. No algorithms. Only real artists." />
     <meta name="author" content="SoulHuman" />

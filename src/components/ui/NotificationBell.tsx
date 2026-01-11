@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Bell } from "lucide-react";
+import { Bell, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
 
@@ -246,6 +248,9 @@ export function NotificationBell() {
     };
   }, [open, fetchNotifications]);
 
+  const [postDeletedDialogOpen, setPostDeletedDialogOpen] = useState(false);
+  const [deletedPostReason, setDeletedPostReason] = useState<string>("");
+
   // Navigate to the related post/profile based on notification type
   const handleNotificationClick = async (notif: AggregatedNotification) => {
     // Mark as clicked
@@ -260,6 +265,16 @@ export function NotificationBell() {
 
     // Close the popover
     setOpen(false);
+
+    // Handle post_deleted notification - show popup instead of navigating
+    if (notif.type === 'post_deleted') {
+      const originalNotif = notifications.find(n => notif.ids.includes(n.id));
+      if (originalNotif) {
+        setDeletedPostReason(originalNotif.message);
+        setPostDeletedDialogOpen(true);
+      }
+      return;
+    }
 
     // Navigate based on notification type
     const { type, reference_id } = notif;
@@ -298,6 +313,8 @@ export function NotificationBell() {
         return "bg-purple-500";
       case "follow":
         return "bg-teal-500";
+      case "post_deleted":
+        return "bg-red-500";
       default:
         return "bg-blue-500";
     }
@@ -374,6 +391,45 @@ export function NotificationBell() {
           )}
         </ScrollArea>
       </PopoverContent>
+      
+      {/* Post Deleted Reason Dialog */}
+      <Dialog open={postDeletedDialogOpen} onOpenChange={setPostDeletedDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              โพสต์ของคุณถูกลบโดยแอดมิน
+            </DialogTitle>
+            <DialogDescription>
+              โพสต์ของคุณถูกลบเนื่องจากละเมิดกฎของชุมชน
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>เหตุผลที่ลบโพสต์:</strong>
+                <p className="mt-2 whitespace-pre-wrap">{deletedPostReason}</p>
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">กฎของชุมชนที่คุณควรทราบ:</p>
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                <li>ห้ามโพสต์เนื้อหาที่ไม่เหมาะสม</li>
+                <li>ห้ามโพสต์เนื้อหาที่ละเมิดลิขสิทธิ์</li>
+                <li>ห้ามโพสต์เนื้อหาที่เป็นการคุกคามหรือรังแก</li>
+                <li>ห้ามโพสต์เนื้อหาที่เป็นสแปมหรือโฆษณา</li>
+                <li>ห้ามโพสต์เนื้อหาที่แอบอ้างตัวตน</li>
+              </ul>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setPostDeletedDialogOpen(false)}>
+                เข้าใจแล้ว
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Popover>
   );
 }

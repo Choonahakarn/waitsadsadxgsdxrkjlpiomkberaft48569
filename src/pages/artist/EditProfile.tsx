@@ -52,6 +52,11 @@ const MyArtistProfile = () => {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperType, setCropperType] = useState<'avatar' | 'cover'>('avatar');
+  // Pending images to upload (stored as blob URLs for preview)
+  const [pendingAvatarBlob, setPendingAvatarBlob] = useState<Blob | null>(null);
+  const [pendingCoverBlob, setPendingCoverBlob] = useState<Blob | null>(null);
+  const [pendingAvatarUrl, setPendingAvatarUrl] = useState<string | null>(null);
+  const [pendingCoverUrl, setPendingCoverUrl] = useState<string | null>(null);
 
   // Form state
   const [artistName, setArtistName] = useState('');
@@ -121,6 +126,14 @@ const MyArtistProfile = () => {
     }
   }, [user, isArtist]);
 
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingAvatarUrl) URL.revokeObjectURL(pendingAvatarUrl);
+      if (pendingCoverUrl) URL.revokeObjectURL(pendingCoverUrl);
+    };
+  }, [pendingAvatarUrl, pendingCoverUrl]);
+
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -145,57 +158,30 @@ const MyArtistProfile = () => {
     e.target.value = '';
   };
 
-  const handleCropComplete = async (croppedBlob: Blob) => {
-    if (!user) return;
-    
+  const handleCropComplete = (croppedBlob: Blob) => {
     const isAvatar = cropperType === 'avatar';
-    const setUploading = isAvatar ? setIsUploading : setIsUploadingCover;
     
-    setUploading(true);
+    // Create preview URL from blob
+    const previewUrl = URL.createObjectURL(croppedBlob);
     
-    try {
-      const fileName = `${user.id}/${isAvatar ? 'avatar' : 'cover'}.jpg`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, croppedBlob, { 
-          upsert: true,
-          contentType: 'image/jpeg'
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`; // Add cache bust
-
-      const updateField = isAvatar ? 'avatar_url' : 'cover_url';
-      const { error: updateError } = await supabase
-        .from('artist_profiles')
-        .update({ [updateField]: imageUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      setProfile(prev => prev ? { ...prev, [updateField]: imageUrl } : null);
-      toast({
-        title: isAvatar 
-          ? t('profile.avatarUpdated', 'อัปเดตรูปโปรไฟล์สำเร็จ')
-          : t('profile.coverUpdated', 'อัปเดตรูปปกสำเร็จ'),
-      });
-    } catch (error: unknown) {
-      console.error('Upload error:', error);
-      toast({
-        variant: 'destructive',
-        title: t('profile.uploadError', 'อัปโหลดไม่สำเร็จ'),
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setUploading(false);
-      setCropperFile(null);
+    if (isAvatar) {
+      setPendingAvatarBlob(croppedBlob);
+      setPendingAvatarUrl(previewUrl);
+    } else {
+      setPendingCoverBlob(croppedBlob);
+      setPendingCoverUrl(previewUrl);
     }
+    
+    // Close cropper dialog
+    setCropperOpen(false);
+    setCropperFile(null);
+    
+    toast({
+      title: isAvatar 
+        ? t('profile.avatarSelected', 'เลือกรูปโปรไฟล์แล้ว')
+        : t('profile.coverSelected', 'เลือกรูปปกแล้ว'),
+      description: t('profile.saveToApply', 'กดปุ่ม "บันทึก" เพื่อบันทึกการเปลี่ยนแปลง'),
+    });
   };
 
   const handleCoverPositionChange = async (positionY: number) => {
@@ -313,6 +299,90 @@ const MyArtistProfile = () => {
     setIsSaving(true);
 
     try {
+      // Upload pending avatar if exists
+      if (pendingAvatarBlob) {
+        setIsUploading(true);
+        try {
+          const fileName = `${user.id}/${Date.now()}-avatar.jpg`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, pendingAvatarBlob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+
+          const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+          const { error: updateError } = await supabase
+            .from('artist_profiles')
+            .update({ avatar_url: imageUrl })
+            .eq('user_id', user.id);
+
+          if (updateError) throw updateError;
+
+          setProfile(prev => prev ? { ...prev, avatar_url: imageUrl } : null);
+          
+          // Clean up
+          if (pendingAvatarUrl) URL.revokeObjectURL(pendingAvatarUrl);
+          setPendingAvatarBlob(null);
+          setPendingAvatarUrl(null);
+        } catch (error: any) {
+          console.error('Avatar upload error:', error);
+          throw error;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      // Upload pending cover if exists
+      if (pendingCoverBlob) {
+        setIsUploadingCover(true);
+        try {
+          const fileName = `${user.id}/${Date.now()}-cover.jpg`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, pendingCoverBlob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+
+          const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+          const { error: updateError } = await supabase
+            .from('artist_profiles')
+            .update({ cover_url: imageUrl })
+            .eq('user_id', user.id);
+
+          if (updateError) throw updateError;
+
+          setProfile(prev => prev ? { ...prev, cover_url: imageUrl } : null);
+          
+          // Clean up
+          if (pendingCoverUrl) URL.revokeObjectURL(pendingCoverUrl);
+          setPendingCoverBlob(null);
+          setPendingCoverUrl(null);
+        } catch (error: any) {
+          console.error('Cover upload error:', error);
+          throw error;
+        } finally {
+          setIsUploadingCover(false);
+        }
+      }
+
       // Build update object
       const updateData: Record<string, unknown> = {
         artist_name: artistName,
@@ -344,7 +414,13 @@ const MyArtistProfile = () => {
 
       toast({
         title: t('profile.saved', 'บันทึกโปรไฟล์สำเร็จ'),
+        description: 'บันทึกข้อมูลโปรไฟล์เสร็จสิ้นแล้ว',
       });
+
+      // Navigate to profile page after successful save
+      setTimeout(() => {
+        navigate(`/profile/${user.id}`);
+      }, 1000);
     } catch (error: unknown) {
       console.error('Save error:', error);
       toast({
@@ -410,13 +486,13 @@ const MyArtistProfile = () => {
               <CardHeader>
                 <CardTitle>{t('profile.coverImage', 'รูปปก')}</CardTitle>
                 <CardDescription>
-                  {t('profile.coverHint', 'รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ (แนะนำ 1920x480 pixels)')}
+                  {t('profile.coverHint', 'รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ (แนะนำ 1920x750 pixels)')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pb-24">
-                {profile?.cover_url ? (
+                {(pendingCoverUrl || profile?.cover_url) ? (
                   <ImagePositioner
-                    imageUrl={profile.cover_url}
+                    imageUrl={pendingCoverUrl || profile.cover_url || ''}
                     positionY={profile.cover_position_y ?? 50}
                     onPositionChange={handleCoverPositionChange}
                     aspectRatio="cover"
@@ -428,6 +504,9 @@ const MyArtistProfile = () => {
                       <p className="text-muted-foreground text-sm">{t('profile.noCover', 'ยังไม่มีรูปปก')}</p>
                     </div>
                   </div>
+                )}
+                {pendingCoverUrl && (
+                  <p className="text-xs text-amber-600 mt-2 text-center">⚠️ {t('profile.pendingCover', 'รูปปกใหม่ (ยังไม่ได้บันทึก)')}</p>
                 )}
                 <div className="mt-24 flex justify-center">
                   <label
@@ -464,9 +543,9 @@ const MyArtistProfile = () => {
               <CardContent className="pb-28">
                 <div className="flex flex-col md:flex-row items-start gap-6">
                   <div className="relative">
-                    {profile?.avatar_url ? (
+                    {(pendingAvatarUrl || profile?.avatar_url) ? (
                       <ImagePositioner
-                        imageUrl={profile.avatar_url}
+                        imageUrl={pendingAvatarUrl || profile.avatar_url || ''}
                         positionY={profile.avatar_position_y ?? 50}
                         positionX={profile.avatar_position_x ?? 50}
                         onPositionChange={handleAvatarPositionChange}
@@ -479,6 +558,11 @@ const MyArtistProfile = () => {
                           {artistName?.[0]?.toUpperCase() || 'A'}
                         </AvatarFallback>
                       </Avatar>
+                    )}
+                    {pendingAvatarUrl && (
+                      <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full">
+                        {t('profile.new', 'ใหม่')}
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 space-y-3 mt-24 md:mt-0">
@@ -686,7 +770,7 @@ const MyArtistProfile = () => {
               setCropperFile(null);
             }}
             onCropComplete={handleCropComplete}
-            aspectRatio={cropperType === 'avatar' ? 1 : 4}
+            aspectRatio={cropperType === 'avatar' ? 1 : 1920 / 750}
             title={cropperType === 'avatar' ? 'ครอปรูปโปรไฟล์' : 'ครอปรูปปก'}
           />
         </div>

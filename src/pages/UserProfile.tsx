@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserPlus, UserCheck, Grid3X3, LayoutGrid, ExternalLink, Settings, Heart, MessageCircle, Bookmark, Share2, Repeat2, X, Send, Loader2, MoreHorizontal, VolumeX, Flag, Ban, Star } from "lucide-react";
@@ -65,18 +65,25 @@ interface CommunityPost {
   title: string;
   description: string | null;
   image_url: string;
+  image_blur_url?: string | null;
+  image_small_url?: string | null;
+  image_medium_url?: string | null;
+  image_large_url?: string | null;
   likes_count: number;
   created_at: string;
   category: string | null;
   tools_used: string[] | null;
   hashtags?: string[] | null;
   comments_count?: number;
+  shares_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
   user_id?: string;
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
+    display_id?: string | null;
+    display_name?: string | null;
   };
   artist_profile?: {
     artist_name: string;
@@ -93,7 +100,13 @@ interface Comment {
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
+    display_name: string | null;
   };
+  artist_profile?: {
+    artist_name: string;
+    is_verified: boolean;
+    avatar_url?: string | null;
+  } | null;
 }
 
 const formatTimeAgo = (dateString: string) => {
@@ -108,9 +121,148 @@ const formatTimeAgo = (dateString: string) => {
   return date.toLocaleDateString('th-TH');
 };
 
+// Helper function to normalize avatar URL and ensure high quality
+const normalizeAvatarUrl = (avatarUrl: string | null | undefined, size: number = 64): string | undefined => {
+  if (!avatarUrl) return undefined;
+  
+  // If it's already a full URL, add transform parameters for the specified size
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    // Check if it's a Cloudinary URL
+    if (avatarUrl.includes('res.cloudinary.com')) {
+      // Cloudinary URL format: https://res.cloudinary.com/{cloud}/image/upload/{transform}/{public_id}
+      // Extract the public_id by finding the base URL and reconstructing
+      try {
+        const urlObj = new URL(avatarUrl);
+        const pathParts = urlObj.pathname.split('/');
+        const uploadIndex = pathParts.indexOf('upload');
+        
+        if (uploadIndex !== -1 && uploadIndex < pathParts.length - 1) {
+          // Get everything after 'upload' as the transform + public_id
+          const afterUpload = pathParts.slice(uploadIndex + 1).join('/');
+          // Extract public_id - it's usually the last segment or everything after transforms
+          // Transform parameters are comma-separated, public_id is after the last /
+          // For simplicity, assume public_id starts after first / (which might be transform)
+          // Better: find the base URL and reconstruct
+          // Reconstruct base URL with cloud name: https://res.cloudinary.com/{cloud}/image/upload
+          // Cloud name is in the path: /{cloud}/image/upload/...
+          const cloudName = pathParts[1]; // After empty string and before 'image'
+          const baseUrl = `${urlObj.protocol}//res.cloudinary.com/${cloudName}/image/upload`;
+          // If there's already a transform, extract just the public_id
+          // Transform format: w_50,h_50,c_limit,f_auto,q_10 (no slashes in transform)
+          // Public_id comes after transform, separated by /
+          const parts = afterUpload.split('/');
+          // If first part looks like transform (contains w_, h_, c_, etc.), use rest as public_id
+          const publicId = parts[0].includes('w_') && parts.length > 1 
+            ? parts.slice(1).join('/') 
+            : afterUpload; // If no transform detected, use everything as public_id
+          
+          // Cloudinary transform: w_{width},h_{height},c_limit (limit size without upscaling), f_auto (format), q_auto (quality)
+          return `${baseUrl}/w_${size},h_${size},c_limit,f_auto,q_auto/${publicId}`;
+        }
+      } catch (e) {
+        // If URL parsing fails, fall through to query parameter method
+        console.warn('Failed to parse Cloudinary URL:', e);
+      }
+    }
+    
+    // For other URLs (Supabase storage or other), use query parameters
+    const url = new URL(avatarUrl);
+    // Remove existing transform parameters first
+    url.searchParams.delete('width');
+    url.searchParams.delete('height');
+    url.searchParams.delete('resize');
+    url.searchParams.delete('quality');
+    // Add size transform parameters
+    url.searchParams.set('width', size.toString());
+    url.searchParams.set('height', size.toString());
+    url.searchParams.set('resize', 'cover');
+    return url.toString();
+  }
+  
+  // If it's a Supabase storage path, construct the public URL with transform
+  // Format could be: avatars/user_id/filename.jpg or user_id/filename.jpg
+  let storagePath = avatarUrl;
+  if (avatarUrl.startsWith('avatars/')) {
+    storagePath = avatarUrl.replace('avatars/', '');
+  }
+  
+  // Get public URL from Supabase storage
+  try {
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(storagePath);
+    
+    // Add transform parameters as query string
+    const url = new URL(publicUrl);
+    url.searchParams.set('width', size.toString());
+    url.searchParams.set('height', size.toString());
+    url.searchParams.set('resize', 'cover');
+    
+    return url.toString();
+  } catch (error) {
+    console.error('Error normalizing avatar URL:', error, avatarUrl);
+    // Fallback: return original URL if normalization fails
+    return avatarUrl;
+  }
+};
+
+// Helper function to normalize cover URL and ensure high quality
+const normalizeCoverUrl = (coverUrl: string | null | undefined): string | undefined => {
+  if (!coverUrl) return undefined;
+  
+  // If it's already a full URL, ensure it's high quality by removing any transform parameters
+  if (coverUrl.startsWith('http://') || coverUrl.startsWith('https://')) {
+    // Remove any Supabase transform parameters (like ?width=, ?height=, ?resize=, ?quality=, ?t=, etc.)
+    const url = new URL(coverUrl);
+    // Remove transform-related query parameters
+    url.searchParams.delete('width');
+    url.searchParams.delete('height');
+    url.searchParams.delete('resize');
+    url.searchParams.delete('quality');
+    url.searchParams.delete('t'); // Remove timestamp cache buster if present
+    // Return clean URL for full resolution
+    return url.toString();
+  }
+  
+  // If it's a Supabase storage path, construct the public URL
+  // Format could be: avatars/user_id/filename.jpg or user_id/filename.jpg
+  // (Cover images are stored in the same 'avatars' bucket)
+  let storagePath = coverUrl;
+  if (coverUrl.startsWith('avatars/')) {
+    storagePath = coverUrl.replace('avatars/', '');
+  }
+  
+  // Get public URL from Supabase storage (full resolution, no transforms)
+  try {
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(storagePath);
+    
+    // Ensure no transform parameters are added
+    return publicUrl;
+  } catch (error) {
+    console.error('Error normalizing cover URL:', error, coverUrl);
+    // Fallback: return original URL if normalization fails
+    return coverUrl;
+  }
+};
+
+// Get display name based on user type (artist uses artist_name, buyer uses display_name or full_name)
+const getDisplayName = (
+  userProfile?: { full_name: string | null; display_name: string | null } | null,
+  artistProfile?: { artist_name: string; is_verified: boolean } | null
+) => {
+  // ถ้าเป็นศิลปิน ให้แสดงเฉพาะชื่อศิลปินเท่านั้น ไม่แสดงชื่อผู้ซื้อ
+  if (artistProfile?.artist_name) {
+    return artistProfile.artist_name;
+  }
+  // ถ้าไม่ใช่ศิลปิน ให้แสดงชื่อผู้ใช้
+  return userProfile?.display_name || userProfile?.full_name || "ผู้ใช้";
+};
+
 export default function UserProfile() {
   const { userId } = useParams<{ userId: string }>();
-  const { user, isArtist } = useAuth();
+  const { user, isArtist, isAdmin } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isUserHidden } = useBlockedUsers();
@@ -190,9 +342,10 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (userId) {
+      console.log('Fetching user data for userId:', userId);
       fetchUserData();
     }
-  }, [userId]);
+  }, [userId, user?.id]); // Also refetch when user changes
 
   // Listen for portfolio updates (when user posts with "Add to Portfolio")
   useEffect(() => {
@@ -210,6 +363,168 @@ export default function UserProfile() {
       window.removeEventListener('portfolioUpdated', handlePortfolioUpdate as EventListener);
     };
   }, [user, userId]);
+
+  // Listen for follow status changes from other pages (Community, etc.)
+  useEffect(() => {
+    if (!user || !userId || user.id === userId) return;
+    
+    const handleFollowStatusChange = (event: CustomEvent) => {
+      if (event.detail?.userId === userId) {
+        console.log('Follow status changed externally, refreshing...');
+        // Refresh follow status from database
+        supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', userId)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (!error) {
+              setIsFollowing(!!data);
+              console.log('Follow status refreshed:', !!data);
+            }
+          });
+      }
+    };
+
+    window.addEventListener('followStatusChanged', handleFollowStatusChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('followStatusChanged', handleFollowStatusChange as EventListener);
+    };
+  }, [userId, user]);
+
+  // Listen for post deletion events
+  useEffect(() => {
+    const handlePostDeleted = (event: CustomEvent) => {
+      const { postId, userId: deletedPostUserId } = event.detail || {};
+      if (!postId) return;
+      
+      // Refresh if this is the current user's profile or if viewing the profile of the user whose post was deleted
+      if (userId === deletedPostUserId || (user && userId === user.id)) {
+        console.log('Post deleted, refreshing user data...', { postId, deletedPostUserId, currentUserId: userId });
+        fetchUserData();
+      }
+    };
+
+    window.addEventListener('postDeleted', handlePostDeleted as EventListener);
+    
+    return () => {
+      window.removeEventListener('postDeleted', handlePostDeleted as EventListener);
+    };
+  }, [userId, user]);
+
+  // Double tap to like component
+  const DoubleTapImage = ({ post, onOpenPost, onLike }: { post: CommunityPost; onOpenPost: () => void; onLike: () => void }) => {
+    const [showHeart, setShowHeart] = useState(false);
+    const lastTapRef = useRef(0);
+    const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleDoubleTap = () => {
+      if (!post.is_liked) {
+        onLike();
+      }
+      
+      // Show heart animation
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 600);
+    };
+
+    const handleClick = (e: React.MouseEvent) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapRef.current;
+
+      if (tapLength < 300 && tapLength > 0) {
+        // Double click detected
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear single tap timeout
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+          tapTimeoutRef.current = null;
+        }
+        
+        handleDoubleTap();
+      } else {
+        // Single click - open post after delay
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        tapTimeoutRef.current = setTimeout(() => {
+          onOpenPost();
+        }, 300);
+      }
+
+      lastTapRef.current = currentTime;
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapRef.current;
+
+      if (tapLength < 300 && tapLength > 0) {
+        // Double tap detected
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear single tap timeout
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+          tapTimeoutRef.current = null;
+        }
+        
+        handleDoubleTap();
+      } else {
+        // Single tap - open post after delay
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        tapTimeoutRef.current = setTimeout(() => {
+          onOpenPost();
+        }, 300);
+      }
+
+      lastTapRef.current = currentTime;
+    };
+
+    return (
+      <div 
+        className="relative aspect-square cursor-pointer overflow-hidden"
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+      >
+        <OptimizedImage
+          key={`post-image-${post.id}`}
+          src={post.image_url}
+          variants={{
+            blur: post.image_blur_url || undefined,
+            small: post.image_small_url || undefined,
+            medium: post.image_medium_url || undefined,
+            large: post.image_large_url || undefined,
+          }}
+          alt={post.title || ''}
+          variant="feed"
+          className="w-full h-full"
+          aspectRatio="square"
+        />
+        {/* Double tap heart animation */}
+        <AnimatePresence>
+          {showHeart && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+            >
+              <Heart className="h-20 w-20 fill-red-500 text-red-500" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   // Fetch saved posts for current user
   useEffect(() => {
@@ -304,7 +619,7 @@ export default function UserProfile() {
       const postIds = likesData.map(l => l.post_id);
       const { data: postsData } = await supabase
         .from('community_posts')
-        .select('*')
+        .select('id, title, description, image_url, image_asset_id, image_blur_url, image_small_url, image_medium_url, image_large_url, user_id, created_at, category, tools_used, hashtags')
         .in('id', postIds);
 
       if (!postsData) {
@@ -312,45 +627,75 @@ export default function UserProfile() {
         return;
       }
 
-      // Fetch additional details for each post
-      const postsWithDetails = await Promise.all(
-        postsData.map(async (post) => {
-          // Get user profile
-          const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('id', post.user_id)
-            .maybeSingle();
+      // Get unique user IDs
+      const uniqueUserIds = [...new Set(postsData.map(p => p.user_id))];
 
-          // Get artist profile
-          const { data: artistData } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', post.user_id)
-            .maybeSingle();
+      // Batch fetch profiles and artist profiles
+      const [profilesResult, artistProfilesResult, commentsCountsResult, likesCountsResult, sharesCountsResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, display_name, display_id')
+          .in('id', uniqueUserIds),
+        supabase
+          .from('artist_profiles')
+          .select('user_id, artist_name, is_verified, avatar_url')
+          .in('user_id', uniqueUserIds),
+        supabase
+          .from('community_comments')
+          .select('post_id')
+          .in('post_id', postIds),
+        supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', postIds),
+        supabase
+          .from('shared_posts')
+          .select('post_id')
+          .in('post_id', postIds)
+      ]);
 
-          // Get comments count
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      const profilesMap = new Map((profilesResult.data || []).map(p => [p.id, p]));
+      const artistProfilesMap = new Map((artistProfilesResult.data || []).map(a => [a.user_id, a]));
 
-          // Get likes count
-          const { count: likesCount } = await supabase
-            .from('community_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // Count comments, likes, shares per post
+      const commentsCounts = new Map<string, number>();
+      const likesCounts = new Map<string, number>();
+      const sharesCounts = new Map<string, number>();
 
-          return {
-            ...post,
-            user_profile: userProfile,
-            artist_profile: artistData,
-            comments_count: commentsCount || 0,
-            likes_count: likesCount || 0,
-            is_liked: true // User has liked this post
-          };
-        })
-      );
+      (commentsCountsResult.data || []).forEach(c => {
+        commentsCounts.set(c.post_id, (commentsCounts.get(c.post_id) || 0) + 1);
+      });
+      (likesCountsResult.data || []).forEach(l => {
+        likesCounts.set(l.post_id, (likesCounts.get(l.post_id) || 0) + 1);
+      });
+      (sharesCountsResult.data || []).forEach(s => {
+        sharesCounts.set(s.post_id, (sharesCounts.get(s.post_id) || 0) + 1);
+      });
+
+      // Map data in memory (fast)
+      const postsWithDetails = postsData.map((post) => {
+        const userProfile = profilesMap.get(post.user_id);
+        const artistProfile = artistProfilesMap.get(post.user_id);
+        
+        return {
+          ...post,
+          user_profile: userProfile ? {
+            full_name: userProfile.full_name,
+            avatar_url: userProfile.avatar_url,
+            display_name: userProfile.display_name,
+            display_id: userProfile.display_id,
+          } : undefined,
+          artist_profile: artistProfile ? {
+            artist_name: artistProfile.artist_name,
+            is_verified: artistProfile.is_verified,
+            avatar_url: artistProfile.avatar_url || undefined,
+          } : null,
+          comments_count: commentsCounts.get(post.id) || 0,
+          likes_count: likesCounts.get(post.id) || 0,
+          shares_count: sharesCounts.get(post.id) || 0,
+          is_liked: true // User has liked this post
+        };
+      });
 
       // Sort by like time (most recent first)
       const sortedPosts = postsWithDetails.sort((a, b) => {
@@ -388,7 +733,7 @@ export default function UserProfile() {
       const postIds = savedData.map(s => s.post_id);
       const { data: postsData } = await supabase
         .from('community_posts')
-        .select('*')
+        .select('id, title, description, image_url, image_asset_id, image_blur_url, image_small_url, image_medium_url, image_large_url, user_id, created_at, category, tools_used, hashtags')
         .in('id', postIds);
 
       if (!postsData) {
@@ -396,58 +741,82 @@ export default function UserProfile() {
         return;
       }
 
-      // Fetch additional details for each post
-      const postsWithDetails = await Promise.all(
-        postsData.map(async (post) => {
-          // Get user profile
-          const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('id', post.user_id)
-            .maybeSingle();
+      // Get unique user IDs
+      const uniqueUserIds = [...new Set(postsData.map(p => p.user_id))];
 
-          // Get artist profile
-          const { data: artistData } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', post.user_id)
-            .maybeSingle();
+      // Batch fetch profiles and artist profiles
+      const [profilesResult, artistProfilesResult, commentsCountsResult, likesCountsResult, sharesCountsResult, userLikesResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, display_name, display_id')
+          .in('id', uniqueUserIds),
+        supabase
+          .from('artist_profiles')
+          .select('user_id, artist_name, is_verified, avatar_url')
+          .in('user_id', uniqueUserIds),
+        supabase
+          .from('community_comments')
+          .select('post_id')
+          .in('post_id', postIds),
+        supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', postIds),
+        supabase
+          .from('shared_posts')
+          .select('post_id')
+          .in('post_id', postIds),
+        user ? supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', postIds)
+          .eq('user_id', user.id) : Promise.resolve({ data: [] })
+      ]);
 
-          // Get comments count
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      const profilesMap = new Map((profilesResult.data || []).map(p => [p.id, p]));
+      const artistProfilesMap = new Map((artistProfilesResult.data || []).map(a => [a.user_id, a]));
 
-          // Get likes count
-          const { count: likesCount } = await supabase
-            .from('community_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // Count comments, likes, shares per post
+      const commentsCounts = new Map<string, number>();
+      const likesCounts = new Map<string, number>();
+      const sharesCounts = new Map<string, number>();
+      const userLikedPosts = new Set((userLikesResult.data || []).map(l => l.post_id));
 
-          // Check if current user liked this post
-          let isLiked = false;
-          if (user) {
-            const { data: likeData } = await supabase
-              .from('community_likes')
-              .select('id')
-              .eq('post_id', post.id)
-              .eq('user_id', user.id)
-              .maybeSingle();
-            isLiked = !!likeData;
-          }
+      (commentsCountsResult.data || []).forEach(c => {
+        commentsCounts.set(c.post_id, (commentsCounts.get(c.post_id) || 0) + 1);
+      });
+      (likesCountsResult.data || []).forEach(l => {
+        likesCounts.set(l.post_id, (likesCounts.get(l.post_id) || 0) + 1);
+      });
+      (sharesCountsResult.data || []).forEach(s => {
+        sharesCounts.set(s.post_id, (sharesCounts.get(s.post_id) || 0) + 1);
+      });
 
-          return {
-            ...post,
-            user_profile: userProfile,
-            artist_profile: artistData,
-            comments_count: commentsCount || 0,
-            likes_count: likesCount || 0,
-            is_liked: isLiked,
-            is_saved: true
-          };
-        })
-      );
+      // Map data in memory (fast)
+      const postsWithDetails = postsData.map((post) => {
+        const userProfile = profilesMap.get(post.user_id);
+        const artistProfile = artistProfilesMap.get(post.user_id);
+        
+        return {
+          ...post,
+          user_profile: userProfile ? {
+            full_name: userProfile.full_name,
+            avatar_url: userProfile.avatar_url,
+            display_name: userProfile.display_name,
+            display_id: userProfile.display_id,
+          } : undefined,
+          artist_profile: artistProfile ? {
+            artist_name: artistProfile.artist_name,
+            is_verified: artistProfile.is_verified,
+            avatar_url: artistProfile.avatar_url || undefined,
+          } : null,
+          comments_count: commentsCounts.get(post.id) || 0,
+          likes_count: likesCounts.get(post.id) || 0,
+          shares_count: sharesCounts.get(post.id) || 0,
+          is_liked: userLikedPosts.has(post.id),
+          is_saved: true
+        };
+      });
 
       // Sort by save time (most recent first)
       const sortedPosts = postsWithDetails.sort((a, b) => {
@@ -487,9 +856,10 @@ export default function UserProfile() {
       
       setArtistProfile(artistData);
 
-      // If artist, fetch their artworks
+      // Fetch artworks if artist exists
+      let artworksData: any[] | null = null;
       if (artistData) {
-        const { data: artworksData, error: artworksError } = await supabase
+        const { data: fetchedArtworks, error: artworksError } = await supabase
           .from('artworks')
           .select('id, title, image_url, image_asset_id, post_id, price, is_sold, created_at')
           .eq('artist_id', artistData.id)
@@ -498,9 +868,10 @@ export default function UserProfile() {
         if (artworksError) {
           console.error('Error fetching artworks:', artworksError);
         } else {
-          console.log('Fetched artworks:', artworksData?.length || 0, 'for artist_id:', artistData.id);
+          artworksData = fetchedArtworks || [];
+          console.log('Fetched artworks:', artworksData.length, 'for artist_id:', artistData.id);
           // Debug: Log artworks with post_id
-          if (artworksData) {
+          if (artworksData.length > 0) {
             const artworksWithPostId = artworksData.filter(a => a.post_id);
             console.log('Artworks with post_id:', artworksWithPostId.length, 'out of', artworksData.length);
             artworksWithPostId.forEach(a => {
@@ -520,6 +891,7 @@ export default function UserProfile() {
         setProfileArtworks(profileArtworksData);
       } else {
         console.log('No artist profile found for user:', userId);
+        setArtworks([]);
         setProfileArtworks([]);
       }
 
@@ -533,7 +905,7 @@ export default function UserProfile() {
       // ✅ OPTIMIZED: Batch fetch all counts and likes status
       const postIds = (postsData || []).map(p => p.id);
       
-      const [likesCountsResult, commentsCountsResult, userLikesResult] = await Promise.all([
+      const [likesCountsResult, commentsCountsResult, sharesCountsResult, userLikesResult] = await Promise.all([
         // Likes counts
         postIds.length > 0 ? supabase
           .from('community_likes')
@@ -560,6 +932,19 @@ export default function UserProfile() {
             return counts;
           }) : Promise.resolve({}),
         
+        // Shares counts
+        postIds.length > 0 ? supabase
+          .from('shared_posts')
+          .select('post_id')
+          .in('post_id', postIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(share => {
+              counts[share.post_id] = (counts[share.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
         // User's likes (if logged in)
         user && postIds.length > 0 ? supabase
           .from('community_likes')
@@ -578,7 +963,7 @@ export default function UserProfile() {
           .in('id', uniqueUserIds),
         supabase
           .from('artist_profiles')
-          .select('user_id, artist_name, is_verified')
+          .select('user_id, artist_name, is_verified, avatar_url')
           .in('user_id', uniqueUserIds)
       ]);
 
@@ -591,7 +976,7 @@ export default function UserProfile() {
         const artistProfile = artistProfilesMap.get(post.user_id);
         
         return {
-          ...post,
+        ...post,
           user_profile: userProfile ? {
             full_name: userProfile.full_name,
             avatar_url: userProfile.avatar_url,
@@ -601,9 +986,11 @@ export default function UserProfile() {
           artist_profile: artistProfile ? {
             artist_name: artistProfile.artist_name,
             is_verified: artistProfile.is_verified,
+            avatar_url: (artistProfile as any).avatar_url || undefined,
           } : null,
-          likes_count: likesCountsResult[post.id] || 0,
-          comments_count: commentsCountsResult[post.id] || 0,
+        likes_count: likesCountsResult[post.id] || 0,
+        comments_count: commentsCountsResult[post.id] || 0,
+        shares_count: sharesCountsResult[post.id] || 0,
           is_liked: userLikesResult.has(post.id),
           tools_used: post.tools_used || [],
         };
@@ -658,14 +1045,23 @@ export default function UserProfile() {
 
       // Check if current user is following
       if (user && user.id !== userId) {
-        const { data: followData } = await supabase
+        console.log('Checking follow status:', { follower_id: user.id, following_id: userId });
+        const { data: followData, error: followError } = await supabase
           .from('follows')
           .select('id')
           .eq('follower_id', user.id)
           .eq('following_id', userId)
           .maybeSingle();
         
+        if (followError) {
+          console.error('Error checking follow status:', followError);
+        }
+        
+        console.log('Follow status check result:', { followData, isFollowing: !!followData });
         setIsFollowing(!!followData);
+      } else {
+        // Reset if viewing own profile or not logged in
+        setIsFollowing(false);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -675,6 +1071,8 @@ export default function UserProfile() {
   };
 
   const handleFollow = async () => {
+    console.log('handleFollow called', { user: user?.id, userId, isFollowing });
+    
     if (!user) {
       toast({
         variant: "destructive",
@@ -684,10 +1082,17 @@ export default function UserProfile() {
       return;
     }
 
-    if (!userId || user.id === userId) return;
+    if (!userId || user.id === userId) {
+      console.log('Invalid follow request:', { userId, currentUserId: user.id });
+      return;
+    }
+
+    const previousIsFollowing = isFollowing;
+    const previousFollowersCount = followersCount;
 
     try {
       if (isFollowing) {
+        console.log('Unfollowing user:', userId);
         const { error } = await supabase
           .from('follows')
           .delete()
@@ -696,34 +1101,155 @@ export default function UserProfile() {
         
         if (error) throw error;
         
+        // Verify deletion
+        const { data: verifyData } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', userId)
+          .maybeSingle();
+        
+        if (verifyData) {
+          throw new Error('Failed to unfollow user');
+        }
+        
         setIsFollowing(false);
-        setFollowersCount(prev => Math.max(0, prev - 1));
+        
+        // Refresh followers count from database
+        const { count: newFollowersCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', userId);
+        
+        if (newFollowersCount !== null) {
+          setFollowersCount(newFollowersCount);
+          console.log('Followers count refreshed after unfollow:', newFollowersCount);
+        } else {
+          setFollowersCount(prev => Math.max(0, prev - 1));
+        }
+        
+        // Dispatch event to sync state across pages
+        window.dispatchEvent(new CustomEvent('followStatusChanged', {
+          detail: { userId, isFollowing: false }
+        }));
         
         toast({
           title: "ยกเลิกการติดตามแล้ว",
           description: "คุณไม่ได้ติดตามผู้ใช้นี้แล้ว"
         });
       } else {
-        const { error: insertError } = await supabase
+        console.log('Following user:', userId);
+        
+        // Optimistically update UI
+        setIsFollowing(true);
+        setFollowersCount(prev => prev + 1);
+        
+        const { data: insertData, error: insertError } = await supabase
           .from('follows')
-          .insert({ follower_id: user.id, following_id: userId });
+          .insert({ follower_id: user.id, following_id: userId })
+          .select()
+          .single();
         
         if (insertError) {
+          console.error('Error inserting follow:', insertError);
+          
+          // Revert optimistic update
+          setIsFollowing(previousIsFollowing);
+          setFollowersCount(previousFollowersCount);
+          
           // Check if it's a duplicate key error (already following)
           if (insertError.code === '23505') {
-            setIsFollowing(true);
+            // Already following - refresh state from database
+            const { data: followCheck } = await supabase
+              .from('follows')
+              .select('id')
+              .eq('follower_id', user.id)
+              .eq('following_id', userId)
+              .maybeSingle();
+            
+            if (followCheck) {
+              setIsFollowing(true);
+              // Refresh followers count
+              const { count: countResult } = await supabase
+                .from('follows')
+                .select('*', { count: 'exact', head: true })
+                .eq('following_id', userId);
+              if (countResult !== null) {
+                setFollowersCount(countResult);
+              }
+            }
+            
             toast({
               title: "ติดตามแล้ว",
               description: "คุณติดตามผู้ใช้นี้อยู่แล้ว"
             });
             return;
           }
-          throw insertError;
+          
+          toast({
+            variant: "destructive",
+            title: "เกิดข้อผิดพลาด",
+            description: insertError.message || "ไม่สามารถติดตามผู้ใช้ได้"
+          });
+          return;
         }
         
-        // Update state immediately for better UX
-        setIsFollowing(true);
-        setFollowersCount(prev => prev + 1);
+        // Only update state if insert was successful
+        if (!insertData) {
+          console.error('Insert returned no data');
+          // Revert optimistic update
+          setIsFollowing(previousIsFollowing);
+          setFollowersCount(previousFollowersCount);
+          toast({
+            variant: "destructive",
+            title: "เกิดข้อผิดพลาด",
+            description: "ไม่สามารถติดตามผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง"
+          });
+          return;
+        }
+        
+        console.log('Follow inserted successfully:', insertData);
+        
+        // Verify follow was created successfully by querying again
+        // Wait a bit for database to commit
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Verify follow was created successfully
+        const { data: followCheck, error: verifyError } = await supabase
+          .from('follows')
+          .select('id, follower_id, following_id')
+          .eq('follower_id', user.id)
+          .eq('following_id', userId)
+          .maybeSingle();
+        
+        console.log('Follow verification result:', { followCheck, verifyError });
+        
+        if (verifyError) {
+          console.error('Error verifying follow:', verifyError);
+          // Don't revert - insert was successful, verification might just be a timing issue
+        }
+        
+        if (!followCheck) {
+          console.warn('Follow record not found after insert, but insertData exists:', insertData);
+          // Even if verification fails, if insertData exists, the insert was successful
+          // The record might just not be immediately visible due to replication lag
+          // Keep the optimistic update
+        } else {
+          console.log('Follow verified successfully:', followCheck.id);
+        }
+        
+        // Refresh followers count from database to ensure accuracy
+        const { count: verifiedFollowersCount, error: countError } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', userId);
+        
+        if (countError) {
+          console.error('Error counting followers:', countError);
+        } else if (verifiedFollowersCount !== null) {
+          setFollowersCount(verifiedFollowersCount);
+          console.log('Followers count refreshed:', verifiedFollowersCount);
+        }
 
         // Get profile for notification
         const { data: followerProfile, error: profileError } = await supabase
@@ -783,33 +1309,22 @@ export default function UserProfile() {
           console.log('Notification skipped - follower is muted');
         }
 
+        // Dispatch event to sync state across pages
+        window.dispatchEvent(new CustomEvent('followStatusChanged', {
+          detail: { userId, isFollowing: true }
+        }));
+        
         toast({
           title: "ติดตามแล้ว! 🎉",
           description: "คุณจะเห็นผลงานใหม่ๆ จากผู้ใช้นี้"
         });
-
-        // Refresh follow status to ensure consistency
-        const { data: followCheck } = await supabase
-          .from('follows')
-          .select('id')
-          .eq('follower_id', user.id)
-          .eq('following_id', userId)
-          .maybeSingle();
-        
-        if (followCheck) {
-          setIsFollowing(true);
-        } else {
-          console.warn('Follow record not found after insert, refreshing...');
-          // Refresh user data to sync state
-          fetchUserData();
-        }
       }
     } catch (error: any) {
       console.error('Error following user:', error);
       
       // Revert state on error
-      setIsFollowing(false);
-      setFollowersCount(prev => Math.max(0, prev - 1));
+      setIsFollowing(previousIsFollowing);
+      setFollowersCount(previousFollowersCount);
       
       toast({
         variant: "destructive",
@@ -1144,10 +1659,21 @@ export default function UserProfile() {
         (data || []).map(async (comment) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url')
+            .select('full_name, avatar_url, display_name')
             .eq('id', comment.user_id)
             .maybeSingle();
-          return { ...comment, user_profile: profile };
+          
+          const { data: commentArtistProfile } = await supabase
+            .from('artist_profiles')
+            .select('artist_name, is_verified, avatar_url')
+            .eq('user_id', comment.user_id)
+            .maybeSingle();
+          
+          return { 
+            ...comment, 
+            user_profile: profile,
+            artist_profile: commentArtistProfile || null
+          };
         })
       );
 
@@ -1265,15 +1791,14 @@ export default function UserProfile() {
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Cover Image - Taller */}
-        <div className="relative w-full h-64 md:h-80 lg:h-96 bg-gradient-to-b from-muted to-background overflow-hidden">
+        {/* Cover Image - Full width, 750px height, flush with edges */}
+        <div className="relative w-screen h-[750px] bg-gradient-to-b from-muted to-background overflow-hidden" style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}>
           {displayCover ? (
-            <OptimizedImage
-              src={displayCover}
+            <img
+              src={normalizeCoverUrl(displayCover) || displayCover}
               alt="Cover"
-              variant="fullscreen"
-              className="w-full h-full"
-              containerClassName="w-full h-full"
+              className="w-full h-full object-cover"
+              style={{ objectPosition: `center ${displayCoverPositionY}%` }}
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-muted to-background" />
@@ -1294,7 +1819,7 @@ export default function UserProfile() {
                 <div className="w-32 h-32 md:w-40 md:h-40 shadow-xl rounded-full overflow-hidden bg-muted flex-shrink-0 -mt-16 md:-mt-24">
                   {displayAvatar ? (
                     <OptimizedImage
-                      src={displayAvatar}
+                      src={normalizeAvatarUrl(displayAvatar, 128) || displayAvatar}
                       alt={displayName}
                       variant="thumbnail"
                       className="w-full h-full"
@@ -1676,20 +2201,20 @@ export default function UserProfile() {
                     });
 
                     return portfolioPosts.length > 0 ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="w-full"
-                      >
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="w-full"
+                  >
                       <JustifiedGrid
                         items={portfolioPosts.map((post): JustifiedItem => ({
                           id: post.id,
                           imageUrl: post.image_url,
                           alt: post.title,
                           // JustifiedGrid will calculate aspect ratio from image dimensions
-                        }))}
-                        onItemClick={(item) => {
+                      }))}
+                      onItemClick={(item) => {
                           // Open post dialog instead of navigating
                           const post = portfolioPosts.find(p => p.id === item.id);
                           if (post) {
@@ -1698,39 +2223,39 @@ export default function UserProfile() {
                           } else {
                             console.error('Post not found:', item.id, 'Available posts:', portfolioPosts.map(p => p.id));
                           }
-                        }}
-                        renderOverlay={(item) => {
+                      }}
+                      renderOverlay={(item) => {
                           const post = portfolioPosts.find(p => p.id === item.id);
                           if (!post) return null;
-                          return (
-                            <div className="w-full">
-                              <p className="font-medium text-sm text-white line-clamp-2 mb-1">
+                        return (
+                          <div className="w-full">
+                            <p className="font-medium text-sm text-white line-clamp-2 mb-1">
                                 {post.title}
                               </p>
                               <div className="flex items-center gap-2 text-xs text-white/90">
                                 <span>❤️ {post.likes_count.toLocaleString()}</span>
                                 <span>💬 {post.comments_count || 0}</span>
                               </div>
-                            </div>
-                          );
-                        }}
+                          </div>
+                        );
+                      }}
                         gap={8}
                         fixedSize={{
                           desktop: 300,
                           tablet: 260,
                           mobile: 200,
                         }}
-                      />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-16"
-                    >
-                      <LayoutGrid className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                      <p className="text-muted-foreground">ยังไม่มีผลงานใน Portfolio</p>
-                    </motion.div>
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16"
+                  >
+                    <LayoutGrid className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">ยังไม่มีผลงานใน Portfolio</p>
+                  </motion.div>
                   );
                 })()}
               </AnimatePresence>
@@ -1767,41 +2292,70 @@ export default function UserProfile() {
                         className="bg-card border border-border rounded-xl overflow-hidden"
                       >
                         {/* Post Header */}
-                        <div className="flex items-center gap-3 p-4">
-                          <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                            <AvatarImage src={displayAvatar || undefined} />
-                            <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-foreground">{displayName}</span>
-                              {artistProfile?.is_verified && (
-                                <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">✓</Badge>
-                              )}
+                        <div className="flex items-center justify-between p-4">
+                          <Link to={`/profile/${post.user_id || userId}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                            <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                              <AvatarImage src={
+                                normalizeAvatarUrl(
+                                  post.artist_profile?.avatar_url || 
+                                  post.user_profile?.avatar_url || 
+                                  displayAvatar,
+                                  64
+                                )
+                              } />
+                              <AvatarFallback className="bg-muted text-muted-foreground font-semibold">
+                                {getDisplayName(post.user_profile, post.artist_profile)[0]?.toUpperCase() || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground">
+                                  {getDisplayName(post.user_profile, post.artist_profile)}
+                                </span>
+                                <span className="text-muted-foreground text-sm">
+                                  @{post.user_profile?.display_id || post.user_id?.slice(0, 8) || userId?.slice(0, 8)}
+                                </span>
+                                {post.artist_profile?.is_verified && (
+                                  <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
+                                    ✓
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground">
+                                  {formatTimeAgo(post.created_at)}
+                                </span>
+                                {post.category && (
+                                  <span className="text-xs text-muted-foreground">
+                                    • {post.category}
+                                  </span>
+                                )}
+                                {post.tools_used && post.tools_used.length > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    • {post.tools_used.slice(0, 3).join(', ')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(post.created_at)}
-                            </span>
-                          </div>
+                          </Link>
                         </div>
 
                         {/* Post Content */}
-                        <div className="px-4 pb-2">
-                          <p className="text-foreground">{post.title}</p>
-                          {post.description && (
-                            <p className="text-muted-foreground text-sm mt-1">{post.description}</p>
-                          )}
-                        </div>
+                        {post.title && (
+                          <div className="px-4 pb-2">
+                            <p className="text-foreground font-medium">{post.title}</p>
+                            {post.description && (
+                              <p className="text-muted-foreground text-sm mt-1">{post.description}</p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Post Image */}
-                        <div className="relative bg-muted">
-                          <OptimizedImage
-                            src={post.image_url}
-                            alt={post.title}
-                            variant="feed"
-                            className="w-full max-h-[600px]"
-                          />
-                        </div>
+                        <DoubleTapImage
+                          post={post}
+                          onOpenPost={() => handleOpenPost(post)}
+                          onLike={() => handleLike(post.id, post.is_liked || false)}
+                        />
 
                         {/* Actions */}
                         <div className="px-4 py-3 flex items-center justify-between">
@@ -1820,26 +2374,32 @@ export default function UserProfile() {
                                 }`} 
                               />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-10 w-10"
-                              onClick={() => handleOpenPost(post)}
-                            >
-                              <MessageCircle className="h-6 w-6" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10"
-                              onClick={() => user ? setRepostDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
-                            >
-                              <Repeat2 
-                                className={`h-6 w-6 transition-colors ${
-                                  repostedPosts.has(post.id) ? "text-green-500" : ""
-                                }`} 
-                              />
-                            </Button>
+                            <div className="flex items-center">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-10 w-10"
+                                onClick={() => handleOpenPost(post)}
+                              >
+                                <MessageCircle className="h-6 w-6" />
+                              </Button>
+                              {(post.comments_count || 0) > 0 && (
+                                <span className="text-sm text-muted-foreground -ml-1">{post.comments_count}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10"
+                                onClick={() => user ? setRepostDialogPost(post) : toast({ variant: "destructive", title: "กรุณาเข้าสู่ระบบ" })}
+                              >
+                                <Repeat2 className="h-6 w-6" />
+                              </Button>
+                              {(post.shares_count || 0) > 0 && (
+                                <span className="text-sm text-muted-foreground -ml-1">{post.shares_count}</span>
+                              )}
+                            </div>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1865,11 +2425,13 @@ export default function UserProfile() {
                         </div>
 
                         {/* Likes count */}
-                        <div className="px-4 pb-2">
-                          <span className="font-semibold text-sm">
-                            {post.likes_count.toLocaleString()} ถูกใจ
-                          </span>
-                        </div>
+                        {post.likes_count > 0 && (
+                          <div className="px-4 pb-2">
+                            <span className="font-semibold text-sm">
+                              {post.likes_count.toLocaleString()} ถูกใจ
+                            </span>
+                          </div>
+                        )}
 
                         {/* View comments */}
                         {(post.comments_count || 0) > 0 && (
@@ -1883,15 +2445,10 @@ export default function UserProfile() {
                           </div>
                         )}
 
-                        {/* Tools & Tags */}
-                        {((post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
+                        {/* Hashtags */}
+                        {post.hashtags && post.hashtags.length > 0 && (
                           <div className="px-4 pb-3 flex flex-wrap gap-1">
-                            {post.tools_used?.map((tool) => (
-                              <Badge key={`tool-${tool}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                                🛠 {tool}
-                              </Badge>
-                            ))}
-                            {post.hashtags?.map((tag) => (
+                            {post.hashtags.map((tag) => (
                               <span
                                 key={`tag-${tag}`}
                                 className="text-sm text-blue-500 dark:text-blue-400"
@@ -1966,7 +2523,11 @@ export default function UserProfile() {
                           {/* Post Header */}
                           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
                             <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                              <AvatarImage src={postDisplayAvatar || undefined} />
+                              <AvatarImage src={normalizeAvatarUrl(
+                                post.artist_profile?.avatar_url || 
+                                postDisplayAvatar,
+                                64
+                              )} />
                               <AvatarFallback>{postDisplayName.charAt(0).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
@@ -1991,12 +2552,11 @@ export default function UserProfile() {
                           </div>
 
                           {/* Post Image */}
-                          <div className="relative bg-muted">
-                            <OptimizedImage
-                              src={post.image_url}
-                              alt={post.title}
-                              variant="feed"
-                              className="w-full max-h-[600px]"
+                          <div className="relative bg-muted cursor-pointer" onClick={() => handleOpenPost(post)}>
+                            <DoubleTapImage
+                              post={post}
+                              onOpenPost={() => handleOpenPost(post)}
+                              onLike={() => handleLikeInLikedTab(post.id, post.is_liked || false)}
                             />
                           </div>
 
@@ -2161,7 +2721,11 @@ export default function UserProfile() {
                           {/* Post Header */}
                           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
                             <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                              <AvatarImage src={postDisplayAvatar || undefined} />
+                              <AvatarImage src={normalizeAvatarUrl(
+                                post.artist_profile?.avatar_url || 
+                                postDisplayAvatar,
+                                64
+                              )} />
                               <AvatarFallback>{postDisplayName.charAt(0).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
@@ -2186,12 +2750,11 @@ export default function UserProfile() {
                           </div>
 
                           {/* Post Image */}
-                          <div className="relative bg-muted">
-                            <OptimizedImage
-                              src={post.image_url}
-                              alt={post.title}
-                              variant="feed"
-                              className="w-full max-h-[600px]"
+                          <div className="relative bg-muted cursor-pointer" onClick={() => handleOpenPost(post)}>
+                            <DoubleTapImage
+                              post={post}
+                              onOpenPost={() => handleOpenPost(post)}
+                              onLike={() => handleLikeInSavedTab(post.id, post.is_liked || false)}
                             />
                           </div>
 
@@ -2393,13 +2956,25 @@ export default function UserProfile() {
         onDeleteComment={async (commentId) => {
           setDeletingCommentId(commentId);
           try {
-            const { error } = await supabase
+            // Admin can delete any comment, users can only delete their own
+            const deleteQuery = supabase
               .from('community_comments')
               .delete()
-              .eq('id', commentId)
-              .eq('user_id', user?.id);
+              .eq('id', commentId);
             
-            if (error) throw error;
+            // Only add user_id check if not admin
+            if (!isAdmin && user?.id) {
+              deleteQuery.eq('user_id', user.id);
+            }
+            
+            const { error } = await deleteQuery;
+            
+            console.log('Delete comment from profile result:', { error, commentId, isAdmin, userId: user?.id });
+            
+            if (error) {
+              console.error('Error deleting comment:', error);
+              throw error;
+            }
             
             setComments(comments.filter(c => c.id !== commentId));
             if (selectedPost) {
@@ -2470,6 +3045,7 @@ export default function UserProfile() {
           // Handle comment like
           // Implementation can be added later if needed
         }}
+        isAdmin={isAdmin}
       />
 
       {/* Repost Dialog */}
@@ -2499,7 +3075,7 @@ export default function UserProfile() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Avatar className="h-5 w-5">
-                      <AvatarImage src={displayAvatar || undefined} />
+                      <AvatarImage src={normalizeAvatarUrl(displayAvatar, 64)} />
                       <AvatarFallback className="text-[10px]">
                         {displayName[0]}
                       </AvatarFallback>

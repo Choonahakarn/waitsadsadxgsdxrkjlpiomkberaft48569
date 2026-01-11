@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 // =============================================
@@ -51,6 +51,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const [isInView, setIsInView] = useState(priority);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadedUrlsRef = useRef<Set<string>>(new Set()); // Track loaded URLs to prevent flicker
 
   // Select appropriate URL based on variant
   const getImageUrl = (): string => {
@@ -108,15 +109,31 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     }
   };
 
-  const blurUrl = variants?.blur;
-  const mainUrl = getImageUrl();
-  const srcSet = getSrcSet();
-  const sizes = getSizes();
+  // Memoize URLs to prevent unnecessary recalculations
+  const blurUrl = useMemo(() => variants?.blur, [variants?.blur]);
+  const mainUrl = useMemo(() => getImageUrl(), [variants, variant, src]);
+  const srcSet = useMemo(() => getSrcSet(), [variants]);
+  const sizes = useMemo(() => getSizes(), [variant]);
+
+  // Reset loaded state when URL changes
+  useEffect(() => {
+    if (!loadedUrlsRef.current.has(mainUrl)) {
+      setIsLoaded(false);
+      setHasError(false);
+    }
+  }, [mainUrl]);
 
   // Intersection Observer for lazy loading
   useEffect(() => {
     if (priority || !containerRef.current) {
       setIsInView(true);
+      return;
+    }
+
+    // If URL was already loaded, show immediately
+    if (loadedUrlsRef.current.has(mainUrl)) {
+      setIsInView(true);
+      setIsLoaded(true);
       return;
     }
 
@@ -138,7 +155,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [priority]);
+  }, [priority, mainUrl]);
 
   const aspectRatioClass = {
     auto: "",
@@ -173,7 +190,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
             "absolute inset-0 w-full h-full scale-110 blur-xl",
             // ✅ Use object-cover for blur, object-contain for main image
             objectFit === "contain" ? "object-cover opacity-20" : "object-cover",
-            "transition-opacity duration-500",
+            "transition-opacity duration-300 ease-in-out",
             isLoaded ? "opacity-0" : "opacity-100",
           )}
         />
@@ -193,6 +210,8 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
           loading={priority ? "eager" : "lazy"}
           decoding="async"
           onLoad={(e) => {
+            // Mark this URL as loaded to prevent flicker on re-renders
+            loadedUrlsRef.current.add(mainUrl);
             setIsLoaded(true);
             onLoad?.(e);
           }}
@@ -201,11 +220,13 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
           className={cn(
             objectFit === "contain" ? "max-w-full max-h-full" : "w-full h-full",
             objectFitClass,
-            "transition-opacity duration-500",
-            isLoaded ? "opacity-100" : "opacity-0",
+            "transition-opacity duration-200 ease-in-out",
+            // If URL was previously loaded, show immediately without fade
+            loadedUrlsRef.current.has(mainUrl) || isLoaded ? "opacity-100" : "opacity-0",
             onClick && "cursor-pointer hover:opacity-95",
             className,
           )}
+          key={mainUrl} // Prevent reload when URL changes
         />
       )}
 

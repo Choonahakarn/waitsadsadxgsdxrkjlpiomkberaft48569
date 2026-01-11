@@ -235,12 +235,6 @@ export function ImagePositioner({
         </div>
       )}
       
-      {/* Image info badge */}
-      {imageLoaded && !isEditing && (
-        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-          {imageDimensions.width} × {imageDimensions.height}
-        </div>
-      )}
     </div>
   );
 }

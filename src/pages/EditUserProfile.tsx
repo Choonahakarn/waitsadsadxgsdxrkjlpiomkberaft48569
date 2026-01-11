@@ -47,6 +47,11 @@ const EditUserProfile = () => {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropperFile, setCropperFile] = useState<File | null>(null);
   const [cropperType, setCropperType] = useState<'avatar' | 'cover'>('avatar');
+  // Pending images to upload (stored as blob URLs for preview)
+  const [pendingAvatarBlob, setPendingAvatarBlob] = useState<Blob | null>(null);
+  const [pendingCoverBlob, setPendingCoverBlob] = useState<Blob | null>(null);
+  const [pendingAvatarUrl, setPendingAvatarUrl] = useState<string | null>(null);
+  const [pendingCoverUrl, setPendingCoverUrl] = useState<string | null>(null);
 
   // Form state
   const [firstName, setFirstName] = useState('');
@@ -90,6 +95,14 @@ const EditUserProfile = () => {
     }
   }, [user]);
 
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingAvatarUrl) URL.revokeObjectURL(pendingAvatarUrl);
+      if (pendingCoverUrl) URL.revokeObjectURL(pendingCoverUrl);
+    };
+  }, [pendingAvatarUrl, pendingCoverUrl]);
+
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -110,58 +123,28 @@ const EditUserProfile = () => {
     e.target.value = '';
   };
 
-  const handleCropComplete = async (croppedBlob: Blob) => {
-    if (!user) return;
-
+  const handleCropComplete = (croppedBlob: Blob) => {
     const isAvatar = cropperType === 'avatar';
+    
+    // Create preview URL from blob
+    const previewUrl = URL.createObjectURL(croppedBlob);
+    
     if (isAvatar) {
-      setIsUploading(true);
+      setPendingAvatarBlob(croppedBlob);
+      setPendingAvatarUrl(previewUrl);
     } else {
-      setIsUploadingCover(true);
+      setPendingCoverBlob(croppedBlob);
+      setPendingCoverUrl(previewUrl);
     }
-
-    try {
-      const fileName = `${user.id}/${Date.now()}-${isAvatar ? 'avatar' : 'cover'}.jpg`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, croppedBlob, {
-          contentType: 'image/jpeg',
-          upsert: true
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      const updateField = isAvatar ? 'avatar_url' : 'cover_url';
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ [updateField]: publicUrl })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      setProfile(prev => prev ? { ...prev, [updateField]: publicUrl } : null);
-      
-      toast({
-        title: isAvatar ? 'อัปโหลดรูปโปรไฟล์สำเร็จ' : 'อัปโหลดรูปปกสำเร็จ',
-      });
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'อัปโหลดไม่สำเร็จ',
-        description: error.message,
-      });
-    } finally {
-      setIsUploading(false);
-      setIsUploadingCover(false);
-      setCropperOpen(false);
-      setCropperFile(null);
-    }
+    
+    // Close cropper dialog
+    setCropperOpen(false);
+    setCropperFile(null);
+    
+    toast({
+      title: isAvatar ? 'เลือกรูปโปรไฟล์แล้ว' : 'เลือกรูปปกแล้ว',
+      description: 'กดปุ่ม "บันทึก" เพื่อบันทึกการเปลี่ยนแปลง',
+    });
   };
 
   const handleCoverPositionChange = async (positionY: number) => {
@@ -254,6 +237,86 @@ const EditUserProfile = () => {
     setIsSaving(true);
 
     try {
+      // Upload pending avatar if exists
+      if (pendingAvatarBlob) {
+        setIsUploading(true);
+        try {
+          const fileName = `${user.id}/${Date.now()}-avatar.jpg`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, pendingAvatarBlob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', user.id);
+
+          if (updateError) throw updateError;
+
+          setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+          
+          // Clean up
+          if (pendingAvatarUrl) URL.revokeObjectURL(pendingAvatarUrl);
+          setPendingAvatarBlob(null);
+          setPendingAvatarUrl(null);
+        } catch (error: any) {
+          console.error('Avatar upload error:', error);
+          throw error;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      // Upload pending cover if exists
+      if (pendingCoverBlob) {
+        setIsUploadingCover(true);
+        try {
+          const fileName = `${user.id}/${Date.now()}-cover.jpg`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, pendingCoverBlob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ cover_url: publicUrl })
+            .eq('id', user.id);
+
+          if (updateError) throw updateError;
+
+          setProfile(prev => prev ? { ...prev, cover_url: publicUrl } : null);
+          
+          // Clean up
+          if (pendingCoverUrl) URL.revokeObjectURL(pendingCoverUrl);
+          setPendingCoverBlob(null);
+          setPendingCoverUrl(null);
+        } catch (error: any) {
+          console.error('Cover upload error:', error);
+          throw error;
+        } finally {
+          setIsUploadingCover(false);
+        }
+      }
+
       const fullName = `${firstName} ${lastName}`.trim();
       
       // Build update object
@@ -289,7 +352,13 @@ const EditUserProfile = () => {
 
       toast({
         title: 'บันทึกโปรไฟล์สำเร็จ',
+        description: 'บันทึกข้อมูลโปรไฟล์เสร็จสิ้นแล้ว',
       });
+
+      // Navigate to profile page after successful save
+      setTimeout(() => {
+        navigate(`/profile/${user.id}`);
+      }, 1000);
     } catch (error: any) {
       console.error('Save error:', error);
       toast({
@@ -348,13 +417,13 @@ const EditUserProfile = () => {
               <CardHeader>
                 <CardTitle>รูปปก</CardTitle>
                 <CardDescription>
-                  รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ
+                  รูปปกจะแสดงด้านบนโปรไฟล์ของคุณ (แนะนำ 1920x750 pixels)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {profile?.cover_url ? (
+                {(pendingCoverUrl || profile?.cover_url) ? (
                   <ImagePositioner
-                    imageUrl={profile.cover_url}
+                    imageUrl={pendingCoverUrl || profile.cover_url || ''}
                     positionY={profile.cover_position_y ?? 50}
                     onPositionChange={handleCoverPositionChange}
                     aspectRatio="cover"
@@ -364,6 +433,9 @@ const EditUserProfile = () => {
                   <div className="w-full h-40 rounded-lg bg-gradient-to-br from-primary/20 via-muted to-background flex items-center justify-center">
                     <p className="text-muted-foreground text-sm">ยังไม่มีรูปปก</p>
                   </div>
+                )}
+                {pendingCoverUrl && (
+                  <p className="text-xs text-amber-600 mt-2 text-center">⚠️ รูปปกใหม่ (ยังไม่ได้บันทึก)</p>
                 )}
                 <div className="mt-4 flex justify-center">
                   <label
@@ -401,7 +473,7 @@ const EditUserProfile = () => {
                 <div className="relative">
                   <Avatar className="h-32 w-32">
                     <AvatarImage 
-                      src={profile?.avatar_url || ''} 
+                      src={pendingAvatarUrl || profile?.avatar_url || ''} 
                       alt="Profile"
                       style={{
                         objectPosition: `${profile?.avatar_position_x ?? 50}% ${profile?.avatar_position_y ?? 50}%`
@@ -411,6 +483,11 @@ const EditUserProfile = () => {
                       {firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
+                  {pendingAvatarUrl && (
+                    <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full">
+                      ใหม่
+                    </div>
+                  )}
                   <label
                     htmlFor="avatar-upload"
                     className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
@@ -537,7 +614,7 @@ const EditUserProfile = () => {
               setCropperFile(null);
             }}
             onCropComplete={handleCropComplete}
-            aspectRatio={cropperType === 'avatar' ? 1 : 4}
+            aspectRatio={cropperType === 'avatar' ? 1 : 1920 / 750}
             title={cropperType === 'avatar' ? 'ครอปรูปโปรไฟล์' : 'ครอปรูปปก'}
           />
         </div>
