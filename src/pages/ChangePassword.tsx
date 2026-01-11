@@ -118,8 +118,8 @@ const ChangePassword = () => {
         // Clear form
         setNewPassword('');
         setConfirmPassword('');
-        // Navigate back after a delay
-        setTimeout(() => navigate(-1), 3000);
+        // Navigate to Community feed after a short delay
+        setTimeout(() => navigate('/community'), 1500);
       }
     } catch (error: any) {
       console.error('Password change error:', error);

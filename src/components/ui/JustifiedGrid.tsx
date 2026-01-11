@@ -34,10 +34,15 @@ interface JustifiedGridProps<T extends JustifiedItem> {
   onItemClick?: (item: T) => void;
   renderOverlay?: (item: T) => React.ReactNode;
   className?: string;
-  targetRowHeight?: number; // Target height for each row (default: 250px)
-  gap?: number; // Gap between images (default: 2px)
-  maxRowHeight?: number; // Maximum row height (default: 400px)
-  minRowHeight?: number; // Minimum row height (default: 150px)
+  targetRowHeight?: number; // Target height for each row (default: 250px) - DEPRECATED: use fixedSize instead
+  gap?: number; // Gap between images (default: 8px)
+  maxRowHeight?: number; // Maximum row height (default: 400px) - DEPRECATED
+  minRowHeight?: number; // Minimum row height (default: 150px) - DEPRECATED
+  fixedSize?: {
+    desktop?: number; // Fixed size for desktop (≥1024px)
+    tablet?: number; // Fixed size for tablet (640-1023px)
+    mobile?: number; // Fixed size for mobile (<640px)
+  };
 }
 
 interface Row {
@@ -51,9 +56,14 @@ function JustifiedGrid<T extends JustifiedItem>({
   renderOverlay,
   className,
   targetRowHeight = 250,
-  gap = 2,
+  gap = 8,
   maxRowHeight = 400,
   minRowHeight = 150,
+  fixedSize = {
+    desktop: 300,
+    tablet: 260,
+    mobile: 200,
+  },
 }: JustifiedGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -74,102 +84,50 @@ function JustifiedGrid<T extends JustifiedItem>({
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Calculate rows with justified layout
+  // Calculate fixed size based on screen width
+  const getFixedSize = () => {
+    if (containerWidth >= 1024) {
+      return fixedSize.desktop || 300;
+    } else if (containerWidth >= 640) {
+      return fixedSize.tablet || 260;
+    } else {
+      return fixedSize.mobile || 200;
+    }
+  };
+
+  // Calculate rows with fixed-size grid layout
   const calculateRows = useMemo(() => {
     if (!containerWidth || items.length === 0) {
       return [];
     }
 
     const availableWidth = containerWidth;
+    const itemSize = getFixedSize();
     const calculatedRows: Row[] = [];
     let currentRow: (T & { calculatedWidth: number; calculatedHeight: number })[] = [];
-    let currentRowAspectRatioSum = 0;
 
-    items.forEach((item, index) => {
-      // Get aspect ratio (width / height)
-      const aspectRatio = imageAspectRatios.get(item.id) || 
-                         item.aspectRatio || 
-                         (item.width && item.height ? item.width / item.height : 1);
+    // Calculate how many items can fit in a row
+    const itemsPerRow = Math.floor((availableWidth + gap) / (itemSize + gap));
+    const actualItemsPerRow = Math.max(1, itemsPerRow); // At least 1 item per row
 
-      // Add to current row
-      currentRow.push({
+    // Distribute items into rows
+    for (let i = 0; i < items.length; i += actualItemsPerRow) {
+      const rowItems = items.slice(i, i + actualItemsPerRow);
+      
+      const row: (T & { calculatedWidth: number; calculatedHeight: number })[] = rowItems.map(item => ({
         ...item,
-        calculatedWidth: 0, // Will be calculated later
-        calculatedHeight: 0, // Will be calculated later
+        calculatedWidth: itemSize,
+        calculatedHeight: itemSize,
+      }));
+
+      calculatedRows.push({
+        items: row,
+        height: itemSize,
       });
-      currentRowAspectRatioSum += aspectRatio;
-
-      // Check if we should finalize this row
-      // Calculate what the row height would be with current items
-      const rowWidth = availableWidth - (currentRow.length - 1) * gap;
-      const rowHeight = rowWidth / currentRowAspectRatioSum;
-      
-      // Calculate how close this row height is to target
-      const distanceFromTarget = Math.abs(rowHeight - targetRowHeight);
-      
-      // Finalize row if:
-      // 1. Row height is within acceptable range AND close to target, OR
-      // 2. This is the last item, OR
-      // 3. Adding next item would make row worse (further from target or out of range)
-      const isLastItem = index === items.length - 1;
-      const isRowHeightAcceptable = rowHeight >= minRowHeight && rowHeight <= maxRowHeight;
-      
-      // Check what would happen if we add the next item
-      let wouldNextItemBeWorse = false;
-      if (!isLastItem) {
-        const nextItem = items[index + 1];
-        const nextAspectRatio = imageAspectRatios.get(nextItem.id) || 
-                               nextItem.aspectRatio || 
-                               (nextItem.width && nextItem.height ? nextItem.width / nextItem.height : 1);
-        const nextRowAspectRatioSum = currentRowAspectRatioSum + nextAspectRatio;
-        const nextRowWidth = availableWidth - (currentRow.length) * gap;
-        const nextRowHeight = nextRowWidth / nextRowAspectRatioSum;
-        const nextDistanceFromTarget = Math.abs(nextRowHeight - targetRowHeight);
-        const nextIsAcceptable = nextRowHeight >= minRowHeight && nextRowHeight <= maxRowHeight;
-        
-        // Next item would be worse if:
-        // - It's out of acceptable range, OR
-        // - It's further from target than current
-        wouldNextItemBeWorse = !nextIsAcceptable || (nextDistanceFromTarget > distanceFromTarget && isRowHeightAcceptable);
-      }
-
-      if ((isRowHeightAcceptable && distanceFromTarget < 50) || isLastItem || wouldNextItemBeWorse) {
-        // Calculate final dimensions for this row
-        // Clamp row height to acceptable range
-        const finalRowHeight = Math.max(minRowHeight, Math.min(maxRowHeight, rowHeight));
-        const finalRowWidth = availableWidth - (currentRow.length - 1) * gap;
-        
-        // Calculate widths based on aspect ratios
-        currentRow.forEach((rowItem) => {
-          const itemAspectRatio = imageAspectRatios.get(rowItem.id) || 
-                                 rowItem.aspectRatio || 
-                                 (rowItem.width && rowItem.height ? rowItem.width / rowItem.height : 1);
-          rowItem.calculatedWidth = finalRowHeight * itemAspectRatio;
-          rowItem.calculatedHeight = finalRowHeight;
-        });
-
-        // Normalize widths to fill available space exactly
-        const totalCalculatedWidth = currentRow.reduce((sum, item) => sum + item.calculatedWidth, 0);
-        if (totalCalculatedWidth > 0) {
-          const scaleFactor = finalRowWidth / totalCalculatedWidth;
-          currentRow.forEach((rowItem) => {
-            rowItem.calculatedWidth *= scaleFactor;
-          });
-        }
-
-        calculatedRows.push({
-          items: [...currentRow],
-          height: finalRowHeight,
-        });
-
-        // Reset for next row
-        currentRow = [];
-        currentRowAspectRatioSum = 0;
-      }
-    });
+    }
 
     return calculatedRows;
-  }, [containerWidth, items, imageAspectRatios, gap, targetRowHeight, minRowHeight, maxRowHeight]);
+  }, [containerWidth, items, gap, fixedSize.desktop, fixedSize.tablet, fixedSize.mobile]);
 
   // Update rows when calculation changes
   useEffect(() => {
@@ -192,13 +150,14 @@ function JustifiedGrid<T extends JustifiedItem>({
     <div 
       ref={containerRef} 
       className={cn('w-full', className)}
+      style={{ margin: 0, padding: 0, lineHeight: 0 }}
     >
-      <div className="flex flex-col" style={{ gap: `${gap}px` }}>
+      <div className="flex flex-col justify-center items-center" style={{ gap: `${gap}px`, margin: 0, padding: 0, lineHeight: 0 }}>
         {rows.map((row, rowIndex) => (
           <div
             key={rowIndex}
-            className="flex"
-            style={{ gap: `${gap}px` }}
+            className="flex justify-center items-start"
+            style={{ gap: `${gap}px`, margin: 0, padding: 0, lineHeight: 0 }}
           >
             {row.items.map((item, itemIndex) => (
               <JustifiedItem
@@ -247,24 +206,34 @@ function JustifiedItem<T extends JustifiedItem>({
         duration: 0.3,
         ease: 'easeOut'
       }}
-      className="relative overflow-hidden rounded-lg bg-muted cursor-pointer group flex-shrink-0"
+      className="relative overflow-hidden cursor-pointer group flex-shrink-0 flex items-center justify-center"
       style={{
         width: `${item.calculatedWidth}px`,
         height: `${item.calculatedHeight}px`,
+        minWidth: `${item.calculatedWidth}px`,
+        minHeight: `${item.calculatedHeight}px`,
+        maxWidth: `${item.calculatedWidth}px`,
+        maxHeight: `${item.calculatedHeight}px`,
+        margin: 0,
+        padding: 0,
+        flexShrink: 0,
+        lineHeight: 0,
+        verticalAlign: 'top',
       }}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Image - use object-contain to preserve aspect ratio without cropping */}
+      {/* Image - use object-cover to fill fixed-size frame */}
       <OptimizedImage
         src={item.imageUrl}
         variants={item.variants}
         alt={item.alt}
         variant="feed"
-        className="w-full h-full transition-transform duration-300 group-hover:scale-105"
+        className="w-full h-full transition-transform duration-300 group-hover:scale-[1.02]"
         aspectRatio="auto"
-        objectFit="contain"
+        objectFit="cover"
+        containerClassName="w-full h-full"
         onLoad={onImageLoad}
       />
 
@@ -300,7 +269,7 @@ function JustifiedItem<T extends JustifiedItem>({
           opacity: isHovered ? 1 : 0,
         }}
         transition={{ duration: 0.2 }}
-        className="absolute inset-0 rounded-lg ring-2 ring-primary/20 pointer-events-none"
+        className="absolute inset-0 ring-1 ring-white/30 pointer-events-none"
       />
     </motion.div>
   );

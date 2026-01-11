@@ -142,6 +142,13 @@ serve(async (req) => {
       throw new Error('Cloudinary API secret looks invalid (too short). Please update the CLOUDINARY_API_SECRET secret.')
     }
 
+    // Debug: Log API credentials (masked)
+    console.log('Cloudinary config:', {
+      cloudName,
+      apiKey: apiKey?.substring(0, 4) + '...',
+      apiSecretLength: apiSecret?.length,
+    })
+
     // =============================================
     // B. UPLOAD TO CLOUDINARY
     // =============================================
@@ -153,24 +160,28 @@ serve(async (req) => {
     // - Strip EXIF metadata
     // - Convert to sRGB color profile
     // - Store original at full resolution (private)
+    // Note: Only parameters sent in form data should be included in signature
     const uploadParams: Record<string, string> = {
       folder: folderPath,
       timestamp: timestamp.toString(),
-      // Cloudinary flags for normalization
       colors: 'true', // Extract color info
-      // The original is stored as-is, transformations are done on delivery
     }
 
-    const sortedParams = Object.keys(uploadParams).sort()
-    const signatureString = sortedParams
+    // Cloudinary requires parameters to be sorted alphabetically for signature
+    const sortedKeys = Object.keys(uploadParams).sort()
+    const signatureString = sortedKeys
       .map((key) => `${key}=${uploadParams[key]}`)
       .join('&') + apiSecret
+
+    console.log('Signature string:', signatureString.replace(apiSecret, '[SECRET]'))
 
     const encoder = new TextEncoder()
     const data = encoder.encode(signatureString)
     const hashBuffer = await crypto.subtle.digest('SHA-1', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const signature = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+    
+    console.log('Generated signature:', signature)
 
     // Reconstruct file from array buffer for upload
     const uploadFile = new File([arrayBuffer], file.name, { type: file.type })

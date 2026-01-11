@@ -57,6 +57,7 @@ export default function Index() {
         `)
         .eq("is_sold", false)
         .eq("is_verified", true)
+        .is("post_id", null) // Exclude portfolio items (only show items for sale)
         .order("created_at", { ascending: false })
         .limit(6);
 

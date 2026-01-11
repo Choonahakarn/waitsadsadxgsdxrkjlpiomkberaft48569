@@ -28,6 +28,7 @@ interface UserProfile {
   full_name: string | null;
   avatar_url: string | null;
   display_name: string | null;
+  display_id: string | null;
 }
 
 interface ArtistProfile {
@@ -190,6 +191,7 @@ export function PostDetailDialog({
   const [hasDragged, setHasDragged] = useState(false);
   const [ownerArtworks, setOwnerArtworks] = useState<Array<{ id: string; image_url: string; title: string }>>([]);
   const [loadingArtworks, setLoadingArtworks] = useState(false);
+  const [artworkToPostMap, setArtworkToPostMap] = useState<Map<string, string>>(new Map());
   
   // Check if image needs to be fit to screen (if either dimension > 1800px)
   const shouldFitToScreen = imageNaturalSize 
@@ -320,32 +322,56 @@ export function PostDetailDialog({
   // Fetch owner's portfolio artworks
   useEffect(() => {
     const fetchOwnerArtworks = async () => {
-      if (!post?.artist_profile?.id) {
+      if (!post?.artist_profile?.id || !post?.user_id) {
         setOwnerArtworks([]);
+        setArtworkToPostMap(new Map());
         return;
       }
 
       setLoadingArtworks(true);
       try {
-        const { data, error } = await supabase
+        // Fetch artworks
+        const { data: artworksData, error: artworksError } = await supabase
           .from('artworks')
           .select('id, image_url, title')
           .eq('artist_id', post.artist_profile.id)
           .order('created_at', { ascending: false })
           .limit(6); // Show max 6 artworks
 
-        if (error) throw error;
-        setOwnerArtworks(data || []);
+        if (artworksError) throw artworksError;
+        setOwnerArtworks(artworksData || []);
+
+        // Fetch community posts by the same user to create mapping
+        const { data: postsData } = await supabase
+          .from('community_posts')
+          .select('id, image_url, title')
+          .eq('user_id', post.user_id);
+
+        // Create mapping between artworks and posts
+        if (artworksData && postsData) {
+          const mapping = new Map<string, string>();
+          artworksData.forEach((artwork) => {
+            // Find matching post by image_url or title
+            const matchingPost = postsData.find(
+              (p) => p.image_url === artwork.image_url || p.title === artwork.title
+            );
+            if (matchingPost) {
+              mapping.set(artwork.id, matchingPost.id);
+            }
+          });
+          setArtworkToPostMap(mapping);
+        }
       } catch (error) {
         console.error('Error fetching owner artworks:', error);
         setOwnerArtworks([]);
+        setArtworkToPostMap(new Map());
       } finally {
         setLoadingArtworks(false);
       }
     };
 
     fetchOwnerArtworks();
-  }, [post?.artist_profile?.id]);
+  }, [post?.artist_profile?.id, post?.user_id]);
 
   if (!post) return null;
 
@@ -664,7 +690,7 @@ export function PostDetailDialog({
                         {getDisplayName(post.user_profile, post.artist_profile)}
                       </span>
                       <span className="text-white/60 text-sm">
-                        @{post.user_id.slice(0, 8)}
+                        @{post.user_profile?.display_id || post.user_id.slice(0, 8)}
                       </span>
                       {post.artist_profile?.is_verified && (
                         <Badge className="h-5 px-1.5 text-xs bg-blue-500 text-white border-0">✓ Verified</Badge>
@@ -813,7 +839,15 @@ export function PostDetailDialog({
                           alt: artwork.title,
                         }))}
                         onItemClick={(item) => {
-                          navigate(`/artwork/${item.id}`);
+                          // Check if this artwork has a corresponding community post
+                          const postId = artworkToPostMap.get(item.id);
+                          if (postId) {
+                            // Link to community post page
+                            navigate(`/community?post=${postId}`);
+                          } else {
+                            // Fallback to artwork page if no post found
+                            navigate(`/artwork/${item.id}`);
+                          }
                           onClose();
                         }}
                         targetRowHeight={120}

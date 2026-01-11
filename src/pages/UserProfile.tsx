@@ -22,6 +22,7 @@ import { ProfileTagFilter } from "@/components/profile/ProfileTagFilter";
 import { supabase } from "@/integrations/supabase/client";
 import OptimizedImage from "@/components/ui/OptimizedImage";
 import JustifiedGrid, { JustifiedItem } from "@/components/ui/JustifiedGrid";
+import { PostDetailDialog } from "@/components/community/PostDetailDialog";
 
 interface UserProfileData {
   id: string;
@@ -120,6 +121,7 @@ export default function UserProfile() {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [profileArtworks, setProfileArtworks] = useState<Array<{ id: string; image_url: string; title: string }>>([]);
+  const [artworkToPostMap, setArtworkToPostMap] = useState<Map<string, string>>(new Map()); // Map artwork.id -> post.id
   const [loadingProfileArtworks, setLoadingProfileArtworks] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -164,6 +166,18 @@ export default function UserProfile() {
   const [selectedPostsTag, setSelectedPostsTag] = useState<string | null>(null);
   const [selectedSavedTag, setSelectedSavedTag] = useState<string | null>(null);
 
+  // PostDetailDialog state
+  const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set());
+  const [editingComment, setEditingComment] = useState<Comment | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState("");
+  const [savingCommentEdit, setSavingCommentEdit] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const [shareDialogPost, setShareDialogPost] = useState<CommunityPost | null>(null);
+
   const reportReasons = [
     { value: "spam", label: "สแปมหรือโฆษณา" },
     { value: "harassment", label: "คุกคามหรือรังแก" },
@@ -179,6 +193,23 @@ export default function UserProfile() {
       fetchUserData();
     }
   }, [userId]);
+
+  // Listen for portfolio updates (when user posts with "Add to Portfolio")
+  useEffect(() => {
+    const handlePortfolioUpdate = (event: CustomEvent) => {
+      // Only refresh if this is the current user's profile
+      if (user && userId === user.id && event.detail?.userId === user.id) {
+        console.log('Portfolio updated, refreshing data...');
+        fetchUserData();
+      }
+    };
+
+    window.addEventListener('portfolioUpdated', handlePortfolioUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('portfolioUpdated', handlePortfolioUpdate as EventListener);
+    };
+  }, [user, userId]);
 
   // Fetch saved posts for current user
   useEffect(() => {
@@ -460,7 +491,7 @@ export default function UserProfile() {
       if (artistData) {
         const { data: artworksData, error: artworksError } = await supabase
           .from('artworks')
-          .select('id, title, image_url, price, is_sold')
+          .select('id, title, image_url, image_asset_id, post_id, price, is_sold, created_at')
           .eq('artist_id', artistData.id)
           .order('created_at', { ascending: false });
         
@@ -468,6 +499,14 @@ export default function UserProfile() {
           console.error('Error fetching artworks:', artworksError);
         } else {
           console.log('Fetched artworks:', artworksData?.length || 0, 'for artist_id:', artistData.id);
+          // Debug: Log artworks with post_id
+          if (artworksData) {
+            const artworksWithPostId = artworksData.filter(a => a.post_id);
+            console.log('Artworks with post_id:', artworksWithPostId.length, 'out of', artworksData.length);
+            artworksWithPostId.forEach(a => {
+              console.log('  - Artwork:', a.id, '→ Post:', a.post_id);
+            });
+          }
         }
         
         setArtworks(artworksData || []);
@@ -487,7 +526,7 @@ export default function UserProfile() {
       // Fetch community posts with additional data
       const { data: postsData } = await supabase
         .from('community_posts')
-        .select('id, title, description, image_url, likes_count, created_at, category, tools_used, hashtags')
+        .select('id, title, description, image_url, image_asset_id, image_blur_url, image_small_url, image_medium_url, image_large_url, user_id, likes_count, created_at, category, tools_used, hashtags')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       
@@ -530,15 +569,76 @@ export default function UserProfile() {
           .then(({ data }) => new Set((data || []).map(l => l.post_id))) : Promise.resolve(new Set<string>())
       ]);
 
+      // Fetch user profiles and artist profiles for all posts
+      const uniqueUserIds = [...new Set((postsData || []).map(p => p.user_id))];
+      const [profilesResult, artistProfilesResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, display_name, display_id')
+          .in('id', uniqueUserIds),
+        supabase
+          .from('artist_profiles')
+          .select('user_id, artist_name, is_verified')
+          .in('user_id', uniqueUserIds)
+      ]);
+
+      const profilesMap = new Map((profilesResult.data || []).map(p => [p.id, p]));
+      const artistProfilesMap = new Map((artistProfilesResult.data || []).map(a => [a.user_id, a]));
+
       // Map data in memory (fast)
-      const postsWithDetails = (postsData || []).map((post) => ({
-        ...post,
-        likes_count: likesCountsResult[post.id] || 0,
-        comments_count: commentsCountsResult[post.id] || 0,
-        is_liked: userLikesResult.has(post.id)
-      }));
+      const postsWithDetails = (postsData || []).map((post) => {
+        const userProfile = profilesMap.get(post.user_id);
+        const artistProfile = artistProfilesMap.get(post.user_id);
+        
+        return {
+          ...post,
+          user_profile: userProfile ? {
+            full_name: userProfile.full_name,
+            avatar_url: userProfile.avatar_url,
+            display_name: userProfile.display_name,
+            display_id: userProfile.display_id,
+          } : undefined,
+          artist_profile: artistProfile ? {
+            artist_name: artistProfile.artist_name,
+            is_verified: artistProfile.is_verified,
+          } : null,
+          likes_count: likesCountsResult[post.id] || 0,
+          comments_count: commentsCountsResult[post.id] || 0,
+          is_liked: userLikesResult.has(post.id),
+          tools_used: post.tools_used || [],
+        };
+      });
       
       setPosts(postsWithDetails);
+
+      // Create mapping between artworks and community posts using post_id
+      // Artworks now have post_id field that directly links to the post
+      if (artworksData && postsData) {
+        const mapping = new Map<string, string>();
+        
+        console.log('Creating mapping - Artworks:', artworksData.length, 'Posts:', postsData.length);
+        
+        // Match artworks to posts using post_id field
+        artworksData.forEach((artwork) => {
+          if (artwork.post_id) {
+            // Check if the post exists in postsData
+            const post = postsData.find(p => p.id === artwork.post_id);
+            if (post) {
+              mapping.set(artwork.id, post.id);
+              console.log('Matched by post_id:', artwork.id, '<->', post.id);
+            } else {
+              console.warn('Artwork has post_id but post not found:', artwork.id, 'post_id:', artwork.post_id);
+            }
+          }
+        });
+        
+        console.log('Artwork to Post mapping created:', Array.from(mapping.entries()));
+        console.log('Mapping size:', mapping.size, 'out of', artworksData.length, 'artworks with post_id');
+        setArtworkToPostMap(mapping);
+      } else {
+        console.log('Cannot create mapping - missing data:', { artworksData: !!artworksData, postsData: !!postsData });
+        setArtworkToPostMap(new Map());
+      }
 
       // Fetch followers count
       const { count: followers } = await supabase
@@ -588,24 +688,134 @@ export default function UserProfile() {
 
     try {
       if (isFollowing) {
-        await supabase
+        const { error } = await supabase
           .from('follows')
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', userId);
         
+        if (error) throw error;
+        
         setIsFollowing(false);
         setFollowersCount(prev => Math.max(0, prev - 1));
+        
+        toast({
+          title: "ยกเลิกการติดตามแล้ว",
+          description: "คุณไม่ได้ติดตามผู้ใช้นี้แล้ว"
+        });
       } else {
-        await supabase
+        const { error: insertError } = await supabase
           .from('follows')
           .insert({ follower_id: user.id, following_id: userId });
         
+        if (insertError) {
+          // Check if it's a duplicate key error (already following)
+          if (insertError.code === '23505') {
+            setIsFollowing(true);
+            toast({
+              title: "ติดตามแล้ว",
+              description: "คุณติดตามผู้ใช้นี้อยู่แล้ว"
+            });
+            return;
+          }
+          throw insertError;
+        }
+        
+        // Update state immediately for better UX
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
+
+        // Get profile for notification
+        const { data: followerProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, display_name')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching follower profile:', profileError);
+        }
+
+        const { data: artistProfile, error: artistError } = await supabase
+          .from('artist_profiles')
+          .select('artist_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (artistError) {
+          console.error('Error fetching artist profile:', artistError);
+        }
+
+        const followerName = artistProfile?.artist_name || followerProfile?.display_name || followerProfile?.full_name || 'ผู้ใช้';
+
+        // Check if follower is muted by the user being followed
+        const { data: isMuted, error: muteError } = await supabase
+          .from('user_mutes')
+          .select('id')
+          .eq('muter_id', userId)
+          .eq('muted_id', user.id)
+          .maybeSingle();
+
+        if (muteError) {
+          console.error('Error checking mute status:', muteError);
+        }
+
+        // Only send notification if not muted
+        if (!isMuted) {
+          const { error: notificationError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              title: 'มีผู้ติดตามใหม่! 🎉',
+              message: `${followerName} เริ่มติดตามคุณแล้ว`,
+              type: 'follow',
+              reference_id: user.id,
+              actor_id: user.id
+            });
+
+          if (notificationError) {
+            console.error('Error creating notification:', notificationError);
+            // Don't throw - notification is not critical
+          } else {
+            console.log('Notification created successfully for user:', userId);
+          }
+        } else {
+          console.log('Notification skipped - follower is muted');
+        }
+
+        toast({
+          title: "ติดตามแล้ว! 🎉",
+          description: "คุณจะเห็นผลงานใหม่ๆ จากผู้ใช้นี้"
+        });
+
+        // Refresh follow status to ensure consistency
+        const { data: followCheck } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', userId)
+          .maybeSingle();
+        
+        if (followCheck) {
+          setIsFollowing(true);
+        } else {
+          console.warn('Follow record not found after insert, refreshing...');
+          // Refresh user data to sync state
+          fetchUserData();
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error following user:', error);
+      
+      // Revert state on error
+      setIsFollowing(false);
+      setFollowersCount(prev => Math.max(0, prev - 1));
+      
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message || "ไม่สามารถติดตามผู้ใช้ได้"
+      });
     }
   };
 
@@ -1427,61 +1637,102 @@ export default function UserProfile() {
               )}
             </TabsList>
 
-            {/* Portfolio Tab - Justified Grid (Google Photos style) */}
-            <TabsContent value="portfolio">
+            {/* Portfolio Tab - Justified Grid (Google Photos style) - Shows only posts that were added to Portfolio */}
+            <TabsContent value="portfolio" className="mt-8">
               <AnimatePresence mode="wait">
-                {artworks.length > 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="w-full"
-                  >
-                    <JustifiedGrid
-                      items={artworks.map((artwork): JustifiedItem => ({
-                        id: artwork.id,
-                        imageUrl: artwork.image_url,
-                        alt: artwork.title,
-                        // JustifiedGrid will calculate aspect ratio from image dimensions
-                      }))}
-                      onItemClick={(item) => {
-                        navigate(`/artwork/${item.id}`);
-                      }}
-                      renderOverlay={(item) => {
-                        const artwork = artworks.find(a => a.id === item.id);
-                        if (!artwork) return null;
-                        return (
-                          <div className="w-full">
-                            <p className="font-medium text-sm text-white line-clamp-2 mb-1">
-                              {artwork.title}
-                            </p>
-                            <p className="text-xs text-white/90">
-                              ฿{artwork.price.toLocaleString()}
-                              {artwork.is_sold && (
-                                <span className="ml-2 px-1.5 py-0.5 bg-red-500/80 rounded text-[10px]">
-                                  ขายแล้ว
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        );
-                      }}
-                      targetRowHeight={250}
-                      gap={2}
-                      maxRowHeight={400}
-                      minRowHeight={150}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-16"
-                  >
-                    <LayoutGrid className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground">ยังไม่มีผลงานใน Portfolio</p>
-                  </motion.div>
-                )}
+                  {(() => {
+                    // Method 1: Use artworks with post_id to find portfolio posts
+                    // Get all post IDs from artworks that have post_id (these are portfolio items)
+                    const portfolioPostIdsFromArtworks = new Set(
+                      artworks
+                        .filter(artwork => artwork.post_id)
+                        .map(artwork => artwork.post_id!)
+                    );
+                    
+                    // Method 2: Also use the mapping (backup)
+                    const portfolioPostIdsFromMap = new Set(Array.from(artworkToPostMap.values()));
+                    
+                    // Combine both methods
+                    const allPortfolioPostIds = new Set([
+                      ...Array.from(portfolioPostIdsFromArtworks),
+                      ...Array.from(portfolioPostIdsFromMap)
+                    ]);
+                    
+                    // Filter posts that have corresponding artworks (posts that were added to Portfolio)
+                    const portfolioPosts = posts.filter(post => allPortfolioPostIds.has(post.id));
+
+                    // Debug logging
+                    console.log('Portfolio Tab Debug:', {
+                      totalPosts: posts.length,
+                      totalArtworks: artworks.length,
+                      artworksWithPostId: artworks.filter(a => a.post_id).length,
+                      portfolioPostIdsFromArtworks: Array.from(portfolioPostIdsFromArtworks),
+                      portfolioPostIdsFromMap: Array.from(portfolioPostIdsFromMap),
+                      allPortfolioPostIds: Array.from(allPortfolioPostIds),
+                      portfolioPostsCount: portfolioPosts.length,
+                      portfolioPostIdsList: portfolioPosts.map(p => p.id),
+                      sampleArtwork: artworks.find(a => a.post_id),
+                      samplePost: posts.find(p => allPortfolioPostIds.has(p.id))
+                    });
+
+                    return portfolioPosts.length > 0 ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="w-full"
+                      >
+                      <JustifiedGrid
+                        items={portfolioPosts.map((post): JustifiedItem => ({
+                          id: post.id,
+                          imageUrl: post.image_url,
+                          alt: post.title,
+                          // JustifiedGrid will calculate aspect ratio from image dimensions
+                        }))}
+                        onItemClick={(item) => {
+                          // Open post dialog instead of navigating
+                          const post = portfolioPosts.find(p => p.id === item.id);
+                          if (post) {
+                            console.log('Opening post dialog:', post);
+                            handleOpenPost(post);
+                          } else {
+                            console.error('Post not found:', item.id, 'Available posts:', portfolioPosts.map(p => p.id));
+                          }
+                        }}
+                        renderOverlay={(item) => {
+                          const post = portfolioPosts.find(p => p.id === item.id);
+                          if (!post) return null;
+                          return (
+                            <div className="w-full">
+                              <p className="font-medium text-sm text-white line-clamp-2 mb-1">
+                                {post.title}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-white/90">
+                                <span>❤️ {post.likes_count.toLocaleString()}</span>
+                                <span>💬 {post.comments_count || 0}</span>
+                              </div>
+                            </div>
+                          );
+                        }}
+                        gap={8}
+                        fixedSize={{
+                          desktop: 300,
+                          tablet: 260,
+                          mobile: 200,
+                        }}
+                      />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-center py-16"
+                    >
+                      <LayoutGrid className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                      <p className="text-muted-foreground">ยังไม่มีผลงานใน Portfolio</p>
+                    </motion.div>
+                  );
+                })()}
               </AnimatePresence>
             </TabsContent>
 
@@ -2079,138 +2330,147 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* Comment Dialog */}
-      <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>ความคิดเห็น</DialogTitle>
-          </DialogHeader>
-          
-          {selectedPost && (
-            <div className="flex-1 overflow-hidden flex flex-col">
-              {/* Post preview */}
-              <div className="p-4 border-b bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={displayAvatar || undefined} />
-                    <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <span className="font-semibold text-sm">{displayName}</span>
-                    <p className="text-sm text-muted-foreground line-clamp-1">{selectedPost.title}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Portfolio Gallery - Show profile owner's artworks */}
-              {artistProfile && profileArtworks.length > 0 && (
-                <div className="p-4 border-b">
-                  <h3 className="text-sm font-semibold mb-3">Portfolio</h3>
-                  <JustifiedGrid
-                    items={profileArtworks.map((artwork): JustifiedItem => ({
-                      id: artwork.id,
-                      imageUrl: artwork.image_url,
-                      alt: artwork.title,
-                    }))}
-                    onItemClick={(item) => {
-                      navigate(`/artwork/${item.id}`);
-                      setSelectedPost(null);
-                    }}
-                    targetRowHeight={120}
-                    gap={2}
-                    maxRowHeight={200}
-                    minRowHeight={80}
-                  />
-                </div>
-              )}
-              {/* Debug info - remove after testing */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="p-2 text-xs text-muted-foreground border-b">
-                  Debug: artistProfile={artistProfile ? 'exists' : 'null'}, 
-                  profileArtworks={profileArtworks.length} items
-                </div>
-              )}
-
-              {/* Comments list */}
-              <ScrollArea className="flex-1 p-4">
-                {commentsLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : comments.length > 0 ? (
-                  <div className="space-y-4">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="flex gap-3">
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarImage src={comment.user_profile?.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {(comment.user_profile?.full_name || "U")[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="bg-muted rounded-xl px-3 py-2">
-                            <span className="font-semibold text-sm">
-                              {comment.user_profile?.full_name || "ผู้ใช้"}
-                            </span>
-                            <p className="text-sm">{comment.content}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground ml-3">
-                            {formatTimeAgo(comment.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    ยังไม่มีความคิดเห็น
-                  </div>
-                )}
-              </ScrollArea>
-
-              {/* Comment input */}
-              {user ? (
-                <div className="p-4 border-t flex gap-2">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarFallback>{user.email?.[0].toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 flex gap-2">
-                    <Textarea
-                      placeholder="เขียนความคิดเห็น..."
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      className="min-h-[40px] max-h-[100px] resize-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmitComment();
-                        }
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      onClick={handleSubmitComment}
-                      disabled={!newComment.trim() || submittingComment}
-                    >
-                      {submittingComment ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 border-t text-center">
-                  <Link to="/auth">
-                    <Button variant="outline">เข้าสู่ระบบเพื่อแสดงความคิดเห็น</Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Post Detail Dialog */}
+      <PostDetailDialog
+        post={selectedPost}
+        onClose={() => setSelectedPost(null)}
+        user={user}
+        comments={comments}
+        commentsLoading={commentsLoading}
+        newComment={newComment}
+        onNewCommentChange={setNewComment}
+        onSubmitComment={handleSubmitComment}
+        submittingComment={submittingComment}
+        onLike={(postId, isLiked, e) => handleLike(postId, isLiked)}
+        onFollow={(userId, isFollowing, e) => {
+          // Handle follow in dialog context
+          if (userId === profile?.id) {
+            handleFollow();
+          }
+        }}
+        followingUsers={followingUsers}
+        savedPosts={savedPosts}
+        repostedPosts={repostedPosts}
+        onSavePost={(postId) => handleSave(postId)}
+        onUnsavePost={(postId) => handleSave(postId)}
+        onTagSelect={(tag) => setSelectedPostsTag(tag)}
+        onShareDialogOpen={setShareDialogPost}
+        editingComment={editingComment}
+        editCommentContent={editCommentContent}
+        onEditCommentContentChange={setEditCommentContent}
+        onEditComment={async () => {
+          if (!editingComment || !editCommentContent.trim()) return;
+          setSavingCommentEdit(true);
+          try {
+            const { error } = await supabase
+              .from('community_comments')
+              .update({ content: editCommentContent.trim() })
+              .eq('id', editingComment.id)
+              .eq('user_id', user?.id);
+            
+            if (error) throw error;
+            
+            setComments(comments.map(c => 
+              c.id === editingComment.id 
+                ? { ...c, content: editCommentContent.trim() }
+                : c
+            ));
+            setEditingComment(null);
+            setEditCommentContent("");
+          } catch (error: any) {
+            toast({
+              variant: "destructive",
+              title: "เกิดข้อผิดพลาด",
+              description: error.message
+            });
+          } finally {
+            setSavingCommentEdit(false);
+          }
+        }}
+        onCancelEditComment={() => { setEditingComment(null); setEditCommentContent(""); }}
+        savingCommentEdit={savingCommentEdit}
+        onStartEditComment={(comment) => { setEditingComment(comment); setEditCommentContent(comment.content); }}
+        onDeleteComment={async (commentId) => {
+          setDeletingCommentId(commentId);
+          try {
+            const { error } = await supabase
+              .from('community_comments')
+              .delete()
+              .eq('id', commentId)
+              .eq('user_id', user?.id);
+            
+            if (error) throw error;
+            
+            setComments(comments.filter(c => c.id !== commentId));
+            if (selectedPost) {
+              setPosts(posts.map(p => 
+                p.id === selectedPost.id
+                  ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) }
+                  : p
+              ));
+            }
+          } catch (error: any) {
+            toast({
+              variant: "destructive",
+              title: "เกิดข้อผิดพลาด",
+              description: error.message
+            });
+          } finally {
+            setDeletingCommentId(null);
+          }
+        }}
+        deletingCommentId={deletingCommentId}
+        replyingToComment={replyingToComment}
+        replyContent={replyContent}
+        onReplyContentChange={setReplyContent}
+        onSubmitReply={async () => {
+          if (!replyingToComment || !replyContent.trim() || !user || !selectedPost) return;
+          setSubmittingReply(true);
+          try {
+            const { error } = await supabase
+              .from('community_comments')
+              .insert({
+                post_id: selectedPost.id,
+                user_id: user.id,
+                content: replyContent.trim(),
+                parent_id: replyingToComment.id
+              });
+            
+            if (error) throw error;
+            
+            setReplyContent("");
+            setReplyingToComment(null);
+            fetchComments(selectedPost.id);
+          } catch (error: any) {
+            toast({
+              variant: "destructive",
+              title: "เกิดข้อผิดพลาด",
+              description: error.message
+            });
+          } finally {
+            setSubmittingReply(false);
+          }
+        }}
+        submittingReply={submittingReply}
+        onStartReply={(comment) => { setReplyingToComment(comment); setReplyContent(""); }}
+        onCancelReply={() => setReplyingToComment(null)}
+        expandedReplies={expandedReplies}
+        onToggleReplies={(commentId, expanded) => {
+          if (expanded) {
+            setExpandedReplies(prev => new Set([...prev, commentId]));
+          } else {
+            setExpandedReplies(prev => {
+              const next = new Set(prev);
+              next.delete(commentId);
+              return next;
+            });
+          }
+        }}
+        onLikeComment={async (commentId) => {
+          // Handle comment like
+          // Implementation can be added later if needed
+        }}
+      />
 
       {/* Repost Dialog */}
       <Dialog open={!!repostDialogPost} onOpenChange={(open) => !open && setRepostDialogPost(null)}>

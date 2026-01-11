@@ -55,6 +55,7 @@ interface CommunityPost {
     full_name: string | null;
     avatar_url: string | null;
     display_name: string | null;
+    display_id: string | null;
   };
   artist_profile?: {
     artist_name: string;
@@ -74,6 +75,7 @@ interface CommunityPost {
     full_name: string | null;
     avatar_url: string | null;
     display_name: string | null;
+    display_id: string | null;
   };
   repost_artist_profile?: {
     artist_name: string;
@@ -360,7 +362,7 @@ export default function Community() {
       // ✅ Batch fetch all profiles (single query)
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url, display_name')
+        .select('id, full_name, avatar_url, display_name, display_id')
         .in('id', uniqueUserIds);
 
       // ✅ Batch fetch all artist profiles (single query)
@@ -944,7 +946,7 @@ export default function Community() {
         ? toolsUsed.split(',').map(t => t.trim()).filter(t => t.length > 0) 
         : [];
 
-      const { error: postError } = await supabase
+      const { data: postData, error: postError } = await supabase
         .from('community_posts')
         .insert({
           user_id: user.id,
@@ -959,9 +961,12 @@ export default function Community() {
           category: category || null,
           tools_used: parsedTools,
           hashtags: parsedHashtags
-        });
+        })
+        .select('id')
+        .single();
 
       if (postError) throw postError;
+      if (!postData) throw new Error('Failed to create post');
 
       // Also add to portfolio (artworks table) if checkbox is checked
       if (addToPortfolio && artistProfile) {
@@ -974,6 +979,7 @@ export default function Community() {
           .from('artworks')
           .insert({
             artist_id: artistProfile.id,
+            post_id: postData.id, // Link artwork to the post
             title,
             description: description || null,
             image_url: imageUrl,
@@ -984,7 +990,7 @@ export default function Community() {
             image_asset_id: imageAssetId,
             category: artworkCategory,
             tools_used: toolsUsed ? toolsUsed.split(',').map(t => t.trim()) : [],
-            price: price ? parseFloat(price) : 0,
+            price: 0, // Set price to 0 for portfolio items (not for sale)
             is_verified: false,
             is_sold: false
           });
@@ -1001,6 +1007,15 @@ export default function Community() {
             title: "โพสต์สำเร็จ! 🎉",
             description: "ผลงานของคุณถูกเผยแพร่และเพิ่มใน Portfolio แล้ว"
           });
+          
+          // Refresh profile page if user is viewing their own profile
+          // This ensures the new portfolio item appears immediately
+          if (user && artistProfile) {
+            // Trigger a custom event that UserProfile can listen to
+            window.dispatchEvent(new CustomEvent('portfolioUpdated', { 
+              detail: { postId: postData.id, userId: user.id } 
+            }));
+          }
         }
       } else {
         toast({
@@ -2538,7 +2553,7 @@ export default function Community() {
                               {getDisplayName(post.user_profile, post.artist_profile)}
                             </span>
                             <span className="text-muted-foreground text-sm">
-                              @{post.user_id.slice(0, 8)}
+                              @{post.user_profile?.display_id || post.user_id.slice(0, 8)}
                             </span>
                             {post.artist_profile?.is_verified && (
                               <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
@@ -2551,13 +2566,18 @@ export default function Community() {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs text-muted-foreground">
                               {formatTimeAgo(post.created_at)}
                             </span>
                             {post.category && (
                               <span className="text-xs text-muted-foreground">
                                 • {post.category}
+                              </span>
+                            )}
+                            {post.tools_used && post.tools_used.length > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                • {post.tools_used.slice(0, 3).join(', ')}
                               </span>
                             )}
                           </div>
@@ -2740,16 +2760,6 @@ export default function Community() {
                         </p>
                       )}
 
-                      {/* Tools */}
-                      {post.tools_used && post.tools_used.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {post.tools_used?.slice(0, 3).map((tool, i) => (
-                            <Badge key={`tool-${i}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                              🛠 {tool}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
 
                       {/* Hashtags - Bottom */}
                       {post.hashtags && post.hashtags.length > 0 && (
@@ -3072,20 +3082,9 @@ export default function Community() {
                     </div>
                     
                     {addToPortfolio && (
-                      <div className="pl-6">
-                        <Label htmlFor="price" className="text-sm text-muted-foreground">
-                          ราคา (บาท) - กรอก 0 หากไม่ต้องการขาย
-                        </Label>
-                        <Input
-                          id="price"
-                          type="number"
-                          min="0"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          placeholder="0"
-                          className="mt-1"
-                        />
-                      </div>
+                      <p className="pl-6 text-xs text-muted-foreground">
+                        ผลงานนี้จะถูกเพิ่มใน Portfolio และไม่ใช่สินค้าขาย (ราคาจะถูกตั้งเป็น 0)
+                      </p>
                     )}
                   </div>
                 )}

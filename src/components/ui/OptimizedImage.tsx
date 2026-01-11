@@ -157,8 +157,8 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
       ref={containerRef}
       className={cn(
         "relative overflow-hidden",
-        // ✅ Enhanced background for contain mode (Pixiv-style)
-        objectFit === "contain" ? "bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center" : "bg-muted",
+        // ✅ Enhanced background for contain mode (Pixiv-style) - use transparent to avoid white gaps
+        objectFit === "contain" ? "bg-transparent flex items-center justify-center" : "bg-transparent",
         aspectRatioClass,
         containerClassName,
       )}
@@ -199,7 +199,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
           onError={() => setHasError(true)}
           onClick={onClick}
           className={cn(
-            "w-full h-full",
+            objectFit === "contain" ? "max-w-full max-h-full" : "w-full h-full",
             objectFitClass,
             "transition-opacity duration-500",
             isLoaded ? "opacity-100" : "opacity-0",

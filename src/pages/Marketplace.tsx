@@ -66,6 +66,7 @@ export default function Marketplace() {
       const offset = reset ? 0 : artworksRef.current.length;
       
       // Build query with server-side filtering
+      // Exclude portfolio items (items with post_id are portfolio items, not for sale)
       let query = supabase
         .from("artworks")
         .select(`
@@ -74,6 +75,7 @@ export default function Marketplace() {
         `, { count: 'exact' })
         .eq("is_sold", false)
         .eq("is_verified", true)
+        .is("post_id", null) // Exclude portfolio items (only show items for sale)
         .order("created_at", { ascending: false })
         .range(offset, offset + ITEMS_PER_PAGE - 1);
 
