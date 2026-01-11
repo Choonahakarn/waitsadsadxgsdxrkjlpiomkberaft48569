@@ -223,10 +223,10 @@ export function PostDetailDialog({
           </button>
 
           {/* Image Section - Center - Scrollable and Clickable for full-screen zoom */}
-          <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-y-auto overflow-x-hidden relative group bg-black/80">
+          <div className="flex-1 min-h-[40vh] lg:min-h-0 lg:h-full overflow-y-auto overflow-x-hidden relative bg-black/80">
             {/* Image wrapper - clickable for zoom */}
             <div
-              className="relative z-10 w-full h-auto flex justify-center py-4 cursor-zoom-in"
+              className="relative z-10 min-h-full w-full flex items-start justify-center py-4 cursor-zoom-in group"
               onClick={() => setIsImageViewerOpen(true)}
             >
               <OptimizedImage
@@ -238,8 +238,8 @@ export function PostDetailDialog({
                   large: post.image_large_url || undefined,
                 }}
                 alt={post.title}
-                variant="fullscreen"
-                className="max-w-full h-auto object-contain"
+                variant="large"
+                className="w-auto max-w-full h-auto object-contain"
                 priority
               />
             </div>
