@@ -21,6 +21,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ProfileTagFilter } from "@/components/profile/ProfileTagFilter";
 import { supabase } from "@/integrations/supabase/client";
 import OptimizedImage from "@/components/ui/OptimizedImage";
+import MasonryGrid, { MasonryItem } from "@/components/ui/MasonryGrid";
 
 interface UserProfileData {
   id: string;
@@ -118,6 +119,8 @@ export default function UserProfile() {
   const [artistProfile, setArtistProfile] = useState<ArtistProfileData | null>(null);
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [profileArtworks, setProfileArtworks] = useState<Array<{ id: string; image_url: string; title: string }>>([]);
+  const [loadingProfileArtworks, setLoadingProfileArtworks] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -455,13 +458,30 @@ export default function UserProfile() {
 
       // If artist, fetch their artworks
       if (artistData) {
-        const { data: artworksData } = await supabase
+        const { data: artworksData, error: artworksError } = await supabase
           .from('artworks')
           .select('id, title, image_url, price, is_sold')
           .eq('artist_id', artistData.id)
           .order('created_at', { ascending: false });
         
+        if (artworksError) {
+          console.error('Error fetching artworks:', artworksError);
+        } else {
+          console.log('Fetched artworks:', artworksData?.length || 0, 'for artist_id:', artistData.id);
+        }
+        
         setArtworks(artworksData || []);
+        // Also set profile artworks for comment dialog (limit to 6)
+        const profileArtworksData = (artworksData || []).slice(0, 6).map(aw => ({
+          id: aw.id,
+          image_url: aw.image_url,
+          title: aw.title
+        }));
+        console.log('Setting profile artworks:', profileArtworksData.length);
+        setProfileArtworks(profileArtworksData);
+      } else {
+        console.log('No artist profile found for user:', userId);
+        setProfileArtworks([]);
       }
 
       // Fetch community posts with additional data
@@ -471,38 +491,52 @@ export default function UserProfile() {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       
-      // Fetch comments count and likes status for each post
-      const postsWithDetails = await Promise.all(
-        (postsData || []).map(async (post) => {
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // ✅ OPTIMIZED: Batch fetch all counts and likes status
+      const postIds = (postsData || []).map(p => p.id);
+      
+      const [likesCountsResult, commentsCountsResult, userLikesResult] = await Promise.all([
+        // Likes counts
+        postIds.length > 0 ? supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', postIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(like => {
+              counts[like.post_id] = (counts[like.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
+        // Comments counts
+        postIds.length > 0 ? supabase
+          .from('community_comments')
+          .select('post_id')
+          .in('post_id', postIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(comment => {
+              counts[comment.post_id] = (counts[comment.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
+        // User's likes (if logged in)
+        user && postIds.length > 0 ? supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', postIds)
+          .eq('user_id', user.id)
+          .then(({ data }) => new Set((data || []).map(l => l.post_id))) : Promise.resolve(new Set<string>())
+      ]);
 
-          const { count: likesCount } = await supabase
-            .from('community_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          let isLiked = false;
-          if (user) {
-            const { data: likeData } = await supabase
-              .from('community_likes')
-              .select('id')
-              .eq('post_id', post.id)
-              .eq('user_id', user.id)
-              .maybeSingle();
-            isLiked = !!likeData;
-          }
-
-          return {
-            ...post,
-            likes_count: likesCount || 0,
-            comments_count: commentsCount || 0,
-            is_liked: isLiked
-          };
-        })
-      );
+      // Map data in memory (fast)
+      const postsWithDetails = (postsData || []).map((post) => ({
+        ...post,
+        likes_count: likesCountsResult[post.id] || 0,
+        comments_count: commentsCountsResult[post.id] || 0,
+        is_liked: userLikesResult.has(post.id)
+      }));
       
       setPosts(postsWithDetails);
 
@@ -1393,7 +1427,7 @@ export default function UserProfile() {
               )}
             </TabsList>
 
-            {/* Portfolio Tab */}
+            {/* Portfolio Tab - Masonry Grid (Pinterest/Cara style) */}
             <TabsContent value="portfolio">
               <AnimatePresence mode="wait">
                 {artworks.length > 0 ? (
@@ -1401,36 +1435,43 @@ export default function UserProfile() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1"
+                    className="w-full"
                   >
-                    {artworks.map((artwork) => (
-                      <Link key={artwork.id} to={`/artwork/${artwork.id}`}>
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="aspect-square relative group overflow-hidden bg-muted"
-                        >
-                          <OptimizedImage
-                            src={artwork.image_url}
-                            alt={artwork.title}
-                            variant="feed"
-                            className="w-full h-full transition-transform group-hover:scale-105"
-                            aspectRatio="square"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <div className="text-white text-center p-2">
-                              <p className="font-medium text-sm line-clamp-2">{artwork.title}</p>
-                              <p className="text-xs mt-1">฿{artwork.price.toLocaleString()}</p>
-                            </div>
+                    <MasonryGrid
+                      items={artworks.map((artwork): MasonryItem => ({
+                        id: artwork.id,
+                        imageUrl: artwork.image_url,
+                        alt: artwork.title,
+                        // Let MasonryGrid calculate aspect ratio from image dimensions
+                        // or use default if not available
+                      }))}
+                      onItemClick={(item) => {
+                        navigate(`/artwork/${item.id}`);
+                      }}
+                      renderOverlay={(item) => {
+                        const artwork = artworks.find(a => a.id === item.id);
+                        if (!artwork) return null;
+                        return (
+                          <div className="w-full">
+                            <p className="font-medium text-sm text-white line-clamp-2 mb-1">
+                              {artwork.title}
+                            </p>
+                            <p className="text-xs text-white/90">
+                              ฿{artwork.price.toLocaleString()}
+                              {artwork.is_sold && (
+                                <span className="ml-2 px-1.5 py-0.5 bg-red-500/80 rounded text-[10px]">
+                                  ขายแล้ว
+                                </span>
+                              )}
+                            </p>
                           </div>
-                          {artwork.is_sold && (
-                            <div className="absolute top-2 right-2">
-                              <Badge variant="destructive" className="text-xs">ขายแล้ว</Badge>
-                            </div>
-                          )}
-                        </motion.div>
-                      </Link>
-                    ))}
+                        );
+                      }}
+                      columnWidth={{ desktop: 260, tablet: 240 }}
+                      gap={16}
+                      minAspectRatio={1} // 1:1 square minimum
+                      maxAspectRatio={0.8} // 4:5 portrait maximum (like Cara/Pixiv)
+                    />
                   </motion.div>
                 ) : (
                   <motion.div
@@ -2061,6 +2102,42 @@ export default function UserProfile() {
                   </div>
                 </div>
               </div>
+
+              {/* Portfolio Gallery - Show profile owner's artworks */}
+              {artistProfile && profileArtworks.length > 0 && (
+                <div className="p-4 border-b">
+                  <h3 className="text-sm font-semibold mb-3">Portfolio</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {profileArtworks.map((artwork) => (
+                      <Link
+                        key={artwork.id}
+                        to={`/artwork/${artwork.id}`}
+                        onClick={() => setSelectedPost(null)}
+                        className="relative aspect-square overflow-hidden rounded-lg bg-muted hover:opacity-80 transition-opacity group"
+                      >
+                        <img
+                          src={artwork.image_url}
+                          alt={artwork.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            console.error('Error loading artwork image:', artwork.image_url);
+                            (e.target as HTMLImageElement).src = '/placeholder.svg';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Debug info - remove after testing */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="p-2 text-xs text-muted-foreground border-b">
+                  Debug: artistProfile={artistProfile ? 'exists' : 'null'}, 
+                  profileArtworks={profileArtworks.length} items
+                </div>
+              )}
 
               {/* Comments list */}
               <ScrollArea className="flex-1 p-4">

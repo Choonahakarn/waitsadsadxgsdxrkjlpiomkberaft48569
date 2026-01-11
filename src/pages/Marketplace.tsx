@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, SlidersHorizontal, Check, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,53 +34,120 @@ interface Artwork {
   };
 }
 
+const ITEMS_PER_PAGE = 20;
+
 export default function Marketplace() {
   const { t } = useTranslation();
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const artworksRef = useRef<Artwork[]>([]);
 
-  useEffect(() => {
-    fetchArtworks();
-  }, []);
+  // ✅ Fetch artworks with pagination and server-side filtering
+  const fetchArtworks = useCallback(async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setArtworks([]);
+      artworksRef.current = [];
+      setHasMore(true);
+    } else {
+      if (!hasMore || loadingMore) return;
+      setLoadingMore(true);
+    }
 
-  const fetchArtworks = async () => {
-    setLoading(true);
     try {
-      const { data, error } = await supabase
+      const offset = reset ? 0 : artworksRef.current.length;
+      
+      // Build query with server-side filtering
+      let query = supabase
         .from("artworks")
         .select(`
           *,
           artist_profiles (id, artist_name)
-        `)
+        `, { count: 'exact' })
         .eq("is_sold", false)
         .eq("is_verified", true)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
 
+      // Server-side category filter
+      if (categoryFilter !== "all") {
+        query = query.eq("category", categoryFilter);
+      }
+
+      // Server-side type filter
+      if (typeFilter !== "all") {
+        query = query.eq("type", typeFilter);
+      }
+
+      // Server-side search filter
+      if (searchQuery.trim()) {
+        query = query.or(`title.ilike.%${searchQuery}%,artist_profiles.artist_name.ilike.%${searchQuery}%`);
+      }
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      setArtworks(data || []);
+
+      // ✅ Server-side filtering - no client-side filter needed for pagination
+      const filteredData = (data || []).filter((artwork) => {
+        // Only client-side filter for verified toggle if needed
+        return !verifiedOnly || artwork.is_verified;
+      });
+
+      if (reset) {
+        artworksRef.current = filteredData;
+        setArtworks(filteredData);
+      } else {
+        artworksRef.current = [...artworksRef.current, ...filteredData];
+        setArtworks(artworksRef.current);
+      }
+
+      // Check if there are more items
+      setHasMore((count || 0) > offset + filteredData.length);
     } catch (error) {
       console.error("Error fetching artworks:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, [categoryFilter, typeFilter, searchQuery, verifiedOnly, hasMore, loadingMore]);
 
-  const filteredArtworks = artworks.filter((artwork) => {
-    const artistName = artwork.artist_profiles?.artist_name || "";
-    const matchesSearch =
-      artwork.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      artistName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "all" || artwork.category === categoryFilter;
-    const matchesType = typeFilter === "all" || artwork.type === typeFilter;
-    const matchesVerified = !verifiedOnly || artwork.is_verified;
+  // Initial fetch and refetch on filter changes
+  useEffect(() => {
+    fetchArtworks(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, typeFilter, searchQuery, verifiedOnly]);
 
-    return matchesSearch && matchesCategory && matchesType && matchesVerified;
-  });
+  // ✅ Infinite scroll observer
+  useEffect(() => {
+    if (loading) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          fetchArtworks(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loading, hasMore, loadingMore, fetchArtworks]);
 
   return (
     <Layout>
@@ -192,9 +259,10 @@ export default function Marketplace() {
             <p className="text-muted-foreground">
               {t('common.showing')}{" "}
               <span className="font-medium text-foreground">
-                {filteredArtworks.length}
+                {artworks.length}
               </span>{" "}
-              {filteredArtworks.length !== 1 ? t('common.artworks') : t('common.artwork')}
+              {artworks.length !== 1 ? t('common.artworks') : t('common.artwork')}
+              {hasMore && " " + t('common.more')}
             </p>
           </div>
 
@@ -203,30 +271,45 @@ export default function Marketplace() {
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
               <p className="mt-4 text-muted-foreground">กำลังโหลด...</p>
             </div>
-          ) : filteredArtworks.length > 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="gallery-grid"
-            >
-              {filteredArtworks.map((artwork) => (
-                <ArtworkCard
-                  key={artwork.id}
-                  id={artwork.id}
-                  title={artwork.title}
-                  artist={artwork.artist_profiles?.artist_name || "Unknown Artist"}
-                  artistId={artwork.artist_id}
-                  image={artwork.image_url}
-                  price={artwork.price}
-                  isVerified={artwork.is_verified || false}
-                  medium={artwork.medium || ""}
-                  imageBlurUrl={artwork.image_blur_url || undefined}
-                  imageSmallUrl={artwork.image_small_url || undefined}
-                  imageMediumUrl={artwork.image_medium_url || undefined}
-                  imageLargeUrl={artwork.image_large_url || undefined}
-                />
-              ))}
-            </motion.div>
+          ) : artworks.length > 0 ? (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="gallery-grid"
+              >
+                {artworks.map((artwork) => (
+                  <ArtworkCard
+                    key={artwork.id}
+                    id={artwork.id}
+                    title={artwork.title}
+                    artist={artwork.artist_profiles?.artist_name || "Unknown Artist"}
+                    artistId={artwork.artist_id}
+                    image={artwork.image_url}
+                    price={artwork.price}
+                    isVerified={artwork.is_verified || false}
+                    medium={artwork.medium || ""}
+                    imageBlurUrl={artwork.image_blur_url || undefined}
+                    imageSmallUrl={artwork.image_small_url || undefined}
+                    imageMediumUrl={artwork.image_medium_url || undefined}
+                    imageLargeUrl={artwork.image_large_url || undefined}
+                  />
+                ))}
+              </motion.div>
+              
+              {/* Infinite scroll trigger */}
+              <div ref={loadMoreRef} className="py-8 text-center">
+                {loadingMore && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">กำลังโหลดเพิ่มเติม...</p>
+                  </div>
+                )}
+                {!hasMore && artworks.length > 0 && (
+                  <p className="text-sm text-muted-foreground">แสดงครบทั้งหมดแล้ว</p>
+                )}
+              </div>
+            </>
           ) : (
             <div className="py-20 text-center">
               <p className="text-lg text-muted-foreground">

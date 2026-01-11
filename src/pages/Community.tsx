@@ -98,6 +98,8 @@ interface Comment {
     is_verified: boolean;
   } | null;
   replies?: Comment[];
+  is_liked?: boolean;
+  likes_count?: number;
 }
 
 const categories = [
@@ -337,147 +339,159 @@ export default function Community() {
         .order('created_at', { ascending: false })
         .range(offset, offset + ITEMS_PER_PAGE - 1);
 
-      // Process original posts
-      const originalPostsWithDetails = await Promise.all(
-        (postsData || []).map(async (post) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url, display_name')
-            .eq('id', post.user_id)
-            .maybeSingle();
+      // ✅ OPTIMIZED: Batch fetch all related data
+      const allPostIds = [...(postsData || []).map(p => p.id)];
+      const originalPostIdsFromReposts = (sharedPostsData || [])
+        .map(s => (s.community_posts as any)?.id)
+        .filter(Boolean);
+      const allUniquePostIds = [...new Set([...allPostIds, ...originalPostIdsFromReposts])];
 
-          const { data: artistProfile } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', post.user_id)
-            .maybeSingle();
+      // Get all user IDs (original posters + reposters)
+      const allUserIds = [
+        ...(postsData || []).map(p => p.user_id),
+        ...(sharedPostsData || []).map(s => s.user_id),
+        ...originalPostIdsFromReposts.map(id => {
+          const post = (sharedPostsData || []).find(s => (s.community_posts as any)?.id === id);
+          return post ? (post.community_posts as any).user_id : null;
+        }).filter(Boolean)
+      ];
+      const uniqueUserIds = [...new Set(allUserIds)];
 
-          let isLiked = false;
-          if (user) {
-            const { data: like } = await supabase
-              .from('community_likes')
-              .select('id')
-              .eq('post_id', post.id)
-              .eq('user_id', user.id)
-              .maybeSingle();
-            isLiked = !!like;
-          }
+      // ✅ Batch fetch all profiles (single query)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, display_name')
+        .in('id', uniqueUserIds);
 
-          const { count: likesCount } = await supabase
-            .from('community_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // ✅ Batch fetch all artist profiles (single query)
+      const { data: artistProfiles } = await supabase
+        .from('artist_profiles')
+        .select('user_id, artist_name, is_verified')
+        .in('user_id', uniqueUserIds);
 
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // ✅ Batch fetch all likes for current user (single query)
+      let userLikes: string[] = [];
+      if (user && allUniquePostIds.length > 0) {
+        const { data: likes } = await supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', allUniquePostIds)
+          .eq('user_id', user.id);
+        userLikes = (likes || []).map(l => l.post_id);
+      }
 
-          const { count: followersCount } = await supabase
-            .from('follows')
-            .select('*', { count: 'exact', head: true })
-            .eq('following_id', post.user_id);
+      // ✅ Batch fetch all counts (using parallel queries for counts)
+      const [likesCounts, commentsCounts, sharesCounts, followersCounts] = await Promise.all([
+        // Likes counts - fetch all and group in memory
+        allUniquePostIds.length > 0 ? supabase
+          .from('community_likes')
+          .select('post_id')
+          .in('post_id', allUniquePostIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(like => {
+              counts[like.post_id] = (counts[like.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
+        // Comments counts
+        allUniquePostIds.length > 0 ? supabase
+          .from('community_comments')
+          .select('post_id')
+          .in('post_id', allUniquePostIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(comment => {
+              counts[comment.post_id] = (counts[comment.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
+        // Shares counts
+        allUniquePostIds.length > 0 ? supabase
+          .from('shared_posts')
+          .select('post_id')
+          .in('post_id', allUniquePostIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(share => {
+              counts[share.post_id] = (counts[share.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({}),
+        
+        // Followers counts
+        uniqueUserIds.length > 0 ? supabase
+          .from('follows')
+          .select('following_id')
+          .in('following_id', uniqueUserIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(follow => {
+              counts[follow.following_id] = (counts[follow.following_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({})
+      ]);
 
-          const { count: sharesCount } = await supabase
-            .from('shared_posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // ✅ Create lookup maps for fast access
+      const profilesMap = new Map((profiles || []).map(p => [p.id, p]));
+      const artistProfilesMap = new Map((artistProfiles || []).map(a => [a.user_id, a]));
+      const likesSet = new Set(userLikes);
 
-          return {
-            ...post,
-            likes_count: likesCount || 0,
-            user_profile: profile,
-            artist_profile: artistProfile,
-            is_liked: isLiked,
-            is_following: followingUsers.has(post.user_id),
-            followers_count: followersCount || 0,
-            comments_count: commentsCount || 0,
-            shares_count: sharesCount || 0,
-            is_repost: false,
-            repost_created_at: undefined as string | undefined
-          } as CommunityPost;
-        })
-      );
+      // Process original posts (now just mapping, no queries)
+      const originalPostsWithDetails = (postsData || []).map((post) => {
+        const profile = profilesMap.get(post.user_id);
+        const artistProfile = artistProfilesMap.get(post.user_id);
+        const isLiked = likesSet.has(post.id);
 
-      // Process shared posts (reposts)
-      const repostsWithDetails = await Promise.all(
-        (sharedPostsData || []).map(async (share) => {
-          const originalPost = share.community_posts as any;
-          if (!originalPost) return null;
+        return {
+          ...post,
+          likes_count: likesCounts[post.id] || 0,
+          user_profile: profile,
+          artist_profile: artistProfile || null,
+          is_liked: isLiked,
+          is_following: followingUsers.has(post.user_id),
+          followers_count: followersCounts[post.user_id] || 0,
+          comments_count: commentsCounts[post.id] || 0,
+          shares_count: sharesCounts[post.id] || 0,
+          is_repost: false,
+          repost_created_at: undefined as string | undefined
+        } as CommunityPost;
+      });
 
-          // Get reposter's profile
-          const { data: reposterProfile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url, display_name')
-            .eq('id', share.user_id)
-            .maybeSingle();
+      // Process shared posts (reposts) - also no queries
+      const repostsWithDetails = (sharedPostsData || []).map((share) => {
+        const originalPost = share.community_posts as any;
+        if (!originalPost) return null;
 
-          const { data: reposterArtist } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', share.user_id)
-            .maybeSingle();
+        const reposterProfile = profilesMap.get(share.user_id);
+        const reposterArtist = artistProfilesMap.get(share.user_id);
+        const originalProfile = profilesMap.get(originalPost.user_id);
+        const originalArtist = artistProfilesMap.get(originalPost.user_id);
+        const isLiked = likesSet.has(originalPost.id);
 
-          // Get original poster's profile
-          const { data: originalProfile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url, display_name')
-            .eq('id', originalPost.user_id)
-            .maybeSingle();
-
-          const { data: originalArtist } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', originalPost.user_id)
-            .maybeSingle();
-
-          let isLiked = false;
-          if (user) {
-            const { data: like } = await supabase
-              .from('community_likes')
-              .select('id')
-              .eq('post_id', originalPost.id)
-              .eq('user_id', user.id)
-              .maybeSingle();
-            isLiked = !!like;
-          }
-
-          const { count: likesCount } = await supabase
-            .from('community_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', originalPost.id);
-
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', originalPost.id);
-
-          const { count: sharesCount } = await supabase
-            .from('shared_posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', originalPost.id);
-
-          return {
-            ...originalPost,
-            id: `repost-${share.id}`, // Unique key for repost
-            original_post_id: originalPost.id,
-            likes_count: likesCount || 0,
-            user_profile: originalProfile,
-            artist_profile: originalArtist,
-            is_liked: isLiked,
-            is_following: followingUsers.has(originalPost.user_id),
-            followers_count: 0,
-            comments_count: commentsCount || 0,
-            shares_count: sharesCount || 0,
-            is_repost: true,
-            repost_user_id: share.user_id,
-            repost_caption: share.caption,
-            repost_created_at: share.created_at,
-            repost_user_profile: reposterProfile,
-            repost_artist_profile: reposterArtist
-          };
-        })
-      );
+        return {
+          ...originalPost,
+          id: `repost-${share.id}`, // Unique key for repost
+          original_post_id: originalPost.id,
+          likes_count: likesCounts[originalPost.id] || 0,
+          user_profile: originalProfile,
+          artist_profile: originalArtist || null,
+          is_liked: isLiked,
+          is_following: followingUsers.has(originalPost.user_id),
+          followers_count: 0,
+          comments_count: commentsCounts[originalPost.id] || 0,
+          shares_count: sharesCounts[originalPost.id] || 0,
+          is_repost: true,
+          repost_user_id: share.user_id,
+          repost_caption: share.caption,
+          repost_created_at: share.created_at,
+          repost_user_profile: reposterProfile,
+          repost_artist_profile: reposterArtist || null
+        };
+      });
 
       // Filter out null reposts and combine with original posts
       const validReposts = repostsWithDetails.filter(r => r !== null) as CommunityPost[];
@@ -1245,7 +1259,8 @@ export default function Community() {
               title: 'มีผู้ติดตามใหม่! 🎉',
               message: `${followerName} เริ่มติดตามคุณแล้ว`,
               type: 'follow',
-              reference_id: user.id
+              reference_id: user.id,
+              actor_id: user.id
             });
         }
       }
@@ -1278,6 +1293,46 @@ export default function Community() {
 
       if (error) throw error;
 
+      // Get all comment IDs for batch queries
+      const commentIds = (data || []).map(c => c.id);
+      
+      // Create maps for quick lookup
+      const likesCountMap = new Map<string, number>();
+      const userLikesSet = new Set<string>();
+
+      // Only fetch likes if there are comments
+      if (commentIds.length > 0) {
+        // Batch fetch likes counts and user likes
+        const [likesCountsResult, userLikesResult] = await Promise.all([
+          // Get likes counts for all comments
+          supabase
+            .from('community_comment_likes')
+            .select('comment_id')
+            .in('comment_id', commentIds),
+          // Get user's likes for all comments (if logged in)
+          user ? supabase
+            .from('community_comment_likes')
+            .select('comment_id')
+            .in('comment_id', commentIds)
+            .eq('user_id', user.id) : Promise.resolve({ data: [], error: null })
+        ]);
+
+        // Count likes for each comment
+        if (likesCountsResult.data) {
+          likesCountsResult.data.forEach(like => {
+            const count = likesCountMap.get(like.comment_id) || 0;
+            likesCountMap.set(like.comment_id, count + 1);
+          });
+        }
+
+        // Track which comments user has liked
+        if (userLikesResult.data) {
+          userLikesResult.data.forEach(like => {
+            userLikesSet.add(like.comment_id);
+          });
+        }
+      }
+
       const commentsWithProfiles = await Promise.all(
         (data || []).map(async (comment) => {
           const { data: profile } = await supabase
@@ -1291,7 +1346,14 @@ export default function Community() {
             .select('artist_name, is_verified')
             .eq('user_id', comment.user_id)
             .maybeSingle();
-          return { ...comment, user_profile: profile, artist_profile: commentArtistProfile };
+          
+          return { 
+            ...comment, 
+            user_profile: profile, 
+            artist_profile: commentArtistProfile,
+            likes_count: likesCountMap.get(comment.id) || 0,
+            is_liked: userLikesSet.has(comment.id)
+          };
         })
       );
 
@@ -1300,31 +1362,186 @@ export default function Community() {
         comment => !isUserHidden(comment.user_id)
       );
 
-      // Organize comments into parent and replies structure
+      // Organize comments into parent and replies structure (Facebook-style: flat replies, no nested)
       const parentComments: Comment[] = [];
       const repliesMap = new Map<string, Comment[]>();
 
       filteredComments.forEach(comment => {
         if (comment.parent_id) {
-          const existing = repliesMap.get(comment.parent_id) || [];
+          // This is a reply - find the top-level parent (comment without parent_id)
+          // In Facebook style, all replies go to the top-level comment
+          let topLevelParentId = comment.parent_id;
+          
+          // Find the top-level parent by traversing up the chain
+          const findTopLevelParent = (parentId: string): string => {
+            const parentComment = filteredComments.find(c => c.id === parentId);
+            if (parentComment && parentComment.parent_id) {
+              // This parent also has a parent, keep going up
+              return findTopLevelParent(parentComment.parent_id);
+            }
+            // This is the top-level parent
+            return parentId;
+          };
+          
+          topLevelParentId = findTopLevelParent(comment.parent_id);
+          
+          // Add reply to the top-level parent's replies
+          const existing = repliesMap.get(topLevelParentId) || [];
           existing.push(comment);
-          repliesMap.set(comment.parent_id, existing);
+          repliesMap.set(topLevelParentId, existing);
         } else {
+          // This is a top-level comment
           parentComments.push(comment);
         }
       });
 
-      // Attach replies to parent comments
+      // Attach replies to parent comments (flat structure, no nesting)
       const commentsWithReplies = parentComments.map(parent => ({
         ...parent,
         replies: repliesMap.get(parent.id) || []
       }));
 
-      setComments(commentsWithReplies);
+      // Attach likes data to replies as well
+      const commentsWithRepliesAndLikes = commentsWithReplies.map(parent => ({
+        ...parent,
+        replies: (parent.replies || []).map(reply => ({
+          ...reply,
+          likes_count: likesCountMap.get(reply.id) || 0,
+          is_liked: userLikesSet.has(reply.id)
+        }))
+      }));
+
+      setComments(commentsWithRepliesAndLikes);
     } catch (error) {
       console.error('Error fetching comments:', error);
     } finally {
       setCommentsLoading(false);
+    }
+  };
+
+  const handleLikeComment = async (commentId: string, isLiked: boolean) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "เข้าสู่ระบบเพื่อกดถูกใจ"
+      });
+      return;
+    }
+
+    // Optimistic update - update UI immediately
+    setComments(prev => prev.map(comment => {
+      // Update parent comment
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          is_liked: !isLiked,
+          likes_count: isLiked 
+            ? Math.max(0, (comment.likes_count || 0) - 1)
+            : (comment.likes_count || 0) + 1
+        };
+      }
+      // Update reply
+      if (comment.replies) {
+        return {
+          ...comment,
+          replies: comment.replies.map(reply => 
+            reply.id === commentId
+              ? { 
+                  ...reply, 
+                  is_liked: !isLiked,
+                  likes_count: isLiked
+                    ? Math.max(0, (reply.likes_count || 0) - 1)
+                    : (reply.likes_count || 0) + 1
+                }
+              : reply
+          )
+        };
+      }
+      return comment;
+    }));
+
+    try {
+      if (isLiked) {
+        // Unlike - delete the like
+        const { error } = await supabase
+          .from('community_comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error unliking comment:', error);
+          // Revert optimistic update on error
+          setComments(prev => prev.map(comment => {
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                is_liked: isLiked,
+                likes_count: (comment.likes_count || 0) + 1
+              };
+            }
+            if (comment.replies) {
+              return {
+                ...comment,
+                replies: comment.replies.map(reply => 
+                  reply.id === commentId
+                    ? { 
+                        ...reply, 
+                        is_liked: isLiked,
+                        likes_count: (reply.likes_count || 0) + 1
+                      }
+                    : reply
+                )
+              };
+            }
+            return comment;
+          }));
+          throw error;
+        }
+      } else {
+        // Like - insert new like
+        const { error } = await supabase
+          .from('community_comment_likes')
+          .insert({ comment_id: commentId, user_id: user.id });
+
+        if (error) {
+          console.error('Error liking comment:', error);
+          // Revert optimistic update on error
+          setComments(prev => prev.map(comment => {
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                is_liked: isLiked,
+                likes_count: Math.max(0, (comment.likes_count || 0) - 1)
+              };
+            }
+            if (comment.replies) {
+              return {
+                ...comment,
+                replies: comment.replies.map(reply => 
+                  reply.id === commentId
+                    ? { 
+                        ...reply, 
+                        is_liked: isLiked,
+                        likes_count: Math.max(0, (reply.likes_count || 0) - 1)
+                      }
+                    : reply
+                )
+              };
+            }
+            return comment;
+          }));
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      console.error('Error in handleLikeComment:', error);
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.message || "ไม่สามารถกดถูกใจได้ กรุณาลองใหม่อีกครั้ง"
+      });
     }
   };
 
@@ -1376,7 +1593,8 @@ export default function Community() {
             title: 'คุณถูกแท็กในความคิดเห็น 💬',
             message: `${commenterName} แท็กคุณในความคิดเห็น: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
             type: 'mention',
-            reference_id: actualPostId
+            reference_id: actualPostId,
+            actor_id: user.id
           });
         }
       }
@@ -1410,7 +1628,8 @@ export default function Community() {
               title: 'มีคนแสดงความคิดเห็น 💬',
               message: `${commenterName} แสดงความคิดเห็นในโพสต์ของคุณ: "${newComment.slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
               type: 'comment',
-              reference_id: actualPostId
+              reference_id: actualPostId,
+              actor_id: user.id
             });
           }
         }
@@ -1445,19 +1664,40 @@ export default function Community() {
 
     setSubmittingReply(true);
     try {
+      // Facebook-style: all replies go to the top-level comment
+      // Find the top-level parent (comment without parent_id)
+      let topLevelParentId = parentComment.id;
+      
+      // If the parentComment itself has a parent_id, find the top-level parent
+      if (parentComment.parent_id) {
+        const findTopLevelParent = (commentId: string): string => {
+          const comment = comments.find(c => c.id === commentId);
+          if (comment && comment.parent_id) {
+            // This comment has a parent, keep going up
+            return findTopLevelParent(comment.parent_id);
+          }
+          // This is the top-level comment
+          return commentId;
+        };
+        topLevelParentId = findTopLevelParent(parentComment.parent_id);
+      }
+
       const { error } = await supabase
         .from('community_comments')
         .insert({
           post_id: actualPostId,
           user_id: user.id,
           content: replyContent.trim(),
-          parent_id: parentComment.id
+          parent_id: topLevelParentId
         });
 
       if (error) throw error;
 
-      // Send notification to parent comment owner
-      if (parentComment.user_id !== user.id) {
+      // Get the top-level parent comment for notification
+      const topLevelParent = comments.find(c => c.id === topLevelParentId) || parentComment;
+      
+      // Send notification to top-level parent comment owner
+      if (topLevelParent.user_id !== user.id) {
         const { data: replierProfile } = await supabase
           .from('profiles')
           .select('full_name')
@@ -1476,18 +1716,34 @@ export default function Community() {
         const { data: isMuted } = await supabase
           .from('user_mutes')
           .select('id')
-          .eq('muter_id', parentComment.user_id)
+          .eq('muter_id', topLevelParent.user_id)
           .eq('muted_id', user.id)
           .maybeSingle();
 
         if (!isMuted) {
-          await supabase.from('notifications').insert({
-            user_id: parentComment.user_id,
-            title: 'มีคนตอบกลับความคิดเห็นของคุณ 💬',
-            message: `${replierName} ตอบกลับความคิดเห็นของคุณ: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? '...' : ''}"`,
-            type: 'comment',
-            reference_id: actualPostId
-          });
+          // Check cooldown - don't send if notification was sent within last 10 minutes
+          const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+          const { data: recentNotification } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', topLevelParent.user_id)
+            .eq('type', 'reply')
+            .eq('reference_id', actualPostId)
+            .eq('actor_id', user.id)
+            .gte('created_at', tenMinutesAgo)
+            .maybeSingle();
+
+          // Only send notification if no recent notification exists
+          if (!recentNotification) {
+            await supabase.from('notifications').insert({
+              user_id: topLevelParent.user_id,
+              title: 'มีคนตอบกลับความคิดเห็นของคุณ 💬',
+              message: `${replierName} ตอบกลับความคิดเห็นของคุณ: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? '...' : ''}"`,
+              type: 'reply',
+              reference_id: actualPostId,
+              actor_id: user.id
+            });
+          }
         }
       }
 
@@ -1514,7 +1770,8 @@ export default function Community() {
             title: 'คุณถูกแท็กในความคิดเห็น 💬',
             message: `${replierName} แท็กคุณในความคิดเห็น: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? '...' : ''}"`,
             type: 'mention',
-            reference_id: actualPostId
+            reference_id: actualPostId,
+            actor_id: user.id
           });
         }
       }
@@ -1701,7 +1958,8 @@ export default function Community() {
                 title: 'โพสต์ของคุณถูกแชร์! 🔁',
                 message: `${sharerName} แชร์ผลงาน "${shareDialogPost.title}" ของคุณ`,
                 type: 'share',
-                reference_id: postId
+                reference_id: postId,
+                actor_id: user.id
               });
             }
           }
@@ -1899,6 +2157,117 @@ export default function Community() {
     return !artistProfile;
   };
 
+  // Double tap to like component
+  const DoubleTapImage = ({ post, onOpenPost, onLike }: { post: CommunityPost; onOpenPost: () => void; onLike: () => void }) => {
+    const [showHeart, setShowHeart] = useState(false);
+    const lastTapRef = useRef(0);
+    const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleDoubleTap = () => {
+      if (!post.is_liked) {
+        onLike();
+      }
+      
+      // Show heart animation
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 600);
+    };
+
+    const handleClick = (e: React.MouseEvent) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapRef.current;
+
+      if (tapLength < 300 && tapLength > 0) {
+        // Double click detected
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear single tap timeout
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+          tapTimeoutRef.current = null;
+        }
+        
+        handleDoubleTap();
+      } else {
+        // Single click - open post after delay
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        tapTimeoutRef.current = setTimeout(() => {
+          onOpenPost();
+        }, 300);
+      }
+
+      lastTapRef.current = currentTime;
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapRef.current;
+
+      if (tapLength < 300 && tapLength > 0) {
+        // Double tap detected
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear single tap timeout
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+          tapTimeoutRef.current = null;
+        }
+        
+        handleDoubleTap();
+      } else {
+        // Single tap - open post after delay
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        tapTimeoutRef.current = setTimeout(() => {
+          onOpenPost();
+        }, 300);
+      }
+
+      lastTapRef.current = currentTime;
+    };
+
+    return (
+      <div 
+        className="relative aspect-square cursor-pointer overflow-hidden"
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+      >
+        <OptimizedImage
+          src={post.image_url}
+          variants={{
+            blur: post.image_blur_url || undefined,
+            small: post.image_small_url || undefined,
+            medium: post.image_medium_url || undefined,
+            large: post.image_large_url || undefined,
+          }}
+          alt={post.title}
+          variant="feed"
+          className="w-full h-full"
+          aspectRatio="square"
+        />
+        {/* Double tap heart animation */}
+        <AnimatePresence>
+          {showHeart && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+            >
+              <Heart className="h-20 w-20 fill-red-500 text-red-500" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
   // Handle edit comment
   const handleEditComment = async () => {
     if (!user || !editingComment || !editCommentContent.trim()) return;
@@ -1943,11 +2312,28 @@ export default function Community() {
     
     setDeletingCommentId(commentId);
     try {
-      const { error } = await supabase
-        .from('community_comments')
-        .delete()
-        .eq('id', commentId)
-        .eq('user_id', user.id);
+      // Check if user is the post owner
+      const isPostOwner = selectedPost && selectedPost.user_id === user.id;
+      
+      // If user is post owner, they can delete any comment
+      // Otherwise, they can only delete their own comments
+      let error;
+      if (isPostOwner) {
+        // Post owner can delete any comment - no user_id restriction
+        const result = await supabase
+          .from('community_comments')
+          .delete()
+          .eq('id', commentId);
+        error = result.error;
+      } else {
+        // Regular user can only delete their own comments
+        const result = await supabase
+          .from('community_comments')
+          .delete()
+          .eq('id', commentId)
+          .eq('user_id', user.id);
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -2151,6 +2537,9 @@ export default function Community() {
                             <span className="font-semibold text-foreground">
                               {getDisplayName(post.user_profile, post.artist_profile)}
                             </span>
+                            <span className="text-muted-foreground text-sm">
+                              @{post.user_id.slice(0, 8)}
+                            </span>
                             {post.artist_profile?.is_verified && (
                               <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">
                                 ✓
@@ -2162,9 +2551,16 @@ export default function Community() {
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimeAgo(post.created_at)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {formatTimeAgo(post.created_at)}
+                            </span>
+                            {post.category && (
+                              <span className="text-xs text-muted-foreground">
+                                • {post.category}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </Link>
                       
@@ -2242,24 +2638,11 @@ export default function Community() {
                     </div>
 
                     {/* Image */}
-                    <div 
-                      className="relative aspect-square cursor-pointer overflow-hidden"
-                      onClick={() => handleOpenPost(post)}
-                    >
-                      <OptimizedImage
-                        src={post.image_url}
-                        variants={{
-                          blur: post.image_blur_url || undefined,
-                          small: post.image_small_url || undefined,
-                          medium: post.image_medium_url || undefined,
-                          large: post.image_large_url || undefined,
-                        }}
-                        alt={post.title}
-                        variant="feed"
-                        className="w-full h-full"
-                        aspectRatio="square"
-                      />
-                    </div>
+                    <DoubleTapImage
+                      post={post}
+                      onOpenPost={() => handleOpenPost(post)}
+                      onLike={() => handleLike(post.id, post.is_liked || false, undefined, post.original_post_id)}
+                    />
 
                     {/* Actions */}
                     <div className="px-4 py-3 flex items-center justify-between">
@@ -2345,32 +2728,32 @@ export default function Community() {
 
                     {/* Content */}
                     <div className="px-4 pb-4 space-y-2">
-                      {/* Title & Description */}
+                      {/* Title - First */}
                       <div>
-                        <span className="font-semibold mr-2">
-                          {getDisplayName(post.user_profile, post.artist_profile)}
-                        </span>
-                        <span className="text-foreground">{post.title}</span>
-                        {post.description && (
-                          <p className="text-muted-foreground text-sm mt-1">
-                            {renderTextWithMentions(post.description)}
-                          </p>
-                        )}
+                        <span className="text-foreground font-semibold">{post.title}</span>
                       </div>
 
-                      {/* Category, Tools & Tags */}
-                      {(post.category || (post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
+                      {/* Description */}
+                      {post.description && (
+                        <p className="text-muted-foreground text-sm">
+                          {renderTextWithMentions(post.description)}
+                        </p>
+                      )}
+
+                      {/* Tools */}
+                      {post.tools_used && post.tools_used.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {post.category && (
-                            <Badge variant="secondary" className="text-xs">
-                              {post.category}
-                            </Badge>
-                          )}
                           {post.tools_used?.slice(0, 3).map((tool, i) => (
                             <Badge key={`tool-${i}`} variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
                               🛠 {tool}
                             </Badge>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Hashtags - Bottom */}
+                      {post.hashtags && post.hashtags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
                           {post.hashtags?.slice(0, 5).map((tag, i) => (
                             <button
                               key={`tag-${i}`}
@@ -2778,6 +3161,7 @@ export default function Community() {
               });
             }
           }}
+          onLikeComment={handleLikeComment}
         />
 
         {/* Share/Repost Dialog */}

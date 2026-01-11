@@ -74,37 +74,53 @@ export default function SavedPosts() {
 
       if (error) throw error;
 
-      const postsWithDetails = await Promise.all(
-        (savedData || []).map(async (saved: any) => {
-          const post = saved.community_posts;
-          if (!post) return null;
+      // ✅ OPTIMIZED: Batch fetch all related data
+      const posts = (savedData || []).map((s: any) => s.community_posts).filter(Boolean);
+      const userIds = [...new Set(posts.map((p: any) => p.user_id))];
+      const postIds = posts.map((p: any) => p.id);
 
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('id', post.user_id)
-            .maybeSingle();
+      // Batch fetch profiles and artist profiles
+      const [profilesResult, artistProfilesResult, commentsCountsResult] = await Promise.all([
+        userIds.length > 0 ? supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', userIds) : Promise.resolve({ data: [] }),
+        
+        userIds.length > 0 ? supabase
+          .from('artist_profiles')
+          .select('user_id, artist_name, is_verified')
+          .in('user_id', userIds) : Promise.resolve({ data: [] }),
+        
+        postIds.length > 0 ? supabase
+          .from('community_comments')
+          .select('post_id')
+          .in('post_id', postIds)
+          .then(({ data }) => {
+            const counts: Record<string, number> = {};
+            (data || []).forEach(comment => {
+              counts[comment.post_id] = (counts[comment.post_id] || 0) + 1;
+            });
+            return counts;
+          }) : Promise.resolve({})
+      ]);
 
-          const { data: artistProfile } = await supabase
-            .from('artist_profiles')
-            .select('artist_name, is_verified')
-            .eq('user_id', post.user_id)
-            .maybeSingle();
+      // Create lookup maps
+      const profilesMap = new Map((profilesResult.data || []).map(p => [p.id, p]));
+      const artistProfilesMap = new Map((artistProfilesResult.data || []).map(a => [a.user_id, a]));
 
-          const { count: commentsCount } = await supabase
-            .from('community_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+      // Map data in memory (fast)
+      const postsWithDetails = (savedData || []).map((saved: any) => {
+        const post = saved.community_posts;
+        if (!post) return null;
 
-          return {
-            ...saved,
-            post,
-            user_profile: profile,
-            artist_profile: artistProfile,
-            comments_count: commentsCount || 0
-          };
-        })
-      );
+        return {
+          ...saved,
+          post,
+          user_profile: profilesMap.get(post.user_id),
+          artist_profile: artistProfilesMap.get(post.user_id) || null,
+          comments_count: commentsCountsResult[post.id] || 0
+        };
+      });
 
       setSavedPosts(postsWithDetails.filter(Boolean) as SavedPost[]);
     } catch (error) {

@@ -214,7 +214,8 @@ export default function Followers() {
               title: 'มีผู้ติดตามใหม่! 🎉',
               message: `${followerName} เริ่มติดตามคุณแล้ว`,
               type: 'follow',
-              reference_id: user.id
+              reference_id: user.id,
+              actor_id: user.id
             });
         }
 
