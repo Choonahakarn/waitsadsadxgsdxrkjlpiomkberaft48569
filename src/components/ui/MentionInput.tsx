@@ -20,6 +20,7 @@ interface MentionInputProps {
   rows?: number;
   className?: string;
   onMentionsChange?: (mentions: string[]) => void;
+  onSubmit?: () => void;
 }
 
 export function MentionInput({
@@ -28,7 +29,8 @@ export function MentionInput({
   placeholder,
   rows = 3,
   className,
-  onMentionsChange
+  onMentionsChange,
+  onSubmit
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
@@ -162,19 +164,35 @@ export function MentionInput({
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions || suggestions.length === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => (prev + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter' && showSuggestions) {
-      e.preventDefault();
-      selectSuggestion(suggestions[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      setShowSuggestions(false);
+    // Handle Enter key
+    if (e.key === 'Enter') {
+      // If suggestions are open, select the suggestion
+      if (showSuggestions && suggestions.length > 0) {
+        e.preventDefault();
+        selectSuggestion(suggestions[selectedIndex]);
+        return;
+      }
+      
+      // If no suggestions and onSubmit is provided, submit on Enter (without Shift)
+      if (!e.shiftKey && onSubmit) {
+        e.preventDefault();
+        onSubmit();
+        return;
+      }
+      // If Shift+Enter, allow default behavior (new line)
+    }
+    
+    // Handle suggestion navigation
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % suggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false);
+      }
     }
   };
 

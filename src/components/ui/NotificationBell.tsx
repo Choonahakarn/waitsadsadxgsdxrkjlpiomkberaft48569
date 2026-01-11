@@ -40,7 +40,7 @@ interface AggregatedNotification {
 }
 
 // Types that can be aggregated (same type + same reference_id)
-const AGGREGATABLE_TYPES = ['like', 'comment', 'share', 'reply', 'mention'];
+const AGGREGATABLE_TYPES = ['like', 'comment', 'share', 'reply', 'mention', 'follow'];
 
 export function NotificationBell() {
   const { user } = useAuth();

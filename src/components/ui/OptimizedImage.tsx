@@ -27,6 +27,7 @@ interface OptimizedImageProps {
   className?: string;
   containerClassName?: string;
   onClick?: () => void;
+  onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   priority?: boolean; // Disable lazy loading for above-fold images
   aspectRatio?: "auto" | "square" | "4/3" | "3/4" | "16/9" | "4/5" | "original";
   objectFit?: "cover" | "contain";
@@ -40,6 +41,7 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
   className,
   containerClassName,
   onClick,
+  onLoad,
   priority = false,
   aspectRatio = "auto",
   objectFit = "contain", // ✅ Changed default from 'cover' to 'contain'
@@ -190,7 +192,10 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
           alt={alt}
           loading={priority ? "eager" : "lazy"}
           decoding="async"
-          onLoad={() => setIsLoaded(true)}
+          onLoad={(e) => {
+            setIsLoaded(true);
+            onLoad?.(e);
+          }}
           onError={() => setHasError(true)}
           onClick={onClick}
           className={cn(

@@ -193,6 +193,15 @@ function MasonryItem<T extends MasonryItem>({
   itemIndex,
 }: MasonryItemProps<T>) {
   const [isHovered, setIsHovered] = useState(false);
+  const [calculatedAspectRatio, setCalculatedAspectRatio] = useState<number | null>(item.aspectRatio || null);
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth && img.naturalHeight) {
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
+      setCalculatedAspectRatio(aspectRatio);
+    }
+  };
 
   return (
     <motion.div
@@ -205,7 +214,7 @@ function MasonryItem<T extends MasonryItem>({
       }}
       className="relative overflow-hidden rounded-lg bg-muted cursor-pointer group"
       style={{
-        aspectRatio: item.aspectRatio || 1,
+        aspectRatio: calculatedAspectRatio || item.aspectRatio || 1,
       }}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
@@ -219,6 +228,7 @@ function MasonryItem<T extends MasonryItem>({
         variant="feed"
         className="w-full h-full transition-transform duration-300 group-hover:scale-105"
         aspectRatio="auto"
+        onLoad={handleImageLoad}
       />
 
       {/* Hover overlay with subtle shadow effect */}
