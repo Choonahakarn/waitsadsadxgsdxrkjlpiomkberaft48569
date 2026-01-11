@@ -1,20 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Heart,
-  MessageCircle,
-  Send,
-  X,
-  Loader2,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
-  Repeat2,
-  Link2,
-  ChevronDown,
-  ChevronUp,
-  ZoomIn,
+import { 
+  Heart, MessageCircle, Send, X, Loader2, 
+  Share2, Bookmark, MoreHorizontal, Repeat2, Link2,
+  ChevronDown, ChevronUp, ZoomIn
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -124,16 +114,16 @@ const formatTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return "เมื่อสักครู่";
+  
+  if (diffInSeconds < 60) return 'เมื่อสักครู่';
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} นาทีที่แล้ว`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} ชม.ที่แล้ว`;
   if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} วันที่แล้ว`;
-  return date.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 };
 
 const getDisplayName = (userProfile?: UserProfile, artistProfile?: ArtistProfile | null) => {
-  return artistProfile?.artist_name || userProfile?.full_name || "ผู้ใช้";
+  return artistProfile?.artist_name || userProfile?.full_name || 'ผู้ใช้';
 };
 
 const isBuyerUser = (artistProfile?: ArtistProfile | null) => {
@@ -179,7 +169,7 @@ export function PostDetailDialog({
   onToggleReplies,
 }: PostDetailDialogProps) {
   const { toast } = useToast();
-  const [imgAspect, setImgAspect] = useState<"normal" | "tall">("normal");
+  const [imgAspect, setImgAspect] = useState<'normal' | 'tall'>('normal');
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   useEffect(() => {
@@ -187,7 +177,7 @@ export function PostDetailDialog({
       const img = new Image();
       img.onload = () => {
         // If height is more than 1.5x width, it's a tall image (Pixiv style)
-        setImgAspect(img.height > img.width * 1.5 ? "tall" : "normal");
+        setImgAspect(img.height > img.width * 1.5 ? 'tall' : 'normal');
       };
       img.src = post.image_url;
     }
@@ -207,31 +197,28 @@ export function PostDetailDialog({
 
   const handleShareFacebook = () => {
     const url = `${window.location.origin}/community?post=${post.id}`;
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
   };
 
   const handleShareTwitter = () => {
     const url = `${window.location.origin}/community?post=${post.id}`;
-    window.open(
-      `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(post.title)}`,
-      "_blank",
-    );
+    window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(post.title)}`, '_blank');
   };
 
   const handleShareLine = () => {
     const url = `${window.location.origin}/community?post=${post.id}`;
-    window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, "_blank");
+    window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, '_blank');
   };
 
   // Pixiv-style layout for very tall images
-  if (imgAspect === "tall") {
+  if (imgAspect === 'tall') {
     return (
       <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden bg-transparent border-0 rounded-none [&>button]:hidden">
           <div className="relative w-full h-full flex items-center justify-center">
             {/* Semi-transparent dark overlay with blur */}
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-
+            
             {/* Close button */}
             <button
               onClick={onClose}
@@ -241,8 +228,8 @@ export function PostDetailDialog({
             </button>
 
             {/* Main Image - Clickable for full-screen zoom */}
-            <div
-              className="relative z-10 w-full h-full overflow-y-auto overflow-x-hidden cursor-zoom-in flex items-center justify-center"
+            <div 
+              className="relative z-10 w-full h-full overflow-y-auto flex justify-center cursor-zoom-in"
               onClick={() => setIsImageViewerOpen(true)}
             >
               <OptimizedImage
@@ -255,7 +242,7 @@ export function PostDetailDialog({
                 }}
                 alt={post.title}
                 variant="fullscreen"
-                className="w-auto max-w-full max-h-full object-contain"
+                className="w-auto max-w-full"
                 priority
               />
               {/* Zoom hint */}
@@ -287,9 +274,9 @@ export function PostDetailDialog({
               <div className="max-w-4xl mx-auto">
                 {/* Title */}
                 <h2 className="text-white text-xl font-bold mb-2">{post.title}</h2>
-
+                
                 {/* Artist */}
-                <Link
+                <Link 
                   to={`/profile/${post.user_id}`}
                   onClick={onClose}
                   className="flex items-center gap-2 mb-4 hover:opacity-80"
@@ -316,10 +303,10 @@ export function PostDetailDialog({
                       onClick={(e) => onLike(post.id, post.is_liked || false, e)}
                       className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
                     >
-                      <Heart className={`h-5 w-5 ${post.is_liked ? "fill-red-500 text-red-500" : ""}`} />
+                      <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
                       <span>{post.likes_count}</span>
                     </button>
-
+                    
                     {/* Comment */}
                     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/80">
                       <MessageCircle className="h-5 w-5" />
@@ -330,14 +317,10 @@ export function PostDetailDialog({
                   <div className="flex items-center gap-2">
                     {/* Save */}
                     <button
-                      onClick={() =>
-                        isSaved
-                          ? onUnsavePost(post.original_post_id || post.id)
-                          : onSavePost(post.original_post_id || post.id)
-                      }
-                      className={`p-2 rounded-full transition-colors ${isSaved ? "bg-primary text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                      onClick={() => isSaved ? onUnsavePost(post.original_post_id || post.id) : onSavePost(post.original_post_id || post.id)}
+                      className={`p-2 rounded-full transition-colors ${isSaved ? 'bg-primary text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                     >
-                      <Bookmark className={`h-5 w-5 ${isSaved ? "fill-current" : ""}`} />
+                      <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
                     </button>
 
                     {/* Share */}
@@ -383,7 +366,7 @@ export function PostDetailDialog({
           </button>
 
           {/* Image Section - Center - Clickable for full-screen zoom */}
-          <div
+          <div 
             className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative cursor-zoom-in group"
             onClick={() => setIsImageViewerOpen(true)}
           >
@@ -431,14 +414,16 @@ export function PostDetailDialog({
             {/* Header with User Info */}
             <div className="p-4 border-b border-border shrink-0">
               <div className="flex items-center justify-between">
-                <Link
+                <Link 
                   to={`/profile/${post.user_id}`}
                   onClick={onClose}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                    <AvatarFallback>{getDisplayName(post.user_profile, post.artist_profile)[0]}</AvatarFallback>
+                    <AvatarFallback>
+                      {getDisplayName(post.user_profile, post.artist_profile)[0]}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="flex items-center gap-1.5">
@@ -461,7 +446,7 @@ export function PostDetailDialog({
                     className="rounded-full"
                     onClick={(e) => onFollow(post.user_id, isFollowing, e)}
                   >
-                    {isFollowing ? "Following" : "Follow"}
+                    {isFollowing ? 'Following' : 'Follow'}
                   </Button>
                 )}
               </div>
@@ -475,7 +460,7 @@ export function PostDetailDialog({
                   {renderTextWithMentions(post.description)}
                 </p>
               )}
-
+              
               {/* Tools & Tags */}
               {((post.tools_used && post.tools_used.length > 0) || (post.hashtags && post.hashtags.length > 0)) && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
@@ -501,12 +486,12 @@ export function PostDetailDialog({
 
               {/* Date */}
               <p className="text-xs text-muted-foreground mt-3">
-                {new Date(post.created_at).toLocaleDateString("th-TH", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
+                {new Date(post.created_at).toLocaleDateString('th-TH', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
                 })}
               </p>
             </div>
@@ -519,9 +504,7 @@ export function PostDetailDialog({
                   onClick={(e) => onLike(post.id, post.is_liked || false, e)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-muted transition-colors"
                 >
-                  <Heart
-                    className={`h-5 w-5 ${post.is_liked ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
-                  />
+                  <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
                   <span className="text-sm font-medium">{post.likes_count}</span>
                 </button>
                 {/* Comment */}
@@ -530,28 +513,24 @@ export function PostDetailDialog({
                   <span className="text-sm font-medium">{post.comments_count || 0}</span>
                 </div>
               </div>
-
+              
               {/* Right icons */}
               <div className="flex items-center gap-0.5">
                 {/* Repost */}
                 <button
                   onClick={() => onShareDialogOpen(post)}
-                  className={`p-2 rounded-full hover:bg-muted transition-colors ${isReposted ? "text-green-500" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`p-2 rounded-full hover:bg-muted transition-colors ${isReposted ? 'text-green-500' : 'text-muted-foreground hover:text-foreground'}`}
                   title="Repost"
                 >
                   <Repeat2 className="h-5 w-5" />
                 </button>
                 {/* Save */}
                 <button
-                  onClick={() =>
-                    isSaved
-                      ? onUnsavePost(post.original_post_id || post.id)
-                      : onSavePost(post.original_post_id || post.id)
-                  }
-                  className={`p-2 rounded-full hover:bg-muted transition-colors ${isSaved ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => isSaved ? onUnsavePost(post.original_post_id || post.id) : onSavePost(post.original_post_id || post.id)}
+                  className={`p-2 rounded-full hover:bg-muted transition-colors ${isSaved ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   title="บันทึก"
                 >
-                  <Bookmark className={`h-5 w-5 ${isSaved ? "fill-current" : ""}`} />
+                  <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
                 </button>
                 {/* Share dropdown */}
                 <DropdownMenu>
@@ -563,19 +542,19 @@ export function PostDetailDialog({
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem onClick={handleShareFacebook}>
                       <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                       </svg>
                       Facebook
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleShareTwitter}>
                       <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
                       </svg>
                       X (Twitter)
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleShareLine}>
                       <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+                        <path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
                       </svg>
                       LINE
                     </DropdownMenuItem>
@@ -595,7 +574,9 @@ export function PostDetailDialog({
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : comments.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8 text-sm">ยังไม่มีความคิดเห็น</p>
+                <p className="text-center text-muted-foreground py-8 text-sm">
+                  ยังไม่มีความคิดเห็น
+                </p>
               ) : (
                 comments.map((comment) => (
                   <div key={comment.id} className="space-y-3">
@@ -617,11 +598,7 @@ export function PostDetailDialog({
                               autoFocus
                             />
                             <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={onEditComment}
-                                disabled={!editCommentContent.trim() || savingCommentEdit}
-                              >
+                              <Button size="sm" onClick={onEditComment} disabled={!editCommentContent.trim() || savingCommentEdit}>
                                 {savingCommentEdit && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
                                 บันทึก
                               </Button>
@@ -640,41 +617,25 @@ export function PostDetailDialog({
                                 <Badge className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0 mr-1">✓</Badge>
                               )}
                               {isBuyerUser(comment.artist_profile) && (
-                                <Badge className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0 mr-2">
-                                  Buyer
-                                </Badge>
+                                <Badge className="h-4 px-1.5 text-[10px] bg-sky-500 text-white border-0 mr-2">Buyer</Badge>
                               )}
                               {renderTextWithMentions(comment.content)}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs text-muted-foreground">{formatTimeAgo(comment.created_at)}</span>
                               {user && (
-                                <button
-                                  onClick={() => onStartReply(comment)}
-                                  className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                                >
+                                <button onClick={() => onStartReply(comment)} className="text-xs text-muted-foreground hover:text-foreground font-medium">
                                   ตอบกลับ
                                 </button>
                               )}
                               {user && user.id === comment.user_id && (
-                                <button
-                                  onClick={() => onStartEditComment(comment)}
-                                  className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
+                                <button onClick={() => onStartEditComment(comment)} className="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                                   แก้ไข
                                 </button>
                               )}
                               {user && (user.id === comment.user_id || user.id === post.user_id) && (
-                                <button
-                                  onClick={() => onDeleteComment(comment.id)}
-                                  disabled={deletingCommentId === comment.id}
-                                  className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  {deletingCommentId === comment.id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin inline" />
-                                  ) : (
-                                    "ลบ"
-                                  )}
+                                <button onClick={() => onDeleteComment(comment.id)} disabled={deletingCommentId === comment.id} className="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin inline" /> : "ลบ"}
                                 </button>
                               )}
                             </div>
@@ -717,27 +678,15 @@ export function PostDetailDialog({
                                       {getDisplayName(reply.user_profile, reply.artist_profile)}
                                     </span>
                                     {reply.artist_profile?.is_verified && (
-                                      <Badge className="h-3 px-1 text-[8px] bg-blue-500 text-white border-0 mr-1">
-                                        ✓
-                                      </Badge>
+                                      <Badge className="h-3 px-1 text-[8px] bg-blue-500 text-white border-0 mr-1">✓</Badge>
                                     )}
                                     <span className="text-xs">{renderTextWithMentions(reply.content)}</span>
                                   </p>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {formatTimeAgo(reply.created_at)}
-                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">{formatTimeAgo(reply.created_at)}</span>
                                     {user && (user.id === reply.user_id || user.id === post.user_id) && (
-                                      <button
-                                        onClick={() => onDeleteComment(reply.id)}
-                                        disabled={deletingCommentId === reply.id}
-                                        className="text-[10px] text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        {deletingCommentId === reply.id ? (
-                                          <Loader2 className="h-2 w-2 animate-spin inline" />
-                                        ) : (
-                                          "ลบ"
-                                        )}
+                                      <button onClick={() => onDeleteComment(reply.id)} disabled={deletingCommentId === reply.id} className="text-[10px] text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {deletingCommentId === reply.id ? <Loader2 className="h-2 w-2 animate-spin inline" /> : "ลบ"}
                                       </button>
                                     )}
                                   </div>
@@ -770,7 +719,7 @@ export function PostDetailDialog({
                             value={replyContent}
                             onChange={(e) => onReplyContentChange(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey && replyContent.trim() && !submittingReply) {
+                              if (e.key === 'Enter' && !e.shiftKey && replyContent.trim() && !submittingReply) {
                                 e.preventDefault();
                                 onSubmitReply(comment);
                               }
@@ -780,18 +729,8 @@ export function PostDetailDialog({
                             autoFocus
                             disabled={submittingReply}
                           />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => onSubmitReply(comment)}
-                            disabled={!replyContent.trim() || submittingReply}
-                          >
-                            {submittingReply ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Send className="h-4 w-4" />
-                            )}
+                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => onSubmitReply(comment)} disabled={!replyContent.trim() || submittingReply}>
+                            {submittingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           </Button>
                         </div>
                       </div>
