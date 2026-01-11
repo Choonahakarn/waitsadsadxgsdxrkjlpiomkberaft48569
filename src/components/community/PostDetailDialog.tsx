@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, MessageCircle, Send, X, Loader2, 
   Share2, Bookmark, MoreHorizontal, Repeat2, Link2,
@@ -169,19 +168,7 @@ export function PostDetailDialog({
   onToggleReplies,
 }: PostDetailDialogProps) {
   const { toast } = useToast();
-  const [imgAspect, setImgAspect] = useState<'normal' | 'tall'>('normal');
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-
-  useEffect(() => {
-    if (post?.image_url) {
-      const img = new Image();
-      img.onload = () => {
-        // If height is more than 1.5x width, it's a tall image (Pixiv style)
-        setImgAspect(img.height > img.width * 1.5 ? 'tall' : 'normal');
-      };
-      img.src = post.image_url;
-    }
-  }, [post?.image_url]);
 
   if (!post) return null;
 
@@ -210,149 +197,6 @@ export function PostDetailDialog({
     window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, '_blank');
   };
 
-  // Pixiv-style layout for very tall images
-  if (imgAspect === 'tall') {
-    return (
-      <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden bg-transparent border-0 rounded-none [&>button]:hidden">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* Semi-transparent dark overlay with blur */}
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 left-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-
-            {/* Main Image - Clickable for full-screen zoom */}
-            <div 
-              className="relative z-10 w-full h-full overflow-y-auto flex justify-center cursor-zoom-in"
-              onClick={() => setIsImageViewerOpen(true)}
-            >
-              <OptimizedImage
-                src={post.image_url}
-                variants={{
-                  blur: post.image_blur_url || undefined,
-                  small: post.image_small_url || undefined,
-                  medium: post.image_medium_url || undefined,
-                  large: post.image_large_url || undefined,
-                }}
-                alt={post.title}
-                variant="fullscreen"
-                className="w-auto max-w-full"
-                priority
-              />
-              {/* Zoom hint */}
-              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white/80 text-sm opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-                <ZoomIn className="h-4 w-4" />
-                <span>คลิกเพื่อซูม</span>
-              </div>
-            </div>
-
-            {/* Full-screen Image Viewer for zoom */}
-            <ImageViewer
-              isOpen={isImageViewerOpen}
-              onClose={() => setIsImageViewerOpen(false)}
-              imageUrl={post.image_url}
-              variants={{
-                blur: post.image_blur_url || undefined,
-                small: post.image_small_url || undefined,
-                medium: post.image_medium_url || undefined,
-                large: post.image_large_url || undefined,
-              }}
-              alt={post.title}
-              imageAssetId={post.image_asset_id || undefined}
-              title={post.title}
-              artist={getDisplayName(post.user_profile, post.artist_profile)}
-            />
-
-            {/* Bottom Action Bar - Pixiv Style */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6">
-              <div className="max-w-4xl mx-auto">
-                {/* Title */}
-                <h2 className="text-white text-xl font-bold mb-2">{post.title}</h2>
-                
-                {/* Artist */}
-                <Link 
-                  to={`/profile/${post.user_id}`}
-                  onClick={onClose}
-                  className="flex items-center gap-2 mb-4 hover:opacity-80"
-                >
-                  <Avatar className="h-8 w-8 border border-white/30">
-                    <AvatarImage src={post.user_profile?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {getDisplayName(post.user_profile, post.artist_profile)[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-white/90 text-sm font-medium">
-                    {getDisplayName(post.user_profile, post.artist_profile)}
-                  </span>
-                  {post.artist_profile?.is_verified && (
-                    <Badge className="h-4 px-1 text-[10px] bg-blue-500 text-white border-0">✓</Badge>
-                  )}
-                </Link>
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {/* Like */}
-                    <button
-                      onClick={(e) => onLike(post.id, post.is_liked || false, e)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    >
-                      <Heart className={`h-5 w-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
-                      <span>{post.likes_count}</span>
-                    </button>
-                    
-                    {/* Comment */}
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/80">
-                      <MessageCircle className="h-5 w-5" />
-                      <span>{post.comments_count || 0}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Save */}
-                    <button
-                      onClick={() => isSaved ? onUnsavePost(post.original_post_id || post.id) : onSavePost(post.original_post_id || post.id)}
-                      className={`p-2 rounded-full transition-colors ${isSaved ? 'bg-primary text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-                    >
-                      <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
-                    </button>
-
-                    {/* Share */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-                          <Share2 className="h-5 w-5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={handleShareFacebook}>Facebook</DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleShareTwitter}>X (Twitter)</DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleShareLine}>LINE</DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleCopyLink}>คัดลอกลิงก์</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* More */}
-                    <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // Cara-style layout for normal/wide images
   return (
     <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] p-0 overflow-hidden gap-0 border-0 rounded-none bg-transparent [&>button]:hidden">
@@ -365,28 +209,29 @@ export function PostDetailDialog({
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Section - Center - Clickable for full-screen zoom */}
-          <div 
-            className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative cursor-zoom-in group"
-            onClick={() => setIsImageViewerOpen(true)}
-          >
-            {/* Semi-transparent dark overlay */}
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            <OptimizedImage
-              src={post.image_url}
-              variants={{
-                blur: post.image_blur_url || undefined,
-                small: post.image_small_url || undefined,
-                medium: post.image_medium_url || undefined,
-                large: post.image_large_url || undefined,
-              }}
-              alt={post.title}
-              variant="fullscreen"
-              className="relative z-10 max-h-full max-w-full"
-              priority
-            />
+          {/* Image Section - Center - Scrollable and Clickable for full-screen zoom */}
+          <div className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-y-auto overflow-x-hidden relative group bg-black/80">
+            {/* Image wrapper - clickable for zoom */}
+            <div 
+              className="relative z-10 w-full h-auto flex justify-center py-4 cursor-zoom-in"
+              onClick={() => setIsImageViewerOpen(true)}
+            >
+              <OptimizedImage
+                src={post.image_url}
+                variants={{
+                  blur: post.image_blur_url || undefined,
+                  small: post.image_small_url || undefined,
+                  medium: post.image_medium_url || undefined,
+                  large: post.image_large_url || undefined,
+                }}
+                alt={post.title}
+                variant="fullscreen"
+                className="max-w-full h-auto object-contain"
+                priority
+              />
+            </div>
             {/* Zoom hint on hover */}
-            <div className="absolute z-20 bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute z-20 bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
               <ZoomIn className="h-4 w-4" />
               <span>คลิกเพื่อซูม</span>
             </div>
@@ -730,49 +575,4 @@ export function PostDetailDialog({
                             disabled={submittingReply}
                           />
                           <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => onSubmitReply(comment)} disabled={!replyContent.trim() || submittingReply}>
-                            {submittingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Comment Input */}
-            {user && (
-              <div className="p-4 border-t border-border shrink-0">
-                <div className="flex gap-2 items-center">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {(user?.user_metadata?.full_name || user?.email || "U")[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <MentionInput
-                      value={newComment}
-                      onChange={onNewCommentChange}
-                      placeholder="เขียนความคิดเห็น... พิมพ์ @ เพื่อแท็กผู้ใช้"
-                      rows={1}
-                      className="min-h-[40px] resize-none rounded-full"
-                    />
-                  </div>
-                  <Button
-                    size="icon"
-                    className="shrink-0 rounded-full"
-                    onClick={onSubmitComment}
-                    disabled={!newComment.trim() || submittingComment}
-                  >
-                    {submittingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+                            {submittingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4"
