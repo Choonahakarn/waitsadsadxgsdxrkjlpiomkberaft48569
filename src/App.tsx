@@ -40,7 +40,18 @@ import EditUserProfile from "./pages/EditUserProfile";
 import VerifyEmail from "./pages/VerifyEmail";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// ✅ Configure React Query with caching for better performance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes - cache data for 10 minutes (formerly cacheTime)
+      refetchOnWindowFocus: false, // Don't refetch on window focus for better UX
+      refetchOnMount: false, // Use cached data on mount if available
+      retry: 1, // Only retry once on failure
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
