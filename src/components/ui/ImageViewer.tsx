@@ -1,21 +1,19 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ZoomIn, ZoomOut, Download, Loader2, Maximize2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from './button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import OptimizedImage from './OptimizedImage';
 
 // =============================================
-// PROFESSIONAL IMAGE VIEWER WITH ZOOM
+// PIXIV-STYLE IMAGE VIEWER
 // =============================================
 // Full-screen viewer with:
-// - VIEW_IMAGE (2400px) on open
-// - ORIGINAL via signed URL on zoom
-// - Pan and zoom controls
-// - Smooth transitions
-// - Keyboard shortcuts
+// - Scrollable container for tall images
+// - object-fit: contain (no cropping)
+// - Letterbox padding for aspect ratio
+// - Original image via signed URL
+// - Smooth fade-in/zoom-in animation
 // =============================================
 
 interface ImageViewerProps {
@@ -34,8 +32,6 @@ interface ImageViewerProps {
   artist?: string;
 }
 
-type ZoomLevel = 'fit' | 'zoom' | 'original';
-
 const ImageViewer: React.FC<ImageViewerProps> = ({
   isOpen,
   onClose,
@@ -46,28 +42,15 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   title,
   artist,
 }) => {
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('fit');
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [isLoadingOriginal, setIsLoadingOriginal] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-  // Get current image URL based on zoom level
-  const getCurrentImageUrl = useCallback(() => {
-    switch (zoomLevel) {
-      case 'original':
-        return originalUrl || variants?.large || imageUrl;
-      case 'zoom':
-        return variants?.large || imageUrl;
-      case 'fit':
-      default:
-        return variants?.large || variants?.medium || imageUrl;
-    }
-  }, [zoomLevel, originalUrl, variants, imageUrl]);
+  // Get the best available image URL (prefer large/original)
+  const getDisplayUrl = useCallback(() => {
+    if (originalUrl) return originalUrl;
+    return variants?.large || imageUrl;
+  }, [originalUrl, variants, imageUrl]);
 
   // Fetch signed URL for original image
   const fetchOriginalImage = useCallback(async () => {
@@ -77,7 +60,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error('Please login to view original image');
+        // Fall back to large variant if not logged in
         return;
       }
 
@@ -97,123 +80,40 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       
       if (data.success && data.signedUrl) {
         setOriginalUrl(data.signedUrl);
-        setZoomLevel('original');
-        setScale(1.5);
-        toast.success('Loading original quality image');
-      } else {
-        throw new Error(data.error || 'Failed to get original image');
       }
     } catch (error) {
       console.error('Failed to fetch original:', error);
-      toast.error('Failed to load original image');
     } finally {
       setIsLoadingOriginal(false);
     }
   }, [imageAssetId, originalUrl]);
 
-  // Handle zoom controls
-  const handleZoomIn = useCallback(() => {
-    if (zoomLevel === 'fit') {
-      setZoomLevel('zoom');
-      setScale(1.5);
-    } else if (zoomLevel === 'zoom' && imageAssetId) {
+  // Auto-fetch original when opened
+  useEffect(() => {
+    if (isOpen && imageAssetId && !originalUrl) {
       fetchOriginalImage();
-    } else {
-      setScale(prev => Math.min(prev * 1.5, 4));
     }
-  }, [zoomLevel, imageAssetId, fetchOriginalImage]);
-
-  const handleZoomOut = useCallback(() => {
-    if (scale > 1) {
-      const newScale = scale / 1.5;
-      if (newScale <= 1) {
-        setScale(1);
-        setZoomLevel('fit');
-        setPosition({ x: 0, y: 0 });
-      } else {
-        setScale(newScale);
-      }
-    }
-  }, [scale]);
-
-  const handleFitToScreen = useCallback(() => {
-    setZoomLevel('fit');
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-  }, []);
-
-  // Handle mouse drag for panning
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (scale > 1) {
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-    }
-  }, [scale, position]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging && scale > 1) {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    }
-  }, [isDragging, dragStart, scale]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  // Handle wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.min(Math.max(scale * delta, 0.5), 4);
-    
-    if (newScale < 1) {
-      setScale(1);
-      setZoomLevel('fit');
-      setPosition({ x: 0, y: 0 });
-    } else {
-      setScale(newScale);
-      if (newScale > 1 && zoomLevel === 'fit') {
-        setZoomLevel('zoom');
-      }
-    }
-  }, [scale, zoomLevel]);
+  }, [isOpen, imageAssetId, originalUrl, fetchOriginalImage]);
 
   // Keyboard shortcuts
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape':
-          onClose();
-          break;
-        case '+':
-        case '=':
-          handleZoomIn();
-          break;
-        case '-':
-          handleZoomOut();
-          break;
-        case '0':
-          handleFitToScreen();
-          break;
+      if (e.key === 'Escape') {
+        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, handleZoomIn, handleZoomOut, handleFitToScreen]);
+  }, [isOpen, onClose]);
 
   // Reset state when closing
   useEffect(() => {
     if (!isOpen) {
-      setZoomLevel('fit');
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
       setOriginalUrl(null);
+      setImageLoaded(false);
     }
   }, [isOpen]);
 
@@ -237,165 +137,108 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 bg-black/95"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) onClose();
-          }}
+          className="fixed inset-0 z-50 bg-black"
         >
-          {/* Header */}
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent"
+          {/* Close button - top left */}
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1, duration: 0.2 }}
+            onClick={onClose}
+            className="fixed top-4 left-4 z-50 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            aria-label="Close"
           >
-            <div className="text-white">
-              {title && <h2 className="text-lg font-semibold">{title}</h2>}
-              {artist && <p className="text-sm text-white/70">{artist}</p>}
-            </div>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={onClose}
-            >
-              <X className="h-6 w-6" />
-            </Button>
-          </motion.div>
+            <X className="h-6 w-6" />
+          </motion.button>
 
-          {/* Image Container */}
+          {/* Title and artist info */}
+          {(title || artist) && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.3 }}
+              className="fixed top-4 left-16 right-4 z-40 pointer-events-none"
+            >
+              <div className="text-white drop-shadow-lg">
+                {title && <h2 className="text-lg font-semibold truncate">{title}</h2>}
+                {artist && <p className="text-sm text-white/70 truncate">{artist}</p>}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Loading indicator for original image */}
+          {isLoadingOriginal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-full bg-black/50 text-white text-sm"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading original...</span>
+            </motion.div>
+          )}
+
+          {/* Scrollable image container */}
           <div
-            ref={containerRef}
-            className={cn(
-              "absolute inset-0 flex items-center justify-center overflow-hidden",
-              scale > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
-            )}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
+            className="absolute inset-0 overflow-auto"
             onClick={(e) => {
-              if (!isDragging && scale === 1) {
-                handleZoomIn();
-              }
+              if (e.target === e.currentTarget) onClose();
             }}
           >
-            <motion.div
-              animate={{
-                scale,
-                x: position.x,
-                y: position.y,
-              }}
-              transition={{
-                type: 'spring',
-                stiffness: 300,
-                damping: 30,
-              }}
-              className="relative max-w-full max-h-full"
-            >
-              {/* Blur placeholder */}
-              {variants?.blur && (
+            {/* Centered content wrapper with padding */}
+            <div className="min-h-full flex items-center justify-center p-4 sm:p-8">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ 
+                  opacity: imageLoaded ? 1 : 0.5, 
+                  scale: 1 
+                }}
+                transition={{ 
+                  duration: 0.3,
+                  ease: [0.4, 0, 0.2, 1]
+                }}
+                className="relative max-w-full"
+              >
+                {/* Blur placeholder while loading */}
+                {!imageLoaded && variants?.blur && (
+                  <img
+                    src={variants.blur}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain blur-xl scale-105 opacity-60"
+                    aria-hidden="true"
+                  />
+                )}
+                
+                {/* Main image - preserves aspect ratio, no cropping */}
                 <img
-                  src={variants.blur}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-contain blur-xl scale-110 opacity-50"
+                  src={getDisplayUrl()}
+                  alt={alt}
+                  className={cn(
+                    "relative max-w-full w-auto h-auto object-contain transition-opacity duration-300",
+                    imageLoaded ? "opacity-100" : "opacity-0"
+                  )}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 'none', // Allow full height, scrollable
+                  }}
+                  draggable={false}
+                  onLoad={() => setImageLoaded(true)}
+                  onError={() => setImageLoaded(true)}
                 />
-              )}
-              
-              {/* Main image */}
-              <img
-                ref={imageRef}
-                src={getCurrentImageUrl()}
-                alt={alt}
-                className="relative max-w-[90vw] max-h-[85vh] object-contain"
-                draggable={false}
-              />
-            </motion.div>
+              </motion.div>
+            </div>
           </div>
 
-          {/* Controls */}
+          {/* Click anywhere hint */}
           <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-2 p-4 bg-gradient-to-t from-black/60 to-transparent"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.3 }}
+            exit={{ opacity: 0 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
           >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={handleZoomOut}
-              disabled={scale <= 1}
-            >
-              <ZoomOut className="h-5 w-5" />
-            </Button>
-
-            <div className="px-3 py-1 rounded-full bg-white/10 text-white text-sm min-w-[80px] text-center">
-              {Math.round(scale * 100)}%
-            </div>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={handleZoomIn}
-              disabled={isLoadingOriginal}
-            >
-              {isLoadingOriginal ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <ZoomIn className="h-5 w-5" />
-              )}
-            </Button>
-
-            <div className="w-px h-6 bg-white/20 mx-2" />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={handleFitToScreen}
-            >
-              <Maximize2 className="h-5 w-5" />
-            </Button>
-
-            {imageAssetId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "text-white hover:bg-white/10 gap-2",
-                  zoomLevel === 'original' && "bg-primary/20"
-                )}
-                onClick={fetchOriginalImage}
-                disabled={isLoadingOriginal || !!originalUrl}
-              >
-                {isLoadingOriginal ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : zoomLevel === 'original' ? (
-                  'Original Quality'
-                ) : (
-                  'View Original'
-                )}
-              </Button>
-            )}
+            <span className="text-white/50 text-sm">Click outside or press ESC to close</span>
           </motion.div>
-
-          {/* Zoom level indicator */}
-          <AnimatePresence>
-            {zoomLevel !== 'fit' && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute top-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/50 text-white text-sm"
-              >
-                {zoomLevel === 'original' ? 'Original Quality • Scroll to zoom' : 'Press - to zoom out'}
-              </motion.div>
-            )}
-          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
