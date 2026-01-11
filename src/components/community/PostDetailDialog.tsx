@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, MessageCircle, Send, X, Loader2, 
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MentionInput, renderTextWithMentions } from "@/components/ui/MentionInput";
 import OptimizedImage from "@/components/ui/OptimizedImage";
 import ImageViewer from "@/components/ui/ImageViewer";
+import JustifiedGrid, { JustifiedItem } from "@/components/ui/JustifiedGrid";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,6 +175,7 @@ export function PostDetailDialog({
   onLikeComment,
 }: PostDetailDialogProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [imgAspect, setImgAspect] = useState<'normal' | 'tall'>('normal');
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   // Zoom states: 0 = normal, 1 = fit to screen, 2 = 1:1 (original size)
@@ -804,24 +806,21 @@ export function PostDetailDialog({
                         <Loader2 className="h-4 w-4 animate-spin text-white/60" />
                       </div>
                     ) : ownerArtworks.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {ownerArtworks.map((artwork) => (
-                          <Link
-                            key={artwork.id}
-                            to={`/artwork/${artwork.id}`}
-                            onClick={onClose}
-                            className="relative aspect-square overflow-hidden rounded-lg bg-neutral-800 hover:opacity-80 transition-opacity group"
-                          >
-                            <img
-                              src={artwork.image_url}
-                              alt={artwork.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                          </Link>
-                        ))}
-                      </div>
+                      <JustifiedGrid
+                        items={ownerArtworks.map((artwork): JustifiedItem => ({
+                          id: artwork.id,
+                          imageUrl: artwork.image_url,
+                          alt: artwork.title,
+                        }))}
+                        onItemClick={(item) => {
+                          navigate(`/artwork/${item.id}`);
+                          onClose();
+                        }}
+                        targetRowHeight={120}
+                        gap={2}
+                        maxRowHeight={200}
+                        minRowHeight={80}
+                      />
                     ) : (
                       <p className="text-white/50 text-xs py-2">ยังไม่มีผลงานใน Portfolio</p>
                     )}

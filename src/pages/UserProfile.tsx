@@ -21,7 +21,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ProfileTagFilter } from "@/components/profile/ProfileTagFilter";
 import { supabase } from "@/integrations/supabase/client";
 import OptimizedImage from "@/components/ui/OptimizedImage";
-import MasonryGrid, { MasonryItem } from "@/components/ui/MasonryGrid";
+import JustifiedGrid, { JustifiedItem } from "@/components/ui/JustifiedGrid";
 
 interface UserProfileData {
   id: string;
@@ -1427,7 +1427,7 @@ export default function UserProfile() {
               )}
             </TabsList>
 
-            {/* Portfolio Tab - Masonry Grid (Pinterest/Cara style) */}
+            {/* Portfolio Tab - Justified Grid (Google Photos style) */}
             <TabsContent value="portfolio">
               <AnimatePresence mode="wait">
                 {artworks.length > 0 ? (
@@ -1437,13 +1437,12 @@ export default function UserProfile() {
                     exit={{ opacity: 0 }}
                     className="w-full"
                   >
-                    <MasonryGrid
-                      items={artworks.map((artwork): MasonryItem => ({
+                    <JustifiedGrid
+                      items={artworks.map((artwork): JustifiedItem => ({
                         id: artwork.id,
                         imageUrl: artwork.image_url,
                         alt: artwork.title,
-                        // Let MasonryGrid calculate aspect ratio from image dimensions
-                        // or use default if not available
+                        // JustifiedGrid will calculate aspect ratio from image dimensions
                       }))}
                       onItemClick={(item) => {
                         navigate(`/artwork/${item.id}`);
@@ -1467,10 +1466,10 @@ export default function UserProfile() {
                           </div>
                         );
                       }}
-                      columnWidth={{ desktop: 260, tablet: 240 }}
-                      gap={16}
-                      minAspectRatio={1} // 1:1 square minimum
-                      maxAspectRatio={0.8} // 4:5 portrait maximum (like Cara/Pixiv)
+                      targetRowHeight={250}
+                      gap={2}
+                      maxRowHeight={400}
+                      minRowHeight={150}
                     />
                   </motion.div>
                 ) : (
@@ -2107,28 +2106,21 @@ export default function UserProfile() {
               {artistProfile && profileArtworks.length > 0 && (
                 <div className="p-4 border-b">
                   <h3 className="text-sm font-semibold mb-3">Portfolio</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {profileArtworks.map((artwork) => (
-                      <Link
-                        key={artwork.id}
-                        to={`/artwork/${artwork.id}`}
-                        onClick={() => setSelectedPost(null)}
-                        className="relative aspect-square overflow-hidden rounded-lg bg-muted hover:opacity-80 transition-opacity group"
-                      >
-                        <img
-                          src={artwork.image_url}
-                          alt={artwork.title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            console.error('Error loading artwork image:', artwork.image_url);
-                            (e.target as HTMLImageElement).src = '/placeholder.svg';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                      </Link>
-                    ))}
-                  </div>
+                  <JustifiedGrid
+                    items={profileArtworks.map((artwork): JustifiedItem => ({
+                      id: artwork.id,
+                      imageUrl: artwork.image_url,
+                      alt: artwork.title,
+                    }))}
+                    onItemClick={(item) => {
+                      navigate(`/artwork/${item.id}`);
+                      setSelectedPost(null);
+                    }}
+                    targetRowHeight={120}
+                    gap={2}
+                    maxRowHeight={200}
+                    minRowHeight={80}
+                  />
                 </div>
               )}
               {/* Debug info - remove after testing */}
