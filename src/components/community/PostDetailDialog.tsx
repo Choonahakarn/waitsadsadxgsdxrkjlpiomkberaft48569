@@ -227,9 +227,9 @@ export function PostDetailDialog({
               <X className="h-6 w-6" />
             </button>
 
-            {/* Main Image - Clickable for full-screen zoom */}
+          {/* Main Image - Clickable for full-screen zoom */}
             <div 
-              className="relative z-10 w-full h-full overflow-y-auto flex justify-center cursor-zoom-in"
+              className="relative z-10 w-full h-full overflow-y-auto flex justify-center items-start py-4 cursor-zoom-in"
               onClick={() => setIsImageViewerOpen(true)}
             >
               <OptimizedImage
@@ -242,7 +242,7 @@ export function PostDetailDialog({
                 }}
                 alt={post.title}
                 variant="fullscreen"
-                className="w-auto max-w-full"
+                className="w-auto max-w-[95vw] h-auto"
                 priority
               />
               {/* Zoom hint */}
@@ -367,7 +367,7 @@ export function PostDetailDialog({
 
           {/* Image Section - Center - Clickable for full-screen zoom */}
           <div 
-            className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-hidden relative cursor-zoom-in group"
+            className="flex-1 flex items-center justify-center min-h-[40vh] lg:min-h-0 lg:h-full overflow-auto relative cursor-zoom-in group"
             onClick={() => setIsImageViewerOpen(true)}
           >
             {/* Semi-transparent dark overlay */}
@@ -382,7 +382,7 @@ export function PostDetailDialog({
               }}
               alt={post.title}
               variant="fullscreen"
-              className="relative z-10 max-h-full max-w-full"
+              className="relative z-10 w-auto h-auto max-w-full object-contain"
               priority
             />
             {/* Zoom hint on hover */}
