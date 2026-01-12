@@ -54,8 +54,8 @@ interface CommunityPost {
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
-    display_name: string | null;
-    display_id: string | null;
+    display_name?: string | null;
+    display_id?: string | null;
   };
   artist_profile?: {
     artist_name: string;
@@ -89,11 +89,12 @@ interface Comment {
   user_id: string;
   content: string;
   created_at: string;
-  parent_id: string | null;
+  parent_id?: string | null;
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
-    display_name: string | null;
+    display_name?: string | null;
+    display_id?: string | null;
   };
   artist_profile?: {
     artist_name: string;
@@ -2435,7 +2436,7 @@ export default function Community() {
 
   // Get display name based on user type (artist uses artist_name, buyer uses display_name or full_name)
   const getDisplayName = (
-    userProfile?: { full_name: string | null; display_name: string | null } | null,
+    userProfile?: { full_name: string | null; display_name?: string | null } | null,
     artistProfile?: { artist_name: string; is_verified: boolean } | null
   ) => {
     if (artistProfile?.artist_name) {

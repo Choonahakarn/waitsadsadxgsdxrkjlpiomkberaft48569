@@ -45,7 +45,7 @@ interface JustifiedGridProps<T extends JustifiedItem> {
   };
 }
 
-interface Row {
+interface Row<T extends JustifiedItem> {
   items: (T & { calculatedWidth: number; calculatedHeight: number })[];
   height: number;
 }
@@ -68,7 +68,7 @@ function JustifiedGrid<T extends JustifiedItem>({
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [imageAspectRatios, setImageAspectRatios] = useState<Map<string, number>>(new Map());
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row<T>[]>([]);
 
   // Observe container resize
   useEffect(() => {
@@ -103,7 +103,7 @@ function JustifiedGrid<T extends JustifiedItem>({
 
     const availableWidth = containerWidth;
     const itemSize = getFixedSize();
-    const calculatedRows: Row[] = [];
+    const calculatedRows: Row<T>[] = [];
     let currentRow: (T & { calculatedWidth: number; calculatedHeight: number })[] = [];
 
     // Calculate how many items can fit in a row

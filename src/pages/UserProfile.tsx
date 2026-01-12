@@ -58,6 +58,7 @@ interface Artwork {
   image_url: string;
   price: number;
   is_sold: boolean;
+  post_id?: string | null;
 }
 
 interface CommunityPost {
@@ -78,16 +79,17 @@ interface CommunityPost {
   shares_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
-  user_id?: string;
+  user_id: string;
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
     display_id?: string | null;
     display_name?: string | null;
-  };
+  } | null;
   artist_profile?: {
     artist_name: string;
     is_verified: boolean;
+    avatar_url?: string | null;
   };
 }
 
@@ -97,11 +99,12 @@ interface Comment {
   user_id: string;
   content: string;
   created_at: string;
+  parent_id?: string | null;
   user_profile?: {
     full_name: string | null;
     avatar_url: string | null;
-    display_name: string | null;
-  };
+    display_name?: string | null;
+  } | null;
   artist_profile?: {
     artist_name: string;
     is_verified: boolean;
@@ -249,7 +252,7 @@ const normalizeCoverUrl = (coverUrl: string | null | undefined): string | undefi
 
 // Get display name based on user type (artist uses artist_name, buyer uses display_name or full_name)
 const getDisplayName = (
-  userProfile?: { full_name: string | null; display_name: string | null } | null,
+  userProfile?: { full_name: string | null; display_name?: string | null } | null,
   artistProfile?: { artist_name: string; is_verified: boolean } | null
 ) => {
   // ถ้าเป็นศิลปิน ให้แสดงเฉพาะชื่อศิลปินเท่านั้น ไม่แสดงชื่อผู้ซื้อ
